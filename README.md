@@ -116,39 +116,70 @@ everything built on top is safe by construction. Each milestone ends at somethin
 
 ## Status
 
-🚧 **Pre-implementation.** The specification is complete; the .NET solution has not been scaffolded yet.
+✅ **M0–M8 implemented** on .NET 10 — the whole milestone ladder is built and verified headlessly via
+`ada selftest` plus 55 unit tests. The GUI shell (tray + WebView2) and live voice need an interactive
+Windows desktop session to exercise fully; everything else is verified in this repo's history.
 
-**Verified**
+| Milestone | What landed |
+| --- | --- |
+| **M0** Skeleton | Tray + global hotkey + frameless WebView2 window + loopback Kestrel + streaming echo |
+| **M1** Local model | Agent Framework `ChatClientAgent` over a local OpenAI-compatible model; persona; route badge |
+| **M2** Safety floor | fs/shell tools, four-tier approval gate, scoping + denylist, audit log, **Wasm Zone-1 sandbox** |
+| **M3** Providers + router | Provider catalog, `ada auth`, DPAPI vault, hybrid router (escalate on task shape), egress logging |
+| **M4** Memory | File memory + `MEMORY.md` index, **SQLite FTS5** recall, remember/recall/forget, compaction |
+| **M5** Skills + MCP | `ISkill` compose, Research/Desktop skills, gated MCP mounts, **Docker Zone-2 sandbox** |
+| **M6** Voice | Voxa pipeline (Silero VAD / WhisperCpp / Piper), Voice Mode orb, push-to-talk |
+| **M7** Automations | NL→cron jobs, Windows Task Scheduler headless wake + catch-up, read-only-by-default, kill switch |
+| **M8** Ship | Profiles, settings + first-run wizard, autostart, MSIX scaffolding, user guide |
 
-- Microsoft Agent Framework C# surface (`AIAgent`, `ChatClientAgent`, `IChatClient`, `AgentSession`, approvals, compaction).
-- Voxa .NET 10 host API (`AddVoxa`, `MapVoxaVoice`, `UseDefaults`), local speech tier, WSS transport + barge-in.
-- A Zone-1 in-process Wasm sandbox spike (`wasmtime-dotnet`, .NET 10, no Docker/Hyper-V): capability isolation, fuel runaway-trap, and memory cap enforced; real TS/JS and stdlib-Python ran.
+### Build, test, verify
 
-**Next**
+```sh
+dotnet build Ada.slnx
+dotnet test  Ada.slnx                            # 55 unit tests
+dotnet run --project src/Ada.Cli -- selftest     # cumulative M0–M8 acceptance checks
+dotnet run --project src/Ada.App                 # the desktop app (tray + window + voice)
+```
 
-- Scaffold `Ada.sln`, the project layout, and central package pinning.
-- Pin exact Agent Framework, Voxa, MCP, model-provider, and Windows packaging versions.
-- Build M0 → M2 (skeleton → local agent → the approval/scoping safety floor).
+A real local model is optional: set `ADA_PROVIDER=openai-compatible ADA_ENDPOINT=http://localhost:11434/v1
+ADA_MODEL=<model>` (Ollama/LM Studio/Foundry Local), or connect a provider in the first-run wizard. With
+nothing configured Ada still runs locally on a built-in echo brain — degraded, never broken.
+
+### The `ada` CLI (test harness + management)
+
+```
+ada chat <message>            talk to the configured engine
+ada serve [--port N]          run the loopback web UI
+ada selftest                  cumulative headless acceptance checks
+ada auth login <id> --key ..  connect a provider (key stored in the OS vault)
+ada providers | route <msg>   inspect the catalog and routing
+ada memory  list | recall | remember | forget
+ada skills  list | enable | disable
+ada mcp <command> [args]      mount a stdio MCP server and list its tools
+ada jobs    list | add | remove | pause | resume | install | uninstall
+ada run-due                   run due jobs now (what the scheduled task invokes)
+ada config [profile|autostart] · ada doctor
+```
+
+See **[docs/USERGUIDE.md](docs/USERGUIDE.md)** for the end-user guide.
 
 ---
 
-## Repository layout (planned)
+## Repository layout
 
 ```
 Ada-Voice-Agent/
-├─ docs/
-│  └─ ada-agent-spec.html     # the full build specification
+├─ docs/         ada-agent-spec.html (the spec) · USERGUIDE.md
+├─ packaging/    AppxManifest.xml + make-msix.ps1 (MSIX installer scaffolding)
 ├─ src/
-│  ├─ Ada.App/                # net10.0-windows — tray host + WebView2 shell (exe)
-│  ├─ Ada.Core/               # net10.0 — agent, harness, router, memory, skills, sub-agents, audit
-│  ├─ Ada.Tools/              # net10.0 — shell, fs, web, clipboard, screenshot, scheduler
-│  ├─ Ada.Mcp/                # net10.0 — MCP client mounts
-│  ├─ Ada.Voice/              # net10.0 — in-proc ASP.NET Core + Voxa hosting
-│  └─ Ada.Web/                # WebView2 UI assets (chat + settings)
-├─ spikes/                    # proving grounds (e.g. the Wasm sandbox spike)
-├─ tests/
-├─ LICENSE                    # MIT
-└─ README.md
+│  ├─ Ada.Core/   agent, harness (approvals/scope/audit/sandbox seam), hybrid router, memory,
+│  │              skills, MCP mounter, automations, config — the whole brain, host-agnostic
+│  ├─ Ada.Tools/  fs/shell/web tools, Wasm + Docker sandboxes, skills, schedule tools
+│  ├─ Ada.Voice/  Voxa voice pipeline host
+│  ├─ Ada.Server/ loopback Kestrel + the WebView2 UI assets (wwwroot)
+│  ├─ Ada.App/    net10.0-windows tray + WebView2 shell (the product exe)
+│  └─ Ada.Cli/    the `ada` test harness / management CLI
+└─ tests/        Ada.Core.Tests · Ada.Tools.Tests
 ```
 
 ## Non-goals for v1

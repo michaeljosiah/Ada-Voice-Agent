@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX manifest for Ada (desktop-bridge / full-trust WinForms app).
+  Build with packaging/make-msix.ps1 (needs the Windows SDK: makeappx + signtool).
+  Provide PNG assets under Assets\ (Square44x44Logo, Square150x150Logo, StoreLogo) before packing.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity Name="MichaelJosiah.Ada" Publisher="CN=Michael Josiah" Version="0.1.0.0" ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Ada</DisplayName>
+    <PublisherDisplayName>Michael Josiah</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>Ada — your local, private personal agent. On your machine. In your voice. Under your control.</Description>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="Ada" Executable="Ada.App.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Ada"
+        Description="Your local personal agent"
+        BackgroundColor="#1F5040"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile ShortName="Ada" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <Capability Name="internetClient" />
+    <DeviceCapability Name="microphone" />
+  </Capabilities>
+</Package>

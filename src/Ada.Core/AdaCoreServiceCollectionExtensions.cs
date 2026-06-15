@@ -19,6 +19,7 @@ public static class AdaCoreServiceCollectionExtensions
         services.AddSingleton(_ => Persona.Load());
         services.TryAddSingleton<ICredentialVault>(_ => new DpapiCredentialVault());
         services.TryAddSingleton(_ => new ProviderStore());
+        services.TryAddSingleton(_ => new ConfigStore());
         services.AddSingleton(sp => new ProviderRegistry(sp.GetRequiredService<ProviderStore>(), sp.GetRequiredService<ICredentialVault>()));
 
         services.TryAddSingleton<IMemoryStore>(_ => new FileMemoryStore());

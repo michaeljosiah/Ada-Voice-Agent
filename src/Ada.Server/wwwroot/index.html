@@ -49,6 +49,19 @@
   #orbWrap{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;
     background:rgba(251,247,239,.93);z-index:6;}
   .orbhint{color:var(--muted);font-size:13px;}
+  #wizard{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+    background:var(--paper);z-index:8;padding:28px;text-align:center;}
+  #wizard .mono{width:64px;height:64px;border-radius:50%;background:var(--evergreen);color:var(--paper-1);display:flex;
+    align-items:center;justify-content:center;font-family:Georgia,serif;font-size:34px;font-weight:700;animation:pulse 2.4s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(31,80,64,.4);}50%{transform:scale(1.05);box-shadow:0 0 0 16px rgba(31,80,64,0);}}
+  #wizard h2{font-family:Georgia,serif;margin:6px 0 0;}
+  #wizard .step{width:100%;max-width:320px;text-align:left;margin-top:6px;}
+  #wizard label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+  #wizard select,#wizard input{width:100%;padding:9px 11px;border:1px solid var(--rule);border-radius:8px;margin-top:4px;font:inherit;background:#fff;}
+  .profiles{display:flex;gap:8px;}
+  .profiles button{flex:1;padding:8px;border:1px solid var(--rule);border-radius:8px;background:#fff;cursor:pointer;font:inherit;}
+  .profiles button.sel{background:var(--evergreen);color:#fff;border-color:var(--evergreen);}
+  #wzFinish{background:var(--clay);color:#fff;border:none;border-radius:10px;padding:11px 22px;font:inherit;font-weight:600;cursor:pointer;margin-top:10px;}
 </style>
 </head>
 <body>
@@ -60,6 +73,21 @@
   <div id="approvals"></div>
   <button id="voiceBtn" title="Voice mode (Ctrl+Alt+Space)">🎙 Voice</button>
   <div id="orbWrap"><canvas id="orb" width="220" height="220"></canvas><div class="orbhint">Listening — press Esc or the hotkey to stop</div></div>
+  <div id="wizard">
+    <div class="mono">A</div>
+    <h2>Welcome to Ada</h2>
+    <div class="orbhint">On your machine. In your voice. Under your control.</div>
+    <div class="step"><label>Choose a profile</label>
+      <div class="profiles" id="profiles">
+        <button data-p="Private">Private</button><button data-p="Balanced" class="sel">Balanced</button><button data-p="Power">Power</button>
+      </div>
+    </div>
+    <div class="step"><label>Connect a model provider (optional)</label>
+      <select id="wzProvider"></select>
+      <input id="wzKey" type="password" placeholder="API key — leave blank for local only" />
+    </div>
+    <button id="wzFinish">Finish setup</button>
+  </div>
   <form id="composer">
     <input id="box" autocomplete="off" placeholder="Ask Ada…" autofocus />
     <button id="send" type="submit">Send</button>
@@ -221,6 +249,34 @@
   window.adaToggleVoice = () => { voice ? stopVoice() : startVoice(); };
   voiceBtn.onclick = window.adaToggleVoice;
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && voice) stopVoice(); });
+
+  // ---- Setup wizard (M8): first-run, no terminal or JSON ----
+  let wzProfile = 'Balanced';
+  (async function maybeWizard(){
+    let cfg;
+    try { cfg = await (await fetch('/api/config')).json(); } catch { return; }
+    if (cfg.setupComplete) return;
+
+    const w = document.getElementById('wizard');
+    const sel = document.getElementById('wzProvider');
+    sel.innerHTML = '<option value="">— none (local only) —</option>' +
+      cfg.catalog.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+
+    document.querySelectorAll('#profiles button').forEach(b => b.onclick = () => {
+      document.querySelectorAll('#profiles button').forEach(x => x.classList.remove('sel'));
+      b.classList.add('sel'); wzProfile = b.dataset.p;
+    });
+
+    document.getElementById('wzFinish').onclick = async () => {
+      const id = sel.value, key = document.getElementById('wzKey').value.trim();
+      if (id) await fetch('/api/providers', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ id, key: key || null }) });
+      await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ profile: wzProfile, setupComplete: true }) });
+      w.style.display = 'none';
+    };
+    w.style.display = 'flex';
+  })();
 </script>
 </body>
 </html>

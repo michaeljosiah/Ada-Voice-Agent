@@ -36,6 +36,8 @@ internal static class Program
             "mcp" => await Mcp(rest),
             "jobs" => Jobs(rest),
             "run-due" => await RunDue(),
+            "config" => Config(rest),
+            "doctor" => Doctor(),
             _ => Help(),
         };
     }
@@ -91,7 +93,7 @@ internal static class Program
     /// <summary>The cumulative headless acceptance gate for every milestone shipped so far.</summary>
     private static async Task<int> SelfTest()
     {
-        Console.WriteLine("Ada self-test (M0–M7)\n");
+        Console.WriteLine("Ada self-test (M0–M8)\n");
 
         // ---- M0: loopback server + streaming round-trip ----
         await using var server = await AdaServer.StartAsync(new AdaServerOptions(Port: 0));
@@ -302,6 +304,32 @@ internal static class Program
         var taskInstalled = WindowsJobRunnerTask.Install("cmd /c echo ada", everyMinutes: 60, taskName: testTask);
         Console.WriteLine($"       Windows Task Scheduler register/query/remove -> install={taskInstalled} exists={WindowsJobRunnerTask.Exists(testTask)} removed={WindowsJobRunnerTask.Uninstall(testTask)}");
 
+        // ---- M8: ship — profiles, config, autostart, setup wizard ----
+        Report("M8 Private profile stays local (no cloud)",
+            Profiles.For(AdaProfile.Private) is { StayLocal: true, AllowCloudEscalation: false });
+        Report("M8 Balanced profile enables cloud + container", Profiles.For(AdaProfile.Balanced).AllowCloudEscalation);
+
+        var cfgPath = Path.Combine(Path.GetTempPath(), $"ada_cfg_{Guid.NewGuid():n}.json");
+        try
+        {
+            new ConfigStore(cfgPath).Save(new AdaConfig { Profile = AdaProfile.Power, SetupComplete = true });
+            Report("M8 config persists (no JSON editing needed)",
+                new ConfigStore(cfgPath).Load() is { Profile: AdaProfile.Power, SetupComplete: true });
+        }
+        finally { try { File.Delete(cfgPath); } catch { /* best effort */ } }
+
+        if (OperatingSystem.IsWindows())
+        {
+            var valueName = "AdaSelfTest_" + Guid.NewGuid().ToString("n")[..8];
+            var autostartOk = Autostart.Enable(@"C:\Ada\ada.exe", valueName) && Autostart.IsEnabled(valueName)
+                && Autostart.Disable(valueName) && !Autostart.IsEnabled(valueName);
+            Report("M8 autostart registers + removes cleanly under the Run key", autostartOk);
+        }
+
+        var apiConfig = await http.GetStringAsync("/api/config");
+        Report("M8 settings endpoint serves config + provider catalog", apiConfig.Contains("setupComplete") && apiConfig.Contains("catalog"));
+        Report("M8 first-run setup wizard is served (no terminal needed)", (await http.GetStringAsync("/")).Contains("Welcome to Ada"));
+
         var ok = _failures == 0;
         Console.WriteLine(ok ? "\nSELF-TEST PASSED" : $"\nSELF-TEST FAILED ({_failures} failure(s))");
         return ok ? 0 : 1;
@@ -452,6 +480,49 @@ internal static class Program
         var decision = new RoutingPolicy(hasEscalation, stayLocal, "local", escId)
             .Route([new ChatMessage(ChatRole.User, message)], null);
         Console.WriteLine($"route: {decision.Label}   (role={decision.Role}, reason={decision.Reason})");
+        return 0;
+    }
+
+    private static int Config(string[] args)
+    {
+        var store = new ConfigStore();
+        var cfg = store.Load();
+
+        if (args.Length == 0)
+        {
+            Console.WriteLine($"  profile        : {cfg.Profile}");
+            Console.WriteLine($"  setup complete : {cfg.SetupComplete}");
+            Console.WriteLine($"  autostart      : {cfg.Autostart} (registry: {Autostart.IsEnabled()})");
+            Console.WriteLine($"  hotkey         : {cfg.Hotkey}");
+            return 0;
+        }
+
+        switch (args[0].ToLowerInvariant())
+        {
+            case "profile" when args.Length >= 2 && Enum.TryParse<AdaProfile>(args[1], true, out var p):
+                cfg.Profile = p; store.Save(cfg); Console.WriteLine($"Profile set to {p}."); return 0;
+            case "autostart" when args.Length >= 2:
+                var on = args[1] is "on" or "true" or "1";
+                var exe = Environment.ProcessPath ?? "ada";
+                if (on) Autostart.Enable(exe); else Autostart.Disable();
+                cfg.Autostart = on; store.Save(cfg);
+                Console.WriteLine($"Autostart {(on ? "enabled" : "disabled")}."); return 0;
+            default:
+                Console.Error.WriteLine("usage: ada config [profile <Private|Balanced|Power> | autostart <on|off>]"); return 2;
+        }
+    }
+
+    private static int Doctor()
+    {
+        Console.WriteLine("Ada doctor — readiness check\n");
+        var providers = new ProviderStore().Load();
+        Console.WriteLine($"  .NET runtime       : {Environment.Version}");
+        Console.WriteLine($"  data directory     : {AdaPaths.DataDir}");
+        Console.WriteLine($"  providers          : {(providers.Count == 0 ? "none (local/echo only)" : string.Join(", ", providers.Select(p => p.Id)))}");
+        Console.WriteLine($"  container sandbox  : {(new ContainerCodeSandbox().Available ? "Docker present (Zone 2 ready)" : "Docker absent (Zone 1 only)")}");
+        Console.WriteLine($"  scheduled jobs     : {new JobStore().Load().Count} (paused: {new KillSwitch().Paused})");
+        Console.WriteLine($"  windows autostart  : {Autostart.IsEnabled()}");
+        Console.WriteLine($"  setup complete     : {new ConfigStore().Load().SetupComplete}");
         return 0;
     }
 
@@ -630,6 +701,8 @@ internal static class Program
               ada mcp <command> [args]    mount a stdio MCP server and list its tools
               ada jobs list               scheduled jobs (also: add, remove, pause, resume, install, uninstall)
               ada run-due                 run any due jobs now (what the Windows task invokes headless)
+              ada config [profile|autostart]   show or set profile (Private/Balanced/Power) and autostart
+              ada doctor                  print a readiness check
 
             model config (env):
               ADA_PROVIDER=openai-compatible  ADA_ENDPOINT=http://localhost:11434/v1

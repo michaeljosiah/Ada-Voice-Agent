@@ -11,6 +11,12 @@ public sealed record ChatRequestDto(string Message);
 /// <summary>Decision body for <c>POST /api/approvals/{id}</c>.</summary>
 public sealed record ApprovalDecisionDto(bool Approved, bool Session = false);
 
+/// <summary>Body for <c>POST /api/config</c> (all fields optional).</summary>
+public sealed record UpdateConfigDto(string? Profile = null, bool? SetupComplete = null, bool? Autostart = null);
+
+/// <summary>Body for <c>POST /api/providers</c> — connect a provider from the setup wizard.</summary>
+public sealed record AddProviderDto(string Id, string? Key = null, string? Endpoint = null, string? Model = null);
+
 /// <summary>
 /// Maps Ada's loopback HTTP surface: the chat UI at <c>/</c>, a health probe, the streaming
 /// <c>/api/chat</c> endpoint, and the approval channel (<c>/api/approvals/stream</c> +
@@ -72,6 +78,47 @@ public static class AdaApi
                 : ApprovalDecision.Denied;
             return handler.Resolve(id, decision) ? Results.Ok() : Results.NotFound();
         });
+
+        // Settings + setup wizard (spec §11.3, §15) — so the user never touches a terminal or JSON.
+        app.MapGet("/api/config", (ConfigStore configStore, ProviderRegistry providers, SkillRegistry? skills) =>
+        {
+            var c = configStore.Load();
+            return Results.Json(new
+            {
+                profile = c.Profile.ToString(),
+                setupComplete = c.SetupComplete,
+                autostart = c.Autostart,
+                hotkey = c.Hotkey,
+                catalog = ProviderCatalog.BuiltIns.Select(e => new { e.Id, e.Label, auth = e.Auth.ToString() }),
+                providers = providers.Configured.Select(p => new { p.Id, kind = p.Kind.ToString(), role = p.Role.ToString(), p.ModelId }),
+                skills = (skills?.Available ?? []).Select(s => new { s.Name, enabled = skills!.IsEnabled(s.Name), mcp = s.Mcp is not null }),
+            });
+        });
+
+        app.MapPost("/api/config", (UpdateConfigDto dto, ConfigStore configStore) =>
+        {
+            var c = configStore.Load();
+            if (dto.Profile is not null && Enum.TryParse<AdaProfile>(dto.Profile, true, out var p)) c.Profile = p;
+            if (dto.SetupComplete is { } done) c.SetupComplete = done;
+            if (dto.Autostart is { } auto) c.Autostart = auto;
+            configStore.Save(c);
+            return Results.Ok();
+        });
+
+        app.MapPost("/api/providers", (AddProviderDto dto, ProviderStore store, ICredentialVault vault) =>
+        {
+            var catalog = ProviderCatalog.Find(dto.Id);
+            var kind = catalog?.Kind ?? ProviderKind.OpenAiCompatible;
+            var auth = !string.IsNullOrEmpty(dto.Key) ? AuthMethod.ApiKey : catalog?.Auth ?? AuthMethod.None;
+            var role = catalog?.Auth == AuthMethod.None ? ModelRole.Default : ModelRole.Escalation;
+            var config = new ProviderConfig(dto.Id, kind, dto.Model ?? catalog?.DefaultModel ?? "model", dto.Endpoint ?? catalog?.DefaultEndpoint, auth, role);
+            store.Upsert(config);
+            if (!string.IsNullOrEmpty(dto.Key)) vault.Set(config.VaultKey, dto.Key);
+            return Results.Ok();
+        });
+
+        app.MapGet("/api/jobs", (JobStore store) =>
+            Results.Json(store.Load().Select(j => new { j.Name, j.Cron, delivery = j.Delivery.ToString(), j.Enabled })));
     }
 
     private static string Serialize(ApprovalRequest r) => JsonSerializer.Serialize(new
