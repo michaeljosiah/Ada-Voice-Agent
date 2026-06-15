@@ -15,12 +15,14 @@ public sealed class AgentEngine : IAdaEngine
     private readonly ChatClientAgent _agent;
     private readonly string _route;
 
-    public AgentEngine(IChatClient chatClient, Persona persona, string route = "local")
+    public AgentEngine(IChatClient chatClient, Persona persona, string route = "local", IEnumerable<AITool>? tools = null)
     {
         ArgumentNullException.ThrowIfNull(chatClient);
         ArgumentNullException.ThrowIfNull(persona);
 
-        _agent = new ChatClientAgent(chatClient, instructions: persona.Instructions, name: "Ada");
+        var toolList = tools?.ToList();
+        _agent = new ChatClientAgent(chatClient, instructions: persona.Instructions, name: "Ada",
+            tools: toolList is { Count: > 0 } ? toolList : null);
         _route = route;
     }
 

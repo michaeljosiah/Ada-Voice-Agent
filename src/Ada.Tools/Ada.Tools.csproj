@@ -5,16 +5,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Wasmtime" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Ada.Core/Ada.Core.csproj" />
-    <ProjectReference Include="..\Ada.Tools\Ada.Tools.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="wwwroot/index.html" />
   </ItemGroup>
 
 </Project>

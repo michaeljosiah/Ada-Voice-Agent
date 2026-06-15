@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Ada.Core;
+using Ada.Tools;
 
 namespace Ada.Server;
 
@@ -41,7 +42,10 @@ public static class AdaServer
         builder.WebHost.UseUrls($"http://127.0.0.1:{options.Port}");
         builder.Logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Warning);
 
-        builder.Services.AddAdaCore();
+        // The GUI uses interactive approval cards; register it before AddAda so the harness keeps it.
+        builder.Services.AddSingleton<InteractiveApprovalHandler>();
+        builder.Services.AddSingleton<IApprovalHandler>(sp => sp.GetRequiredService<InteractiveApprovalHandler>());
+        builder.Services.AddAda();
 
         var app = builder.Build();
         AdaApi.Map(app);

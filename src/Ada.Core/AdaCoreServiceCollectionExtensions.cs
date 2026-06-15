@@ -22,7 +22,7 @@ public static class AdaCoreServiceCollectionExtensions
             services.AddSingleton(chatClient);
             var route = options.Provider == "foundry-local" ? "local · foundry" : "local";
             services.AddSingleton<IAdaEngine>(sp =>
-                new AgentEngine(sp.GetRequiredService<IChatClient>(), sp.GetRequiredService<Persona>(), route));
+                new AgentEngine(sp.GetRequiredService<IChatClient>(), sp.GetRequiredService<Persona>(), route, sp.GetServices<AITool>()));
         }
         else
         {
@@ -37,7 +37,7 @@ public static class AdaCoreServiceCollectionExtensions
     {
         services.AddSingleton(chatClient);
         services.AddSingleton(_ => Persona.Load());
-        services.AddSingleton<IAdaEngine>(sp => new AgentEngine(chatClient, sp.GetRequiredService<Persona>(), route));
+        services.AddSingleton<IAdaEngine>(sp => new AgentEngine(chatClient, sp.GetRequiredService<Persona>(), route, sp.GetServices<AITool>()));
         return services;
     }
 }

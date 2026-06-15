@@ -33,6 +33,16 @@
   button{padding:10px 18px;border:none;border-radius:10px;background:var(--clay);color:#fff;font:inherit;
     font-weight:600;cursor:pointer;}
   button:disabled{opacity:.5;cursor:default;}
+  #approvals{position:absolute;left:0;right:0;bottom:66px;display:flex;flex-direction:column;gap:8px;padding:0 16px;pointer-events:none;}
+  .card{pointer-events:auto;background:#fffdf8;border:1px solid var(--rule);border-left:3px solid var(--clay);
+    border-radius:8px;padding:12px 14px;box-shadow:0 8px 24px rgba(34,30,24,.16);}
+  .card .tier{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--clay);font-weight:700;}
+  .card .h{font-weight:600;font-size:13px;margin:2px 0;}
+  .card .d{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12px;color:var(--ink-soft);
+    background:#f0e7d6;border-radius:4px;padding:6px 8px;margin:6px 0;word-break:break-all;}
+  .card .row{display:flex;gap:8px;margin-top:8px;}
+  .card button{flex:0 0 auto;padding:6px 12px;font-size:13px;border-radius:8px;}
+  .card .once{background:var(--evergreen);} .card .sess{background:var(--clay);} .card .deny{background:#9e2b1c;}
 </style>
 </head>
 <body>
@@ -41,6 +51,7 @@
     <div><h1>Ada</h1><div class="sub">On your machine. In your voice. Under your control.</div></div>
   </header>
   <div id="log"></div>
+  <div id="approvals"></div>
   <form id="composer">
     <input id="box" autocomplete="off" placeholder="Ask Ada…" autofocus />
     <button id="send" type="submit">Send</button>
@@ -93,6 +104,30 @@
     } catch(err){ reply.textContent = '… (could not reach Ada: '+err+')'; }
     finally { send.disabled=false; box.focus(); }
   });
+
+  // Approval cards — the agent's gated tools surface here, showing the literal command/paths.
+  const approvals = document.getElementById('approvals');
+  function approvalCard(a){
+    const card = document.createElement('div'); card.className = 'card';
+    card.innerHTML = `<div class="tier">${a.tier} · approval needed</div>
+      <div class="h">${a.summary}</div><div class="d">${a.detail}</div>
+      <div class="row"><button class="once">Approve</button>
+      <button class="sess">Approve for session</button><button class="deny">Deny</button></div>`;
+    const [once, sess, deny] = card.querySelectorAll('button');
+    const decide = (approved, session) => {
+      fetch('/api/approvals/' + a.id, { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ approved, session }) });
+      card.remove();
+    };
+    once.onclick = () => decide(true, false);
+    sess.onclick = () => decide(true, true);
+    deny.onclick = () => decide(false, false);
+    approvals.appendChild(card);
+  }
+  try {
+    const es = new EventSource('/api/approvals/stream');
+    es.addEventListener('approval', e => approvalCard(JSON.parse(e.data)));
+  } catch (_) { /* approvals stream unavailable */ }
 </script>
 </body>
 </html>

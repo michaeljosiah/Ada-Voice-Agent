@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Ada.Core;
 using Ada.Server;
+using Ada.Tools;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Ada.Cli;
@@ -80,7 +81,7 @@ internal static class Program
     /// <summary>The cumulative headless acceptance gate for every milestone shipped so far.</summary>
     private static async Task<int> SelfTest()
     {
-        Console.WriteLine("Ada self-test (M0–M1)\n");
+        Console.WriteLine("Ada self-test (M0–M2)\n");
 
         // ---- M0: loopback server + streaming round-trip ----
         await using var server = await AdaServer.StartAsync(new AdaServerOptions(Port: 0));
@@ -111,6 +112,43 @@ internal static class Program
         Report("M1 echo provider yields no chat client", ModelClientFactory.Create(new AdaModelOptions { Provider = "echo" }) is null);
         Report("M1 local provider builds a chat client", ModelClientFactory.Create(
             new AdaModelOptions { Provider = "openai-compatible", Endpoint = "http://localhost:11434/v1", ModelId = "m" }) is not null);
+
+        // ---- M2: the safety floor (scope, approval, audit, sandbox) ----
+        var allowed = Directory.CreateTempSubdirectory("ada_st_").FullName;
+        try
+        {
+            var scope = new ScopePolicy([allowed], [], [Path.Combine(allowed, "secrets")]);
+
+            var audit = new InMemoryAuditLog();
+            var fsApprove = new FileSystemTools(new ToolContext(scope, new AutoApprovalHandler(approveMutations: true), audit));
+            var okPath = Path.Combine(allowed, "note.txt");
+            await fsApprove.WriteFile(okPath, "hi");
+            Report("M2 approved write lands on disk and is audited",
+                File.Exists(okPath) && audit.Recent().Any(e => e is { Tool: "write_file", Outcome: "executed" }));
+
+            var fsDeny = new FileSystemTools(new ToolContext(scope, new AutoApprovalHandler(approveMutations: false), new InMemoryAuditLog()));
+            var denyPath = Path.Combine(allowed, "blocked.txt");
+            var denyResult = await fsDeny.WriteFile(denyPath, "x");
+            Report("M2 denied write never touches disk", !File.Exists(denyPath) && denyResult.Contains("Denied"));
+
+            var escape = await fsApprove.WriteFile(Path.Combine(Path.GetTempPath(), "ada_escape.txt"), "x");
+            Report("M2 write outside allowed roots is blocked even if approved", escape.Contains("Blocked"));
+
+            var box = new WasmCodeSandbox();
+            var compute = await box.RunAsync(new SandboxRequest("wat", "(module (func (export \"run\") (result i32) i32.const 42))"));
+            Report("M2 wasm sandbox runs an isolated module", compute is { Ok: true, Output: "42" });
+            var runaway = await box.RunAsync(new SandboxRequest("wat",
+                "(module (func (export \"run\") (result i32) (loop (br 0)) (i32.const 0)))", Fuel: 100_000));
+            Report("M2 wasm runaway traps on fuel (no hang)", runaway is { Ok: false, Reason: "trapped-fuel" });
+
+            // interactive approval round-trip — the GUI card flow, exercised without a UI
+            var interactive = new InteractiveApprovalHandler();
+            var pending = interactive.RequestApprovalAsync(new ApprovalRequest("write_file", RiskTier.Low, "Write a file", @"C:\work\y.txt"));
+            Report("M2 interactive approval surfaces the literal detail", interactive.Pending_.Any(p => p.Detail == @"C:\work\y.txt"));
+            interactive.Resolve(interactive.Pending_.First().Id, ApprovalDecision.Approve());
+            Report("M2 interactive approval resolves to the user's decision", (await pending).Approved);
+        }
+        finally { try { Directory.Delete(allowed, true); } catch { /* best effort */ } }
 
         var ok = _failures == 0;
         Console.WriteLine(ok ? "\nSELF-TEST PASSED" : $"\nSELF-TEST FAILED ({_failures} failure(s))");

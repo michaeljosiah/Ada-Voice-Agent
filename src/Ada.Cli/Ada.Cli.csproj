@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="../Ada.Core/Ada.Core.csproj" />
     <ProjectReference Include="../Ada.Server/Ada.Server.csproj" />
+    <ProjectReference Include="..\Ada.Tools\Ada.Tools.csproj" />
   </ItemGroup>
 
 </Project>
