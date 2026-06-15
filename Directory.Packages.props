@@ -1,0 +1,22 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- AI / Agent Framework -->
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.7.0" />
+    <PackageVersion Include="Microsoft.Agents.AI" Version="1.10.0" />
+    <!-- Desktop shell -->
+    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4022.49" />
+    <!-- Sandbox (Zone 1, M2) -->
+    <PackageVersion Include="Wasmtime" Version="44.0.0" />
+    <!-- MCP (M5) -->
+    <PackageVersion Include="ModelContextProtocol" Version="1.4.0" />
+    <!-- Tests -->
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Authors>Michael Josiah</Authors>
+    <Product>Ada</Product>
+    <Copyright>Copyright (c) 2026 Michael Josiah</Copyright>
+  </PropertyGroup>
+</Project>
