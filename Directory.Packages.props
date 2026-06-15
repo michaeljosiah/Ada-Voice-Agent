@@ -8,6 +8,10 @@
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.7.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.7.0" />
     <PackageVersion Include="Microsoft.Agents.AI" Version="1.10.0" />
+    <!-- Providers / auth -->
+    <PackageVersion Include="Azure.AI.OpenAI" Version="2.1.0" />
+    <PackageVersion Include="Azure.Identity" Version="1.13.1" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
     <!-- Desktop shell -->
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4022.49" />
     <!-- Sandbox (Zone 1, M2) -->

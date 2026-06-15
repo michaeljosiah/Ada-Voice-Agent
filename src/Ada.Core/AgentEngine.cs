@@ -5,13 +5,14 @@ using Microsoft.Extensions.AI;
 namespace Ada.Core;
 
 /// <summary>
-/// Ada's real brain (M1): a Microsoft Agent Framework <see cref="ChatClientAgent"/> over an
+/// Ada's real brain: a Microsoft Agent Framework <see cref="ChatClientAgent"/> over an
 /// <see cref="IChatClient"/>, primed with the persona. It streams the reply and tags every chunk
-/// with a route ("local", "local · foundry") so the UI's route badge is honest about where the
-/// turn ran. Multi-turn conversation state (sessions) is layered on in M4.
+/// with a route. If the chat client is route-aware (the hybrid router), the badge reflects the
+/// backend that actually served the turn — so escalation is always visible.
 /// </summary>
 public sealed class AgentEngine : IAdaEngine
 {
+    private readonly IChatClient _chatClient;
     private readonly ChatClientAgent _agent;
     private readonly string _route;
 
@@ -20,11 +21,15 @@ public sealed class AgentEngine : IAdaEngine
         ArgumentNullException.ThrowIfNull(chatClient);
         ArgumentNullException.ThrowIfNull(persona);
 
+        _chatClient = chatClient;
+        _route = route;
+
         var toolList = tools?.ToList();
         _agent = new ChatClientAgent(chatClient, instructions: persona.Instructions, name: "Ada",
             tools: toolList is { Count: > 0 } ? toolList : null);
-        _route = route;
     }
+
+    private string CurrentRoute => (_chatClient as IRouteAware)?.CurrentRoute ?? _route;
 
     public async IAsyncEnumerable<AdaResponseChunk> RespondAsync(
         AdaRequest request, [EnumeratorCancellation] CancellationToken ct = default)
@@ -32,9 +37,9 @@ public sealed class AgentEngine : IAdaEngine
         await foreach (var update in _agent.RunStreamingAsync(request.Message, cancellationToken: ct).ConfigureAwait(false))
         {
             if (!string.IsNullOrEmpty(update.Text))
-                yield return new AdaResponseChunk(update.Text, _route);
+                yield return new AdaResponseChunk(update.Text, CurrentRoute);
         }
 
-        yield return new AdaResponseChunk(string.Empty, _route, IsFinal: true);
+        yield return new AdaResponseChunk(string.Empty, CurrentRoute, IsFinal: true);
     }
 }

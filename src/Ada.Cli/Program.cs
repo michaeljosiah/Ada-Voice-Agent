@@ -4,6 +4,7 @@ using System.Text.Json;
 using Ada.Core;
 using Ada.Server;
 using Ada.Tools;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Ada.Cli;
@@ -26,6 +27,9 @@ internal static class Program
             "chat" => await Chat(rest),
             "serve" => await Serve(rest),
             "selftest" => await SelfTest(),
+            "auth" => Auth(rest),
+            "providers" => Providers(),
+            "route" => RouteCmd(rest),
             _ => Help(),
         };
     }
@@ -81,7 +85,7 @@ internal static class Program
     /// <summary>The cumulative headless acceptance gate for every milestone shipped so far.</summary>
     private static async Task<int> SelfTest()
     {
-        Console.WriteLine("Ada self-test (M0–M2)\n");
+        Console.WriteLine("Ada self-test (M0–M3)\n");
 
         // ---- M0: loopback server + streaming round-trip ----
         await using var server = await AdaServer.StartAsync(new AdaServerOptions(Port: 0));
@@ -150,6 +154,40 @@ internal static class Program
         }
         finally { try { Directory.Delete(allowed, true); } catch { /* best effort */ } }
 
+        // ---- M3: providers, vault, hybrid routing ----
+        var vault = new InMemoryCredentialVault();
+        vault.Set("provider:test", "sk-secret");
+        Report("M3 vault round-trips a secret", vault.Get("provider:test") == "sk-secret");
+
+        var provPath = Path.Combine(Path.GetTempPath(), $"ada_prov_{Guid.NewGuid():n}.json");
+        try
+        {
+            var store = new ProviderStore(provPath);
+            store.Upsert(new ProviderConfig("local", ProviderKind.OpenAiCompatible, "qwen2.5:7b", "http://localhost:11434/v1", AuthMethod.None, ModelRole.Default));
+            store.Upsert(new ProviderConfig("anthropic", ProviderKind.Anthropic, "claude-sonnet-4-6", "https://api.anthropic.com/v1", AuthMethod.ApiKey, ModelRole.Escalation));
+            Report("M3 provider store persists and reloads", new ProviderStore(provPath).Load().Count == 2);
+
+            var policy = new RoutingPolicy(hasEscalation: true, stayLocal: false, "local", "anthropic");
+            Report("M3 simple turn stays local", policy.Route([new ChatMessage(ChatRole.User, "what's the weather?")], null).Role == ModelRole.Default);
+            Report("M3 code task escalates", policy.Route([new ChatMessage(ChatRole.User, "refactor this function")], null).Role == ModelRole.Escalation);
+            Report("M3 stay-local override pins to local",
+                new RoutingPolicy(true, true, "local", "anthropic").Route([new ChatMessage(ChatRole.User, "refactor this")], null).Role == ModelRole.Default);
+
+            var egressAudit = new InMemoryAuditLog();
+            var hybrid = new HybridChatClient(new StubChatClient(), new StubChatClient(), new RoutingPolicy(true, false, "local", "anthropic"), egressAudit);
+            await Drain(hybrid.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "implement an algorithm")]));
+            Report("M3 hybrid escalates and logs egress", hybrid.CurrentRoute.StartsWith("anthropic") && egressAudit.Recent().Any(e => e.Outcome == "escalated"));
+
+            using var degraded = new ServiceCollection()
+                .AddSingleton(new ProviderStore(provPath + ".empty"))
+                .AddSingleton<ICredentialVault>(new InMemoryCredentialVault())
+                .AddAdaCore(new AdaModelOptions { Provider = "echo" })
+                .BuildServiceProvider();
+            Report("M3 no cloud provider -> still runs locally (echo), never broken",
+                degraded.GetRequiredService<IAdaEngine>() is EchoEngine);
+        }
+        finally { try { File.Delete(provPath); } catch { /* best effort */ } }
+
         var ok = _failures == 0;
         Console.WriteLine(ok ? "\nSELF-TEST PASSED" : $"\nSELF-TEST FAILED ({_failures} failure(s))");
         return ok ? 0 : 1;
@@ -204,19 +242,137 @@ internal static class Program
         Console.WriteLine($"  [{(ok ? "PASS" : "FAIL")}] {name}");
     }
 
+    // ---- M3: provider auth + routing commands ----
+
+    private static int Auth(string[] args)
+    {
+        var sub = args.Length > 0 ? args[0].ToLowerInvariant() : "list";
+        var store = new ProviderStore();
+        var vault = new DpapiCredentialVault();
+
+        switch (sub)
+        {
+            case "list":
+                var providers = store.Load();
+                if (providers.Count == 0)
+                {
+                    Console.WriteLine("No providers configured. Add one with:  ada auth login <id> --key <KEY>");
+                    Console.WriteLine("Catalog ids: " + string.Join(", ", ProviderCatalog.BuiltIns.Select(b => b.Id)));
+                    return 0;
+                }
+                foreach (var p in providers)
+                {
+                    var keyState = p.Auth == AuthMethod.None ? "none" : vault.Has(p.VaultKey) ? "vault" : "MISSING";
+                    Console.WriteLine($"  {p.Id,-14} {p.Kind,-16} role={p.Role,-10} model={p.ModelId,-22} key={keyState}");
+                }
+                return 0;
+
+            case "login":
+                return Login(args.Skip(1).ToArray(), store, vault);
+
+            case "logout":
+                if (args.Length < 2) { Console.Error.WriteLine("usage: ada auth logout <id>"); return 2; }
+                store.Remove(args[1]);
+                vault.Delete($"provider:{args[1]}");
+                Console.WriteLine($"Removed provider '{args[1]}'.");
+                return 0;
+
+            default:
+                Console.Error.WriteLine("usage: ada auth [list | login <id> [--key ..] [--endpoint ..] [--model ..] [--kind ..] [--role ..] | logout <id>]");
+                return 2;
+        }
+    }
+
+    private static int Login(string[] args, ProviderStore store, ICredentialVault vault)
+    {
+        if (args.Length == 0)
+        {
+            Console.Error.WriteLine("usage: ada auth login <id|catalog-id> [--key KEY] [--endpoint URL] [--model M] [--kind K] [--role default|escalation]");
+            return 2;
+        }
+
+        var id = args[0];
+        var flags = ParseFlags(args.Skip(1));
+        var catalog = ProviderCatalog.Find(id);
+        try
+        {
+            var kind = flags.TryGetValue("kind", out var k) ? Enum.Parse<ProviderKind>(k, true) : catalog?.Kind ?? ProviderKind.OpenAiCompatible;
+            var endpoint = flags.GetValueOrDefault("endpoint") ?? catalog?.DefaultEndpoint;
+            var model = flags.GetValueOrDefault("model") ?? catalog?.DefaultModel
+                ?? throw new ArgumentException("a --model is required for a custom provider");
+            var role = flags.TryGetValue("role", out var r) ? Enum.Parse<ModelRole>(r, true)
+                : catalog?.Auth == AuthMethod.None ? ModelRole.Default : ModelRole.Escalation;
+            var auth = flags.ContainsKey("key") ? AuthMethod.ApiKey
+                : catalog?.Auth ?? (kind == ProviderKind.AzureOpenAI ? AuthMethod.AzureCredential : AuthMethod.None);
+
+            var config = new ProviderConfig(id, kind, model, endpoint, auth, role);
+            store.Upsert(config);
+            if (flags.TryGetValue("key", out var key)) vault.Set(config.VaultKey, key);
+
+            Console.WriteLine($"Configured '{id}' — {kind}, role {role}, model {model}. Key in OS vault: {(flags.ContainsKey("key") ? "yes" : "no")}.");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Could not configure provider: {ex.Message}");
+            return 2;
+        }
+    }
+
+    private static int Providers()
+    {
+        Console.WriteLine("Built-in provider catalog:");
+        foreach (var e in ProviderCatalog.BuiltIns)
+            Console.WriteLine($"  {e.Id,-14} {e.Label,-22} {e.Kind,-16} auth={e.Auth,-16} model={e.DefaultModel}");
+        return 0;
+    }
+
+    private static int RouteCmd(string[] args)
+    {
+        var message = string.Join(' ', args);
+        var registry = new ProviderRegistry(new ProviderStore(), new DpapiCredentialVault());
+        var hasEscalation = registry.ForRole(ModelRole.Escalation) is not null && registry.ForRole(ModelRole.Default) is not null;
+        var stayLocal = Environment.GetEnvironmentVariable("ADA_STAY_LOCAL") == "1";
+        var escId = registry.ForRole(ModelRole.Escalation)?.Id ?? "cloud";
+
+        var decision = new RoutingPolicy(hasEscalation, stayLocal, "local", escId)
+            .Route([new ChatMessage(ChatRole.User, message)], null);
+        Console.WriteLine($"route: {decision.Label}   (role={decision.Role}, reason={decision.Reason})");
+        return 0;
+    }
+
+    private static Dictionary<string, string> ParseFlags(IEnumerable<string> args)
+    {
+        var flags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var a = args.ToArray();
+        for (var i = 0; i < a.Length; i++)
+            if (a[i].StartsWith("--", StringComparison.Ordinal) && i + 1 < a.Length) { flags[a[i][2..]] = a[i + 1]; i++; }
+        return flags;
+    }
+
+    private static async Task Drain(IAsyncEnumerable<ChatResponseUpdate> stream)
+    {
+        await foreach (var _ in stream) { }
+    }
+
     private static int Help()
     {
         Console.WriteLine("""
             ada — Ada Voice Agent CLI (test harness)
 
             usage:
-              ada chat <message>     talk to the configured engine (echo, or a local model)
-              ada serve [--port N]   run the loopback web server (default: ephemeral port)
-              ada selftest           run the cumulative headless acceptance checks
+              ada chat <message>          talk to the configured engine (echo, local, or hybrid)
+              ada serve [--port N]        run the loopback web server (default: ephemeral port)
+              ada selftest                run the cumulative headless acceptance checks
+              ada auth list               list configured providers
+              ada auth login <id> ...     add/update a provider (--key, --endpoint, --model, --kind, --role)
+              ada auth logout <id>        remove a provider and its key
+              ada providers               show the built-in provider catalog
+              ada route <message>         show how a message would be routed (local vs escalation)
 
             model config (env):
-              ADA_PROVIDER=openai-compatible   ADA_ENDPOINT=http://localhost:11434/v1
-              ADA_MODEL=qwen2.5:7b-instruct     ADA_API_KEY=(optional)
+              ADA_PROVIDER=openai-compatible  ADA_ENDPOINT=http://localhost:11434/v1
+              ADA_MODEL=qwen2.5:7b-instruct    ADA_API_KEY=(optional)   ADA_STAY_LOCAL=1
             """);
         return 0;
     }
