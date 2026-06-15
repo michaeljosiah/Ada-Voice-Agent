@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    /* Heirloom palette — shared with the Simi product (mobile rebuild spec §4) */
+    /* Heirloom palette — warm paper, evergreen + clay */
     --paper:#fbf7ef; --paper-1:#f6efe2; --paper-2:#efe5d2;
     --ink:#221e18; --ink-soft:#4a443b; --muted:#7a7264; --rule:#e6ddcb;
     --evergreen:#1f5040; --evergreen-deep:#173e32; --evergreen-tint:#e3ede7;
@@ -198,20 +198,20 @@
 <main class="page">
 
 <header class="cover">
-  <div class="eyebrow">Build Specification · Rev 2 · Grounded against current main · New project in the Simi repo</div>
+  <div class="eyebrow">Build Specification · Rev 3 · Standalone system · Local-first Windows agent</div>
   <h1>Ada — The Personal Agent<span class="dot">.</span></h1>
-  <p class="lede">A complete product and engineering specification for Ada: a private, local-first personal agent that runs as a small Windows tray companion, built on the Microsoft Agent Framework agent loop and harness patterns, grounded in the Voxa .NET voice framework, and aligned with Simi's existing AG-UI approval and Voxa WSS mobile client contracts. It contains the product thesis, an honest point of view, the persona and principles, the layered architecture, the framework and harness contracts with code, the hybrid model router, the tool / skill / MCP model, the approval and memory systems, the voice stack, the application shell, security and packaging, the project layout, a sequenced build plan, the day-in-the-life Ada must make true, and the questions still open. Written to be handed to one engineer and built without a follow-up meeting.</p>
-  <div class="meta">Rev 2 · June 2026 · .NET 10 target · Microsoft Agent Framework + Voxa + AG-UI patterns · Lives in the Simi repo, ships as its own app · Founder: Michael Josiah</div>
+  <p class="lede">A complete product and engineering specification for Ada: a private, local-first personal agent that runs as a small Windows tray companion, built on the Microsoft Agent Framework agent loop and harness patterns, grounded in the Voxa .NET voice framework, and aligned with proven human-in-the-loop approval and Voxa WSS voice-client contracts. It contains the product thesis, an honest point of view, the persona and principles, the layered architecture, the framework and harness contracts with code, the hybrid model router, the tool / skill / MCP model, the approval and memory systems, the voice stack, the application shell, security and packaging, the project layout, a sequenced build plan, the day-in-the-life Ada must make true, and the questions still open. Written to be handed to one engineer and built without a follow-up meeting.</p>
+  <div class="meta">Rev 3 · June 2026 · .NET 10 target · Microsoft Agent Framework + Voxa · Standalone repo, ships as its own app · Founder: Michael Josiah</div>
 </header>
 
 <div class="callout accent">
   <div class="label">The one-paragraph version — read this first</div>
-  <strong>Ada is your local chief-of-staff.</strong> She lives in the Windows system tray, opens on a hotkey, listens and speaks, and can actually <em>do</em> things on your machine — read and write files, run commands, search the web, remember what matters — but she asks before anything consequential. She runs a small model locally by default and escalates to a frontier model only when the task is hard, so most of your day never leaves the machine. She is <em>built reusable</em>: the same harness that powers your personal assistant is the foundation a future Simi feature can stand on. And she is designed for one specific future — when the <strong>AONIK MCP</strong> lands, a single skill slots in and Ada can discuss your cross-border financial commitments with you, in her own voice, with your data still under your control. This document specifies all of v1 and draws the seam where that skill will attach.
+  <strong>Ada is your local chief-of-staff.</strong> She lives in the Windows system tray, opens on a hotkey, listens and speaks, and can actually <em>do</em> things on your machine — read and write files, run commands, search the web, remember what matters — but she asks before anything consequential. She runs a small model locally by default and escalates to a frontier model only when the task is hard, so most of your day never leaves the machine. She is <em>built reusable</em>: one coherent agent that grows through composable skills, mounts external tools over MCP, and can <strong>spawn sub-agents</strong> to parallelize or break down complex work — all behind one face you talk to. Ada is a <strong>fully standalone system</strong>; any future integration with an external service is a drop-in skill, not a core change. This document specifies all of v1 and draws the seam where such skills attach.
 </div>
 
 <div class="callout info">
-  <div class="label">What changed in Rev 2 — grounding pass</div>
-  This revision is grounded against current <code>main</code>, Microsoft Agent Framework docs, and <code>https://github.com/michaeljosiah/voxa</code>. The Simi repo has <code>mobile/</code>, <code>web/</code>, and rich HTML specs; it has <strong>no <code>.sln</code> or <code>.csproj</code> yet</strong>. Mobile already contains the relevant precedents: <code>AgUiClient</code> streaming from <code>/ai/agui</code>, a <code>confirmAction</code> approval pattern, <code>ChatController.pendingApprovals</code>, a <code>VoxaVoiceClient</code> for <code>/ai/voice</code> WSS, and <code>SimiSpineApi</code> mappings to AONIK Specs 043-045. The Voxa repo confirms the .NET 10 voice foundation: <code>AddVoxa</code>, <code>MapVoxaVoice</code>, <code>UseDefaults</code>, local WhisperCpp/Piper/Kokoro, Silero VAD, <code>UseMicrosoftAgent</code>, barge-in purge, and OpenTelemetry hooks. Anything else is marked as new Ada work or a dependency/API to verify before implementation.
+  <div class="label">What changed in Rev 3 — standalone pass</div>
+  Ada is now its own <strong>standalone repository</strong> (<code>Ada-Voice-Agent</code>) with <strong>no dependency on any other product</strong>. This revision strips the earlier coupling to a sibling codebase: the human-in-the-loop approval shape and the consuming Voxa WSS voice contract are treated as proven patterns Ada re-implements in .NET, not as imports. It also makes <strong>sub-agents</strong> a first-class capability — Ada may spawn internal sub-agents to parallelize or decompose complex work. The Microsoft Agent Framework and the Voxa repo (<code>https://github.com/michaeljosiah/voxa</code>) remain the verified foundations: <code>AIAgent</code>/<code>ChatClientAgent</code>, approvals, compaction; and <code>AddVoxa</code>, <code>MapVoxaVoice</code>, <code>UseDefaults</code>, local WhisperCpp/Piper/Kokoro, Silero VAD, <code>UseMicrosoftAgent</code>, barge-in purge, OpenTelemetry. Anything else is new Ada work or a dependency/API to verify before implementation.
 </div>
 
 <div class="checklist" id="verification">
@@ -220,19 +220,18 @@
 
   <h3>Verified complete now</h3>
   <ul>
-    <li><input type="checkbox" checked disabled> <span>Simi repo shape verified: <code>mobile/</code>, <code>web/</code>, and <code>docs/</code> exist; no Ada/.NET solution exists yet.</span></li>
-    <li><input type="checkbox" checked disabled> <span>Mobile AG-UI client verified: <code>AgUiClient</code> streams <code>/ai/agui</code> SSE and supports frontend tool re-runs.</span></li>
-    <li><input type="checkbox" checked disabled> <span>Mobile human-in-the-loop precedent verified: <code>LiveChatRepository</code> registers <code>confirmAction</code> and <code>ChatController</code> exposes <code>pendingApprovals</code>.</span></li>
-    <li><input type="checkbox" checked disabled> <span>Mobile Voxa WSS client verified: <code>VoxaVoiceClient</code> sends PCM and handles transcription/text/speaking/interruption/thread envelopes.</span></li>
-    <li><input type="checkbox" checked disabled> <span>AONIK REST spine verified: <code>SimiSpineApi</code> maps CareEntity, commitment/cycle, and payment-log data for Specs 043-045.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Standalone repo created (<code>Ada-Voice-Agent</code>) with this spec, the README, and an MIT license; no .NET solution is scaffolded yet.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Streaming + tool-loop shape verified as a known pattern: typed token streaming over SSE/WSS with frontend tool re-runs — re-implemented in .NET, not imported.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Human-in-the-loop approval shape verified as a known pattern: a <code>confirmAction</code>-style gate with a pending-approvals queue and approval cards.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Voxa WSS voice-client contract verified: a client that streams PCM and handles transcription/text/speaking/interruption/thread envelopes is a proven consuming shape.</span></li>
     <li><input type="checkbox" checked disabled> <span>Microsoft Agent Framework C# surface verified: <code>AIAgent</code>, <code>ChatClientAgent</code>, <code>IChatClient</code>, <code>AgentSession</code>, <code>AgentResponse</code>, approval content, and compaction strategies are documented.</span></li>
     <li><input type="checkbox" checked disabled> <span>Agent Framework harness pattern verified: local shell approvals and compaction pipelines are documented in the Microsoft harness post.</span></li>
     <li><input type="checkbox" checked disabled> <span>Voxa .NET host API verified: <code>AddVoxa</code>, <code>MapVoxaVoice</code>, and <code>UseDefaults</code> are documented in the Voxa README.</span></li>
     <li><input type="checkbox" checked disabled> <span>Voxa Microsoft Agent integration verified: <code>MicrosoftAgentVoice.CreateProcessor</code> and fluent <code>UseMicrosoftAgent</code> are documented.</span></li>
     <li><input type="checkbox" checked disabled> <span>Voxa local speech tier verified: WhisperCpp STT, Piper/Kokoro TTS, Silero VAD, offline model cache, and keyless Echo agent are documented.</span></li>
     <li><input type="checkbox" checked disabled> <span>Voxa transport/observability verified: WSS envelopes, server-side barge-in purge, <code>VoxaActivities</code>, and <code>voxa.turn.ttfb</code> are documented.</span></li>
-    <li><input type="checkbox" checked disabled> <span>AONIK MCP status verified as not present in this repo; the finance skill remains a future seam.</span></li>
-    <li><input type="checkbox" checked disabled> <span>Tier-1 in-process Wasm sandbox verified by spike (<code>wasmtime-dotnet</code> 44, .NET 10, no Docker/Hyper-V): capability isolation, fuel runaway-trap, and memory cap enforced; real TS/JS and stdlib-Python ran; <code>numpy</code> import failed (needs the container zone). See <code>ada/spikes/WasmSandboxSpike</code> (§8.8).</span></li>
+    <li><input type="checkbox" checked disabled> <span>Standalone confirmed: no runtime dependency on any external product; external integrations are future drop-in skills over MCP.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Tier-1 in-process Wasm sandbox verified by spike (<code>wasmtime-dotnet</code> 44, .NET 10, no Docker/Hyper-V): capability isolation, fuel runaway-trap, and memory cap enforced; real TS/JS and stdlib-Python ran; <code>numpy</code> import failed (needs the container zone). See <code>spikes/WasmSandboxSpike</code> (§8.8).</span></li>
   </ul>
 
   <h3>Not complete yet</h3>
@@ -243,7 +242,7 @@
     <li><input type="checkbox" disabled> <span>Implement Ada.Core conversation adapter, approval loop, audit log, memory store, compaction, skills, and model router.</span></li>
     <li><input type="checkbox" disabled> <span>Choose and verify Ada's default local model/provider; Foundry Local remains preferred but unproven here.</span></li>
     <li><input type="checkbox" disabled> <span>Wire Voxa into Ada with the singleton Ada <code>AIAgent</code>, spoken approvals, and desktop Voice Mode.</span></li>
-    <li><input type="checkbox" disabled> <span>Build or mount an AONIK MCP server and the finance skill; out of scope for v1.</span></li>
+    <li><input type="checkbox" disabled> <span>Mount external-service MCP servers as drop-in skills (e.g. a future finance/records backend); out of scope for v1.</span></li>
     <li><input type="checkbox" disabled> <span>Build the sandbox/autonomy ladder (§8.8): <code>ICodeSandbox</code> with the in-process Wasm backend (default), the opt-in Docker/AIO container zone, and the future Hyperlight + Azure-remote swaps.</span></li>
   </ul>
 </div>
@@ -260,7 +259,7 @@
     <li><a href="#model">The model plane — providers, auth &amp; the hybrid router</a></li>
     <li><a href="#tools">Tools, skills &amp; MCP — the capability surface</a></li>
     <li><a href="#harness">The harness — approvals, plan review, scoping, compaction, observability</a> · <a href="#sandbox">the sandbox &amp; autonomy ladder</a></li>
-    <li><a href="#memory">Memory &amp; state — file-based memory and the AONIK seam</a></li>
+    <li><a href="#memory">Memory &amp; state — file-based memory and the skill seam</a></li>
     <li><a href="#voice">Voice — Voxa pipeline, local audio, spoken approvals</a></li>
     <li><a href="#shell">The application shell — tray, hotkey, window, onboarding</a></li>
     <li><a href="#automations">Automations &amp; schedules — cron, unattended runs, delivery</a></li>
@@ -283,15 +282,15 @@
 <table>
   <thead><tr><th>What exists</th><th>What it is today</th><th>Bearing on Ada</th></tr></thead>
   <tbody>
-    <tr><td><strong>The Simi repo</strong></td><td>A product repo: <code>mobile/</code> (Flutter), <code>web/</code> (React), specs as rich HTML in <code>docs/</code>, all backed by the AONIK platform. <strong>No .NET project, solution, or package pinning exists yet.</strong></td><td class="new">Ada is the first .NET surface in this repo. We set the solution, project, package, and packaging conventions here. It lives beside the apps but ships as its own thing.</td></tr>
+    <tr><td><strong>This repository</strong></td><td>A fresh, standalone repo: this spec in <code>docs/</code>, an MIT license, a README. <strong>No .NET project, solution, or package pinning exists yet.</strong></td><td class="new">Ada is a greenfield .NET system. We set the solution, project, package, and packaging conventions from scratch, with no inherited dependencies.</td></tr>
     <tr><td><strong>Microsoft Agent Framework</strong></td><td>Current C# docs show agents deriving from <code>AIAgent</code>, simple agents built from any <code>IChatClient</code> via <code>ChatClientAgent</code> / <code>AsAIAgent</code>, and production harness patterns for local shell approvals and compaction.</td><td class="keep">The foundation. We do not invent the agent loop; we compose the framework loop and author Ada's host-side harness: tools, scoping, approval policy, memory, audit, and routing.</td></tr>
     <tr><td><strong>Voxa</strong></td><td>A public MIT, pre-alpha, <strong>.NET 10</strong> voice AI pipeline framework in <code>michaeljosiah/voxa</code>. It publishes prerelease NuGet packages and documents <code>AddVoxa</code>, <code>MapVoxaVoice</code>, <code>UseDefaults</code>, local WhisperCpp STT, Piper/Kokoro TTS, Silero VAD, <code>MicrosoftAgentVoice.CreateProcessor</code>/<code>UseMicrosoftAgent</code>, Voxa Studio, a locked WSS protocol, barge-in purge, and <code>VoxaActivities</code>/<code>voxa.turn.ttfb</code>.</td><td class="keep">Ada's voice foundation. Use Voxa directly, pin exact alpha versions, and treat API changes as deliberate upgrades.</td></tr>
-    <tr><td><strong>Simi mobile's agent stack</strong></td><td>The Flutter app has <code>AgUiClient</code> streaming <code>/ai/agui</code> SSE, frontend tool re-run support, <code>confirmAction</code> approvals, pending approval cards, display tools, and a realtime WSS voice bridge.</td><td class="keep">Strong precedent, not a dependency. Ada should copy the human-in-the-loop shape and typed streaming discipline, while building its own desktop/.NET implementation.</td></tr>
-    <tr><td><strong>AONIK integration</strong></td><td>Live REST integration exists for the Simi spine through <code>SimiSpineApi</code> (CareEntity 043, commitments/cycles 044, payment logs 045). <strong>AONIK MCP is not built in this repo.</strong></td><td class="dorm">The finance skill is out of v1. In scope: design a skill/MCP seam so a future AONIK MCP server mounts without core rework.</td></tr>
+    <tr><td><strong>Proven agent patterns</strong></td><td>The streaming-plus-tool-loop and human-in-the-loop shapes are well established: typed token streaming, frontend tool re-runs, <code>confirmAction</code>-style approvals with pending cards, and a realtime WSS voice bridge.</td><td class="keep">Reference shapes, not dependencies. Ada adopts the human-in-the-loop discipline and typed streaming, building its own desktop/.NET implementation from scratch.</td></tr>
+    <tr><td><strong>External integrations</strong></td><td>None today — Ada is self-contained. Down the line she may connect to external services (for example a personal finance or records backend) through an MCP server.</td><td class="dorm">Out of v1. In scope: design the skill/MCP seam so any future external server mounts as a drop-in skill without core rework.</td></tr>
   </tbody>
 </table>
 
-<p>The gap, stated plainly: <strong>there is no personal agent that runs on your machine, keeps your data local, can take real action under your control, talks to you, and remembers you.</strong> Cloud assistants are none of those things; chat windows do not touch your filesystem; the dev-tool agents are scoped to a repo, not a life. Ada fills that gap. The Agent Framework gives us the C# agent loop, approval, and compaction primitives; Voxa gives us the real-time voice pipeline; the Simi repo gives us proven mobile patterns for AG-UI streaming, approval cards, AONIK spine data, and the consuming Voxa WSS client. The desktop shell, local harness, memory, local model routing, and Ada-specific voice host wiring are new Ada work.</p>
+<p>The gap, stated plainly: <strong>there is no personal agent that runs on your machine, keeps your data local, can take real action under your control, talks to you, and remembers you.</strong> Cloud assistants are none of those things; chat windows do not touch your filesystem; the dev-tool agents are scoped to a repo, not a life. Ada fills that gap. The Agent Framework gives us the C# agent loop, approval, and compaction primitives; Voxa gives us the real-time voice pipeline; the streaming and human-in-the-loop patterns above are proven shapes to re-implement. The desktop shell, local harness, memory, local model routing, sub-agent orchestration, and Ada-specific voice host wiring are all new Ada work.</p>
 </section>
 
 <!-- ════════════════════════════ 2 ═══════════════════════════ -->
@@ -302,7 +301,7 @@
 <ul>
   <li><strong>Local-first is the whole product, not a setting.</strong> A personal agent earns trust by keeping your life on your machine. The hybrid choice — small model local, frontier model on escalation — means the default path for "tidy these files", "what's on today", "remember this" never makes a network call. Privacy is the architecture, not a checkbox.</li>
   <li><strong>The harness is the moat.</strong> Anyone can wrap a chat model. The hard, valuable part is the <em>environment</em>: approvals, scoping, memory, compaction, audit. The Agent Framework gives us those as first-class pieces. Building Ada well means building the harness well — and that harness is the reusable asset you asked for.</li>
-  <li><strong>Voice being yours (Voxa) is a real edge.</strong> Most agents bolt on a cloud STT/TTS. Voxa already gives the .NET pipeline, local STT/TTS options, Microsoft Agent Framework adapter, observability, and Voxa Studio; Simi mobile already speaks the consuming WSS contract. Ada should use that stack directly and keep voice private by default.</li>
+  <li><strong>Voice being yours (Voxa) is a real edge.</strong> Most agents bolt on a cloud STT/TTS. Voxa already gives the .NET pipeline, local STT/TTS options, Microsoft Agent Framework adapter, observability, and Voxa Studio, plus a proven WSS voice-client contract. Ada should use that stack directly and keep voice private by default.</li>
 </ul>
 
 <h3>2.2 Three hard truths the easy version underweights</h3>
@@ -323,7 +322,7 @@
 <ol>
   <li><strong>Make approvals legible, not modal.</strong> Every gated action is a card with the exact command, the working directory, and a one-line plain-English "why". Approvals can be remembered per-session and per-tool. The audit log is a first-class screen, not a file nobody opens. Trust compounds when you can always see what she did and what she asked.</li>
   <li><strong>Memory you can read.</strong> Ada's long-term memory is human-readable files with frontmatter and a single index — the same shape this very assistant uses. Nothing is remembered that you cannot open, edit, or delete. Memory is a folder, not a black-box vector blob. Cross-session recall is <strong>SQLite FTS5</strong> full-text search over those files (the Hermes Agent approach), with a semantic/vector index left as a <em>maybe-later</em> layer over them, never instead of them.</li>
-  <li><strong>Draw the AONIK seam now.</strong> A "skill" is a self-contained bundle of instructions + tools + (optional) an MCP mount. Today the app reaches AONIK through REST; the future finance skill is just a skill whose tools come from an AONIK MCP server when that surface exists. If the skill contract is right in v1, that integration is configuration, not surgery. We prove the contract by shipping two real skills (research, desktop) against it.</li>
+  <li><strong>Draw the external-service seam now.</strong> A "skill" is a self-contained bundle of instructions + tools + (optional) an MCP mount. Any future external integration — say a personal finance or records backend — is just a skill whose tools come from that service's MCP server when it exists. If the skill contract is right in v1, that integration is configuration, not surgery. We prove the contract by shipping two real skills (research, desktop) against it.</li>
 </ol>
 </section>
 
@@ -346,7 +345,7 @@
 <h3>3.2 The persona</h3>
 <div class="persona">
   <div class="avatar">A</div>
-  <div class="body"><strong>Ada</strong> — named for the firstborn (Igbo) and for Ada Lovelace. A calm, exacting desktop chief-of-staff. She is brief by default and expansive on request. She <em>describes before she prescribes</em>. She narrates what she's about to do in one plain line, asks before anything that writes, deletes, sends, or spends, and tells you plainly when she used the cloud or the web. She remembers on purpose, never silently. She would rather ask a sharp question than guess. She is distinct from the Simi product — Simi keeps your cross-border life; Ada is the assistant who, one day, will help you talk to it. Her personality isn't hardcoded — it lives in an editable <code>ADA.md</code> persona file (§9), so you can reshape how she speaks.</div>
+  <div class="body"><strong>Ada</strong> — named for Ada Lovelace, the first programmer. A calm, exacting desktop chief-of-staff. She is brief by default and expansive on request. She <em>describes before she prescribes</em>. She narrates what she's about to do in one plain line, asks before anything that writes, deletes, sends, or spends, and tells you plainly when she used the cloud or the web. She remembers on purpose, never silently. She would rather ask a sharp question than guess. From your side there is one Ada — when work gets big she may spawn internal sub-agents to split or parallelize it, but you never manage a swarm. Her personality isn't hardcoded — it lives in an editable <code>ADA.md</code> persona file (§9), so you can reshape how she speaks.</div>
 </div>
 
 <h3>3.3 The principles (the rules every feature obeys)</h3>
@@ -355,19 +354,19 @@
   <tbody>
     <tr><td><strong>Local-first</strong></td><td>Default inference, STT, TTS, and memory are on-device. Egress is opt-in per channel and always surfaced.</td></tr>
     <tr><td><strong>Ask before you act</strong></td><td>Any tool that mutates state (write/delete/move/send/spend/install) is approval-gated. Read-only tools are not. The model never bypasses a gate.</td></tr>
-    <tr><td><strong>Describe, don't prescribe</strong></td><td>Carried from Simi's Keeper. Ada explains and answers; she does not push you toward decisions — especially, later, about money.</td></tr>
+    <tr><td><strong>Describe, don't prescribe</strong></td><td>Ada explains and answers; she does not push you toward decisions — especially, later, about money.</td></tr>
     <tr><td><strong>Remember on purpose</strong></td><td>Nothing enters long-term memory without being a readable file you can inspect. A "remember" is itself a visible act.</td></tr>
-    <tr><td><strong>One agent, many skills</strong></td><td>A single Ada with a growing, composable skill set — not a swarm of bots. Sub-agents are an internal tool she may call, never a UI the user manages.</td></tr>
+    <tr><td><strong>One agent, many skills (and sub-agents)</strong></td><td>A single Ada with a growing, composable skill set. To handle multiple tasks or break down a complex one, she may <strong>spawn internal sub-agents</strong> and work them in parallel — but they are a tool she calls, never a swarm UI you manage. From your side there is always one Ada.</td></tr>
     <tr><td><strong>Legible by default</strong></td><td>What she did, what she asked, what she sent — all visible in history and the audit log. No hidden actions.</td></tr>
   </tbody>
 </table>
 
 <h3>3.4 The cast (used in every example below)</h3>
 <div class="stategrid">
-  <div class="state"><div class="sn">You</div>Michael — founder, building Simi. Cross-border life: UK base, family and an asset or two in Nigeria. The single user of this Ada.</div>
+  <div class="state"><div class="sn">You</div>Michael — the founder and the single user of this Ada. A Windows power user who wants a private assistant with real hands on the machine.</div>
   <div class="state"><div class="sn">The machine</div>Windows 11, the box this repo sits on. Ada's whole world: her files, her shell, her tray.</div>
   <div class="state"><div class="sn">Tunde</div>Your accountant. Year-end 31 March. The kind of fact Ada should remember without being asked twice.</div>
-  <div class="state"><div class="sn">The Surulere flat</div>An asset in the Simi world. The thing the future AONIK skill will let Ada talk about: "what did the flat cost me this quarter?"</div>
+  <div class="state"><div class="sn">A future external service</div>An example integration — say a personal finance or records backend — that a future drop-in skill will let Ada talk to: "what did this cost me this quarter?" Out of v1; only the seam is drawn.</div>
 </div>
 
 <h3>3.5 The daily loop (what retention lives on)</h3>
@@ -375,14 +374,14 @@
   <li><strong>Morning.</strong> Hotkey, "what's today?" — Ada gives a 20-second spoken briefing: calendar, anything she's tracking, the weather, one nudge. Local where she can, cloud only if you ask her to reach out.</li>
   <li><strong>In flow.</strong> "Tidy the screenshots from this week into <code>/Projects/Ada/notes</code>." She proposes the moves; you approve once; done. "Find me three sources on .NET 10 GC changes." She searches, reads, cites.</li>
   <li><strong>Capture.</strong> "Remember Tunde is my accountant, year-end 31 March." A memory file is written; she confirms in one line.</li>
-  <li><strong>Evening / later.</strong> (When AONIK lands) "What did I commit to Mum this month?" — the finance skill answers from your real records, in Ada's voice, describing not prescribing.</li>
+  <li><strong>Evening / later.</strong> (When an external finance/records service is connected) "What did I commit to Mum this month?" — a drop-in skill answers from your real records, in Ada's voice, describing not prescribing.</li>
 </ol>
 <p>Three of those four loops ship in v1. The fourth is the seam we protect.</p>
 
 <h3>3.6 Non-goals (named now, so they don't creep)</h3>
 <p>
   <span class="pill cut">Not v1</span> moving money or executing transactions ·
-  <span class="pill cut">Not v1</span> the AONIK finance skill itself ·
+  <span class="pill cut">Not v1</span> any external finance/records skill itself ·
   <span class="pill cut">Not v1</span> a multi-agent "team" UI ·
   <span class="pill cut">Not v1</span> cross-platform (Windows only) ·
   <span class="pill cut">Not v1</span> a cloud sync of memory ·
@@ -403,11 +402,11 @@
 <div class="layers">
   <div class="layer ui"><span class="lk">UI plane — Ada.App</span> The Windows tray host. A <code>NotifyIcon</code> + a global hotkey + a <strong>WebView2</strong> window that renders chat, voice state, and <strong>approval cards</strong>. Native shell, web-tech surface. Owns notifications, autostart, first-run, settings.</div>
   <div class="arrow">▲ ▼</div>
-  <div class="layer voice"><span class="lk">Voice plane — Ada.Voice</span> In-process ASP.NET Core hosting <strong>Voxa</strong> (<code>AddVoxa</code> + <code>MapVoxaVoice("/voice")</code>). Voxa runs the loopback desktop endpoint: mic → VAD → STT → <em>the Ada agent</em> → sentence aggregation → TTS → speaker, using local WhisperCpp/Piper/Kokoro/Silero providers by default. Simi mobile proves the consuming WSS contract.</div>
+  <div class="layer voice"><span class="lk">Voice plane — Ada.Voice</span> In-process ASP.NET Core hosting <strong>Voxa</strong> (<code>AddVoxa</code> + <code>MapVoxaVoice("/voice")</code>). Voxa runs the loopback desktop endpoint: mic → VAD → STT → <em>the Ada agent</em> → sentence aggregation → TTS → speaker, using local WhisperCpp/Piper/Kokoro/Silero providers by default. A proven WSS voice-client contract consumes it.</div>
   <div class="arrow">▲ ▼</div>
   <div class="layer agent"><span class="lk">Agent &amp; harness plane — Ada.Core</span> The heart. A <code>ChatClientAgent</code> wrapped in the harness: the hybrid <strong>model router</strong>, the <strong>approval</strong> gateway, <strong>compaction</strong>, <strong>memory</strong>, the <strong>tool / skill / MCP</strong> registry, the <strong>audit</strong> log. Everything below the UI and voice is here.</div>
   <div class="arrow">▲ ▼</div>
-  <div class="layer host"><span class="lk">Capability plane — Ada.Tools / Ada.Mcp / providers</span> The actual powers: shell, filesystem, web search/fetch, clipboard, screenshot, scheduler; MCP clients (filesystem, git, and later AONIK); and the model providers (configured local <code>IChatClient</code> by default, Anthropic/OpenAI/Azure on escalation).</div>
+  <div class="layer host"><span class="lk">Capability plane — Ada.Tools / Ada.Mcp / providers</span> The actual powers: shell, filesystem, web search/fetch, clipboard, screenshot, scheduler; MCP clients (filesystem, git today, external services later); and the model providers (configured local <code>IChatClient</code> by default, Anthropic/OpenAI/Azure on escalation).</div>
 </div>
 
 <div class="callout info">
@@ -535,7 +534,7 @@ Voxa TTS (Piper/Kokoro, local) ─PCM─▶ Speaker   +   transcript ─▶ WebV
     <tr><td><strong>Memory</strong></td><td>The <code>AIContextProvider</code> extension point</td><td>The file-based memory store, schema, recall, and the <code>remember</code> tool (§9)</td></tr>
     <tr><td><strong>Model control</strong></td><td><code>IChatClient</code> abstraction + builder middleware</td><td>The hybrid router as a delegating <code>IChatClient</code> (§6)</td></tr>
     <tr><td><strong>Logging / tracing</strong></td><td>OpenTelemetry-compatible hooks and activity sources where the framework/provider exposes them</td><td>The audit log, Ada-owned spans/metrics, and the local trace viewer in settings</td></tr>
-    <tr><td><strong>Sub-agents</strong></td><td>Agents are composable; an agent can be exposed as a tool (<code>AsAIFunction</code>)</td><td>A small set of internal specialist sub-agents Ada may call as tools (later)</td></tr>
+    <tr><td><strong>Sub-agents</strong></td><td>Agents are composable; an agent can be exposed as a tool (<code>AsAIFunction</code>)</td><td>Ada spawns internal sub-agents to decompose or parallelize complex work, calling them as tools and folding results back into the main thread</td></tr>
   </tbody>
 </table>
 
@@ -720,7 +719,7 @@ IChatClient cloud = <span class="kw">await</span> registry.CreateAsync(config.Mo
     <tr><td><strong>Desktop</strong></td><td><code>read_clipboard</code>, <code>write_clipboard</code>, <code>screenshot</code></td><td>read = none · write/screenshot = <span class="pill cut">gated</span></td></tr>
     <tr><td><strong>Scheduler</strong></td><td><code>schedule_reminder</code> (passive) · <code>schedule_job</code>, <code>list_jobs</code>, <code>cancel_job</code> — the automations engine (§12)</td><td>reminders = low · a job's own actions keep their tier; unattended runs default read-only (§12)</td></tr>
     <tr><td><strong>Memory</strong></td><td><code>remember</code>, <code>recall</code>, <code>forget</code> (§9)</td><td>write = visible-but-ungated (memory is the point); <code>forget</code> confirmed</td></tr>
-    <tr><td><strong>MCP-provided</strong></td><td>Whatever a mounted server exposes (filesystem, git today; AONIK later)</td><td>inherited from a per-server policy (§7.4)</td></tr>
+    <tr><td><strong>MCP-provided</strong></td><td>Whatever a mounted server exposes (filesystem, git today; external services later)</td><td>inherited from a per-server policy (§7.4)</td></tr>
   </tbody>
 </table>
 
@@ -741,8 +740,8 @@ IChatClient cloud = <span class="kw">await</span> registry.CreateAsync(config.Mo
 AIFunction shell = AIFunctionFactory.Create(RunShell);
 AIFunction guarded = <span class="kw">new</span> ApprovalRequiredAIFunction(shell);   <span class="cm">// §8 enforces it</span></pre></div>
 
-<h3>7.3 Skills — the unit of extensibility (and the AONIK seam)</h3>
-<p>A <strong>skill</strong> is a self-contained bundle: a name, a slice of instructions appended to the persona when active, a set of tools, and optionally an <strong>MCP mount</strong>. Skills are how Ada grows without the core changing. Today, Simi reaches AONIK through REST-backed mobile APIs such as <code>SimiSpineApi</code>; the future finance skill becomes <em>just a skill</em> when AONIK exposes the same domain through an MCP server.</p>
+<h3>7.3 Skills — the unit of extensibility (and the external-service seam)</h3>
+<p>A <strong>skill</strong> is a self-contained bundle: a name, a slice of instructions appended to the persona when active, a set of tools, and optionally an <strong>MCP mount</strong>. Skills are how Ada grows without the core changing. A future external integration — for example a personal finance or records backend — becomes <em>just a skill</em> when that service exposes its domain through an MCP server.</p>
 <div class="codeblock"><div class="bar"><span>Ada.Core/Skills/ISkill.cs + skill manifest</span><span class="lang">C#</span></div><pre><span class="kw">public interface</span> ISkill
 {
     <span class="kw">string</span> Name { <span class="kw">get</span>; }
@@ -754,18 +753,18 @@ AIFunction guarded = <span class="kw">new</span> ApprovalRequiredAIFunction(shel
 
 <span class="cm">// The future finance skill is a manifest, not new core code:</span>
 <span class="cm">//   name:        "finance"</span>
-<span class="cm">//   instruction: "You can discuss the user's Simi records. Describe, never prescribe.</span>
+<span class="cm">//   instruction: "You can discuss the user's finance records. Describe, never prescribe.</span>
 <span class="cm">//                 Amounts keep their original currency; never convert."</span>
-<span class="cm">//   mcp:         { transport: "http", url: "https://mcp.aonik.com", auth: vault("aonik") }</span>
+<span class="cm">//   mcp:         { transport: "http", url: "https://mcp.example.com", auth: vault("finance") }</span>
 <span class="cm">//   approvals:   read-only by default; any write stays gated</span></pre></div>
-<p>v1 ships two real skills against this contract — <strong>Research</strong> (web search/fetch + a synthesis instruction) and <strong>Desktop</strong> (files + shell + a tidy-up instruction) — precisely so the contract is proven before AONIK depends on it.</p>
+<p>v1 ships two real skills against this contract — <strong>Research</strong> (web search/fetch + a synthesis instruction) and <strong>Desktop</strong> (files + shell + a tidy-up instruction) — precisely so the contract is proven before any external integration depends on it.</p>
 <div class="callout">
   <div class="label">Later — learned skills</div>
   Hermes Agent <a href="https://github.com/NousResearch/hermes-agent">creates skills from experience</a> and self-improves them. A natural v2 for Ada: after a successful multi-step task, she offers to <em>save it as a reusable skill</em> — written as the same inspectable manifest, editable by you, with any mutating tool still gated. Powerful, but it stays behind the "remember on purpose" rule: a learned skill is a file you can read, never a black box. Out of scope for v1.
 </div>
 
 <h3>7.4 MCP — mounting external servers</h3>
-<p>Ada is an MCP <em>client</em>. A skill's <code>McpMount</code> spins up a client, lists its tools, and merges them into the agent's tool set. Local servers run over stdio. A future remote AONIK server would use HTTP with auth headers pulled from the vault at call time; it is not present in this repo today.</p>
+<p>Ada is an MCP <em>client</em>. A skill's <code>McpMount</code> spins up a client, lists its tools, and merges them into the agent's tool set. Local servers run over stdio. A future remote external server would use HTTP with auth headers pulled from the vault at call time; none is present in this repo today.</p>
 <div class="codeblock"><div class="bar"><span>Ada.Mcp/McpMountService.cs</span><span class="lang">C#</span></div><pre><span class="kw">using</span> ModelContextProtocol.Client;
 
 <span class="cm">// Local server over stdio (e.g. the official filesystem server, scoped to a folder)</span>
@@ -781,10 +780,10 @@ IList&lt;McpClientTool&gt; tools = <span class="kw">await</span> fs.ListToolsAsy
 <span class="cm">// Merge into the registry; per-server approval policy wraps mutating tools.</span>
 registry.AddRange(policy.Guard(tools.Cast&lt;AITool&gt;()));
 
-<span class="cm">// AONIK later: same call, an HTTP transport, headers from the OS vault per run.</span></pre></div>
+<span class="cm">// External service later: same call, an HTTP transport, headers from the OS vault per run.</span></pre></div>
 <div class="callout warn">
   <div class="label">Third-party MCP is egress</div>
-  Connecting any non-local MCP server sends prompt content off the machine. Ada treats every remote MCP mount as an <strong>egress channel</strong> (§14): named, listed in settings, logged, and — for a write-capable server — gated. AONIK is your own service, but the contract is the same for all.
+  Connecting any non-local MCP server sends prompt content off the machine. Ada treats every remote MCP mount as an <strong>egress channel</strong> (§14): named, listed in settings, logged, and — for a write-capable server — gated. Even your own services get the same treatment; the contract is the same for all.
 </div>
 
 <h3>7.5 Ada as an MCP server (later, not assumed)</h3>
@@ -939,14 +938,14 @@ AgentResponse response = <span class="kw">await</span> ada.RunAsync(userText, se
 </div>
 
 <div class="accept"><div class="label">Verified — the spike</div>
-  <code>ada/spikes/WasmSandboxSpike</code> proved Zone 1 live on this machine (Windows 11 Home, .NET 10, <em>no</em> Docker/Hyper-V): capability isolation (the guest imports nothing), an infinite loop trapped as <code>OutOfFuel</code>, a memory cap denied over-growth, real CPython 3.12-WASI ran <code>csv</code>+<code>statistics</code>, <code>import numpy</code> failed (the gap), and a TypeScript→JS snippet returned <code>{"n":8,…}</code> via Javy/QuickJS.</div>
+  <code>spikes/WasmSandboxSpike</code> proved Zone 1 live on this machine (Windows 11 Home, .NET 10, <em>no</em> Docker/Hyper-V): capability isolation (the guest imports nothing), an infinite loop trapped as <code>OutOfFuel</code>, a memory cap denied over-growth, real CPython 3.12-WASI ran <code>csv</code>+<code>statistics</code>, <code>import numpy</code> failed (the gap), and a TypeScript→JS snippet returned <code>{"n":8,…}</code> via Javy/QuickJS.</div>
 
 <p class="muted">Build sequencing: Zone 1 lands with the safety floor (M2), since it reuses the limits/scoping machinery; the container and remote zones attach at M5 alongside skills/MCP (§7.3–§7.4). The boundary gate is simply the §8.1 approval loop applied to zone-crossing tools.</p>
 </section>
 
 <!-- ════════════════════════════ 9 ═══════════════════════════ -->
 <section id="memory">
-<h2><span class="num">9.</span>Memory &amp; state — file-based memory and the AONIK seam</h2>
+<h2><span class="num">9.</span>Memory &amp; state — file-based memory and the skill seam</h2>
 
 <h3>9.1 The shape — a folder you can read</h3>
 <p>Ada's long-term memory is a directory of small Markdown files with frontmatter, plus one index file loaded into context each session. This is deliberately the same pattern that works for code agents: legible, diffable, portable, deletable. One fact per file.</p>
@@ -958,7 +957,7 @@ metadata:
 ---
 
 Tunde is the user's accountant. Financial year-end is 31 March.
-Related: [[simi-records]] (future AONIK finance skill).</pre></div>
+Related: [[finance-records]] (future external finance/records skill).</pre></div>
 <p><code>MEMORY.md</code> is the index — one line per memory — and is the only memory file loaded in full at session start; individual facts are pulled in on relevance via <code>recall</code>. Memory <em>types</em>: <code>user</code> (who you are, preferences), <code>project</code> (ongoing work), <code>reference</code> (people, facts, resources), <code>feedback</code> (how Ada should work for you). Two special files sit alongside the facts: <strong><code>USER.md</code></strong>, a single evolving user-model Ada updates as she learns your preferences and patterns, and <strong><code>ADA.md</code></strong>, the editable persona / system prompt — both plain files you can open and rewrite (a pattern borrowed from Hermes Agent's <code>USER.md</code> / <code>SOUL.md</code>).</p>
 
 <h3>9.2 How memory reaches the model</h3>
@@ -984,10 +983,10 @@ Related: [[simi-records]] (future AONIK finance skill).</pre></div>
   </tbody>
 </table>
 
-<h3>9.4 The AONIK seam (the future, framed now)</h3>
+<h3>9.4 The external-service seam (the future, framed now)</h3>
 <div class="callout accent">
   <div class="label">Where money-talk attaches</div>
-  When AONIK ships its MCP server, the <strong>finance skill</strong> (§7.3) mounts it. Today, the mobile app reaches the same domain through REST via <code>SimiSpineApi</code>; MCP is the future agent-facing surface. Its tools answer questions like "what did the Surulere flat cost me this quarter?" from your <em>real</em> Simi records. Two product rules carry straight over from Simi's Keeper and are baked into the skill's instruction fragment: <strong>amounts keep their original currency, never converted</strong>; and Ada <strong>describes, never prescribes</strong> — she'll tell you what you committed and what you've paid, never what to do with your money. Memory links (<code>[[simi-records]]</code>) are already laid so Ada knows the seam exists before the skill does. <strong>Nothing about this is in the v1 build — only the contract it will use.</strong>
+  When an external finance/records service ships an MCP server, a <strong>drop-in skill</strong> (§7.3) mounts it. Its tools answer questions like "what did this asset cost me this quarter?" from your <em>real</em> records. Two product rules are baked into the skill's instruction fragment: <strong>amounts keep their original currency, never converted</strong>; and Ada <strong>describes, never prescribes</strong> — she'll tell you what you committed and what you've paid, never what to do with your money. Memory links (<code>[[finance-records]]</code>) can be laid so Ada knows the seam exists before the skill does. <strong>Nothing about this is in the v1 build — only the contract it will use.</strong>
 </div>
 
 <h3>9.5 Recall across sessions — FTS5, not vectors</h3>
@@ -1140,7 +1139,7 @@ app.Urls.Add(<span class="st">"http://127.0.0.1:0"</span>);   <span class="cm">/
     <tr><td>Toast notification</td><td>A glanceable nudge ("3 PRs need review")</td></tr>
     <tr><td>The chat window</td><td>A full result waiting when you next open Ada</td></tr>
     <tr><td>A written note (file)</td><td>A durable artefact — the morning brief saved to <code>/notes</code></td></tr>
-    <tr><td><span class="pill later">Later</span> a channel (email / WhatsApp)</td><td>Hermes delivers to messaging platforms; for Ada this bridges to Simi's "WhatsApp is a channel" idea — out of scope for v1.</td></tr>
+    <tr><td><span class="pill later">Later</span> a channel (email / WhatsApp)</td><td>Hermes delivers to messaging platforms; an out-of-process delivery channel is a natural later addition for Ada — out of scope for v1.</td></tr>
   </tbody>
 </table>
 
@@ -1171,14 +1170,14 @@ app.Urls.Add(<span class="st">"http://127.0.0.1:0"</span>);   <span class="cm">/
 
 <div class="callout accent">
   <div class="label">Where this pays off — and what we're not copying</div>
-  With the future AONIK skill, jobs get quietly valuable: "every month-end, <em>draft</em> my support statement," "every Friday, tell me what's due before payday" — all read-only-by-default, original-currency, describe-not-prescribe, so they stay safe. What Ada does <strong>not</strong> borrow from Hermes is the always-on multi-platform messaging gateway or the serverless deployment story — those serve a cross-platform bot; Ada is a local Windows companion.
+  With a future finance/records skill, jobs get quietly valuable: "every month-end, <em>draft</em> my support statement," "every Friday, tell me what's due before payday" — all read-only-by-default, original-currency, describe-not-prescribe, so they stay safe. What Ada does <strong>not</strong> borrow from Hermes is the always-on multi-platform messaging gateway or the serverless deployment story — those serve a cross-platform bot; Ada is a local Windows companion.
 </div>
 </section>
 
 <!-- ════════════════════════════ 13 ═══════════════════════════ -->
 <section id="design">
 <h2><span class="num">13.</span>Design language — Ada's desktop face</h2>
-<p>Ada borrows Simi's <strong>Heirloom</strong> palette and type so the family resemblance is real, then adapts it for a dense, fast desktop surface. Warm paper, evergreen and clay accents, Fraunces for moments and a system sans for the working UI.</p>
+<p>Ada uses the <strong>Heirloom</strong> palette and type — warm paper, evergreen and clay accents, Fraunces for moments and a system sans for the working UI — adapted for a dense, fast desktop surface.</p>
 <table>
   <thead><tr><th>Element</th><th>Treatment</th></tr></thead>
   <tbody>
@@ -1188,7 +1187,7 @@ app.Urls.Add(<span class="st">"http://127.0.0.1:0"</span>);   <span class="cm">/
     <tr><td><strong>Motion &amp; identity</strong></td><td>Used sparingly, on purpose: the animated <strong>Ada monogram</strong> on the setup launch page (§11.3) and the voice orb. Soft, breathing motion — alive when she works, still when she rests. No spinner clichés.</td></tr>
     <tr><td><strong>Status &amp; egress</strong></td><td>Anything leaving the machine gets a small, consistent egress glyph in-line and in the audit log. Legibility is a visual job too.</td></tr>
     <tr><td><strong>Dark mode</strong></td><td>The Heirloom night surface; follows the OS theme.</td></tr>
-    <tr><td><strong>Tokens</strong></td><td>One token file shared by the WebView2 surfaces (chat + settings), mirroring Simi's "one palette file" discipline.</td></tr>
+    <tr><td><strong>Tokens</strong></td><td>One token file shared by the WebView2 surfaces (chat + settings) — a single "one palette file" discipline.</td></tr>
   </tbody>
 </table>
 </section>
@@ -1204,7 +1203,7 @@ app.Urls.Add(<span class="st">"http://127.0.0.1:0"</span>);   <span class="cm">/
   <tbody>
     <tr><td><strong>Cloud model</strong></td><td>Router escalates to your configured cloud provider (§6)</td><td>None connected ⇒ fully local (degraded but private). Connected ⇒ each use shown as a route badge + logged.</td></tr>
     <tr><td><strong>Web</strong></td><td><code>web_search</code> / <code>fetch_url</code></td><td>Per-skill; the query/URL is logged. Off ⇒ no web tools.</td></tr>
-    <tr><td><strong>Remote MCP</strong></td><td>A non-local MCP mount (AONIK, later)</td><td>Listed by name in settings; logged; write-capable servers gated.</td></tr>
+    <tr><td><strong>Remote MCP</strong></td><td>A non-local MCP mount (external services, later)</td><td>Listed by name in settings; logged; write-capable servers gated.</td></tr>
     <tr><td><strong>Unattended jobs</strong></td><td>A scheduled run reaches cloud / web / MCP (§12)</td><td>Per-job opt-in only; local by default; budgeted; tagged as an autonomous run in the audit log.</td></tr>
   </tbody>
 </table>
@@ -1242,25 +1241,23 @@ app.Urls.Add(<span class="st">"http://127.0.0.1:0"</span>);   <span class="cm">/
 
 <!-- ════════════════════════════ 15 ═══════════════════════════ -->
 <section id="structure">
-<h2><span class="num">16.</span>Project structure &amp; conventions — the first .NET in the repo</h2>
-<p>Ada is the repo's first .NET solution. It sits in its own top-level folder beside <code>mobile/</code> and <code>web/</code>, ships as its own app, and shares nothing but the brand and (later) AONIK.</p>
-<div class="codeblock"><div class="bar"><span>repo layout</span><span class="lang">text</span></div><pre>Simi/
-├─ mobile/                 <span class="cm"># Flutter (exists)</span>
-├─ web/                    <span class="cm"># React / Payabo (exists)</span>
+<h2><span class="num">16.</span>Project structure &amp; conventions — the .NET solution</h2>
+<p>Ada is a standalone .NET solution at the root of its own repository. It depends on no other product and ships as its own app.</p>
+<div class="codeblock"><div class="bar"><span>repo layout</span><span class="lang">text</span></div><pre>Ada-Voice-Agent/
 ├─ docs/                   <span class="cm"># specs — this file lives here</span>
-└─ ada/                    <span class="cm"># NEW — the Ada app</span>
-   ├─ Ada.sln
-   ├─ Directory.Packages.props      <span class="cm"># central, pinned (prerelease) versions</span>
-   ├─ src/
-   │  ├─ Ada.App/          <span class="cm"># net10.0-windows — tray host + WebView2 shell (exe)</span>
-   │  ├─ Ada.Core/         <span class="cm"># net10.0 — agent, harness, router, memory, skills, audit</span>
-   │  ├─ Ada.Tools/        <span class="cm"># net10.0 — shell, fs, web, clipboard, screenshot, scheduler</span>
-   │  ├─ Ada.Mcp/          <span class="cm"># net10.0 — MCP client mounts (incl. the AONIK seam)</span>
-   │  ├─ Ada.Voice/        <span class="cm"># net10.0 — in-proc ASP.NET Core + Voxa hosting</span>
-   │  └─ Ada.Web/          <span class="cm"># the WebView2 UI assets (chat + settings, one token file)</span>
-   └─ tests/
-      ├─ Ada.Core.Tests/
-      └─ Ada.Tools.Tests/  <span class="cm"># approval policy + scoping get the most coverage</span></pre></div>
+├─ Ada.sln
+├─ Directory.Packages.props         <span class="cm"># central, pinned (prerelease) versions</span>
+├─ src/
+│  ├─ Ada.App/             <span class="cm"># net10.0-windows — tray host + WebView2 shell (exe)</span>
+│  ├─ Ada.Core/            <span class="cm"># net10.0 — agent, harness, router, memory, skills, sub-agents, audit</span>
+│  ├─ Ada.Tools/           <span class="cm"># net10.0 — shell, fs, web, clipboard, screenshot, scheduler</span>
+│  ├─ Ada.Mcp/             <span class="cm"># net10.0 — MCP client mounts (the external-service seam)</span>
+│  ├─ Ada.Voice/           <span class="cm"># net10.0 — in-proc ASP.NET Core + Voxa hosting</span>
+│  └─ Ada.Web/             <span class="cm"># the WebView2 UI assets (chat + settings, one token file)</span>
+├─ spikes/                 <span class="cm"># proving grounds (e.g. WasmSandboxSpike)</span>
+└─ tests/
+   ├─ Ada.Core.Tests/
+   └─ Ada.Tools.Tests/     <span class="cm"># approval policy + scoping get the most coverage</span></pre></div>
 <ul>
   <li><strong>DI everywhere</strong> via the Generic Host; <code>Ada.Core</code> exposes <code>IAdaConversation</code> and the tool/skill/memory/policy interfaces. The UI depends only on those.</li>
   <li><strong>Central package management</strong> pins every prerelease. Upgrades are PRs with a smoke-test checklist.</li>
@@ -1300,8 +1297,8 @@ app.Urls.Add(<span class="st">"http://127.0.0.1:0"</span>);   <span class="cm">/
 </div></div>
 
 <div class="spec"><div class="head"><h3>M5 — Skills + MCP</h3><span class="route">extensibility, proven</span></div><div class="inner">
-<p>The <code>ISkill</code> contract; the Research and Desktop skills; MCP client mounts (local filesystem + git) with per-server policy and egress treatment. The AONIK seam stubbed and documented, not built.</p>
-<div class="accept"><div class="label">Done when</div><ul><li>Enabling a skill adds its instructions + tools with no core change.</li><li>A local MCP server mounts, lists tools, and its mutating tools are gated.</li><li>A disabled remote-MCP placeholder for "finance/AONIK" exists with the right policy + currency/describe-not-prescribe instruction.</li></ul></div>
+<p>The <code>ISkill</code> contract; the Research and Desktop skills; MCP client mounts (local filesystem + git) with per-server policy and egress treatment; the Docker AIO container sandbox zone (§8.8) attaches here too. The external-service seam stubbed and documented, not built.</p>
+<div class="accept"><div class="label">Done when</div><ul><li>Enabling a skill adds its instructions + tools with no core change.</li><li>A local MCP server mounts, lists tools, and its mutating tools are gated.</li><li>A disabled remote-MCP placeholder for an external "finance/records" service exists with the right policy + currency/describe-not-prescribe instruction.</li></ul></div>
 </div></div>
 
 <div class="spec"><div class="head"><h3>M6 — Voice</h3><span class="route">listen + speak, locally</span></div><div class="inner">
@@ -1337,7 +1334,7 @@ Hotkey, held. "Morning — what's today?" Ada, in her own voice and entirely on 
 "Remember Tunde's my accountant, year-end 31 March." "Done — I'll remember that." A file appears in your memory folder; you could open it right now. Next week, when you ask "when's my year-end?", she answers without the web, without the cloud.</div>
 
 <div class="dayinlife"><div class="label">Some evening, months from now — the seam pays off</div>
-AONIK's MCP is live. You enabled the finance skill this morning. "Ada — what did the Surulere flat cost me this quarter?" She mounts AONIK, reads your real records, and tells you — in naira, never converted, describing not prescribing: "Three commitments logged against the flat this quarter, ₦340,000 total; two have receipts, one's outstanding. Want the support statement?" No core code changed for this to be true. The seam held.</div>
+An external finance/records service now exposes an MCP server, and you enabled its skill this morning. "Ada — what did this property cost me this quarter?" She mounts it, reads your real records, and tells you — in the original currency, never converted, describing not prescribing: "Three commitments logged this quarter, ₦340,000 total; two have receipts, one's outstanding. Want the support statement?" No core code changed for this to be true. The seam held.</div>
 </section>
 
 <!-- ════════════════════════════ 18 ═══════════════════════════ -->
@@ -1346,7 +1343,7 @@ AONIK's MCP is live. You enabled the finance skill this morning. "Ada — what d
 
 <h3>19.1 Deliberately not in this build</h3>
 <p>
-  <span class="pill cut">Out</span> the AONIK finance skill (only its seam) ·
+  <span class="pill cut">Out</span> any external finance/records skill (only its seam) ·
   <span class="pill cut">Out</span> moving money / transactions ·
   <span class="pill cut">Out</span> wake-word &amp; always-listening ·
   <span class="pill cut">Out</span> vision / screen understanding ·
@@ -1386,18 +1383,18 @@ AONIK's MCP is live. You enabled the finance skill this morning. "Ada — what d
 <p>Decisions I made a sensible default on, but that are yours to confirm or change. None block the start of M0.</p>
 <ol>
   <li><strong>The default local provider and model.</strong> Preferred path: Foundry Local if its C# bridge and catalog verify. Fallback: loopback OpenAI-compatible local runtime. The open question is the model class: a Phi-class ~4B for speed, or a 7–8B (Qwen-class) for quality, plus a small summarizer. <em>Default assumed: verify Foundry Local first; ship an ~8B default + a ~3B summarizer on whichever local provider proves reliable.</em></li>
-  <li><strong>Cloud default.</strong> Claude as the escalation model (it's a first-class Agent Framework provider and your AONIK platform is AI-native) — agreed, or do you want OpenAI as default / both selectable? <em>Default assumed: Claude.</em></li>
+  <li><strong>Cloud default.</strong> Claude as the escalation model (it's a first-class Agent Framework provider) — agreed, or do you want OpenAI as default / both selectable? <em>Default assumed: Claude.</em></li>
   <li><strong>Provider catalog &amp; auth research.</strong> Which providers ship in the built-in catalog at launch — Anthropic, OpenAI, Azure OpenAI, OpenRouter, Ollama, LM Studio, Foundry Local, others? — and should Claude subscription OAuth or <code>claude</code> CLI reuse be researched after MVP? <em>Default assumed: launch with API key / Azure credential / local no-auth only; research subscription and CLI reuse later.</em></li>
   <li><strong>Allowed roots.</strong> Which folders may Ada write to without asking, out of the box? <em>Default assumed: a single <code>~/Projects/Ada</code> workspace + <code>~/Downloads</code> for tidying; everything else gated.</em></li>
   <li><strong>Voice persona.</strong> Which Piper/Kokoro voice is "Ada"? Worth picking one deliberately — it's her identity. <em>Default assumed: a warm, neutral-accent local voice, swappable in settings.</em></li>
-  <li><strong>Repo home.</strong> Confirm Ada lives in <code>ada/</code> in this repo (vs its own repo). It shares only brand + the future AONIK seam. <em>Default assumed: <code>ada/</code> here, its own <code>Ada.sln</code>.</em></li>
-  <li><strong>The name in code.</strong> "Ada" as the product/persona and <code>Ada.*</code> as the namespaces — confirmed? (Distinct from the Simi product on purpose.)</li>
+  <li><strong>Repo home — resolved.</strong> Ada lives in its own standalone repository (<code>Ada-Voice-Agent</code>) with its own <code>Ada.sln</code> at the root, depending on no other product.</li>
+  <li><strong>The name in code.</strong> "Ada" as the product/persona and <code>Ada.*</code> as the namespaces — confirmed?</li>
   <li><strong>Wake-word appetite.</strong> Is always-listening "Hey Ada" something you want soon, or deliberately deferred for privacy? <em>Default assumed: deferred past v1.</em></li>
   <li><strong>How much coding.</strong> You didn't pick "coding/dev-ops" as a launch priority, so the Desktop skill covers shell/files generically rather than shipping a dedicated dev skill. Confirm that's right for now, or should a "work on this repo" skill be in v1 after all?</li>
   <li><strong>Sandbox dependency &amp; defaults.</strong> The in-process Wasm zone (§8.8) ships to everyone with no dependency; the full container zone needs Docker/WSL2. Is it right to ask power users to install Docker, with the wizard advising it for the best experience — and do we stand up the <strong>remote AIO sandbox on Azure Container Apps</strong> in v1 or defer it? <em>Default assumed: in-process zone in v1; Docker zone optional &amp; wizard-detected; Azure remote zone post-v1.</em></li>
 </ol>
 
-<p class="footnote">Ada · Rev 2 · June 2026 · A new .NET 10 project in the Simi repo · Built on Microsoft Agent Framework agent/harness patterns + AG-UI/Voxa WSS precedents · Local-first, approval-gated, voice-capable · Designed so the AONIK finance skill is a configuration, not a rewrite. Pairs with the Simi positioning &amp; mobile rebuild specs in this folder.</p>
+<p class="footnote">Ada · Rev 3 · June 2026 · A standalone .NET 10 system · Built on Microsoft Agent Framework agent/harness patterns + the Voxa WSS voice contract · Local-first, approval-gated, voice-capable, sub-agent-capable · Designed so any external integration is a configuration, not a rewrite.</p>
 </section>
 
 </main>
