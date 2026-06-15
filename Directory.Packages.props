@@ -18,6 +18,8 @@
     <PackageVersion Include="Wasmtime" Version="44.0.0" />
     <!-- Memory (M4) -->
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <!-- Automations (M7) -->
+    <PackageVersion Include="Cronos" Version="0.8.4" />
     <!-- Voice (M6) — Voxa .NET 10 voice framework -->
     <PackageVersion Include="Voxa.AspNetCore" Version="0.5.0-alpha" />
     <PackageVersion Include="Voxa.Services.MicrosoftAgents" Version="0.5.0-alpha" />

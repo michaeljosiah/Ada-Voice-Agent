@@ -13,6 +13,7 @@
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="Cronos" />
   </ItemGroup>
 
 </Project>

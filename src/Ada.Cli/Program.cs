@@ -34,6 +34,8 @@ internal static class Program
             "memory" => Memory(rest),
             "skills" => Skills(rest),
             "mcp" => await Mcp(rest),
+            "jobs" => Jobs(rest),
+            "run-due" => await RunDue(),
             _ => Help(),
         };
     }
@@ -89,7 +91,7 @@ internal static class Program
     /// <summary>The cumulative headless acceptance gate for every milestone shipped so far.</summary>
     private static async Task<int> SelfTest()
     {
-        Console.WriteLine("Ada self-test (M0–M6)\n");
+        Console.WriteLine("Ada self-test (M0–M7)\n");
 
         // ---- M0: loopback server + streaming round-trip ----
         await using var server = await AdaServer.StartAsync(new AdaServerOptions(Port: 0));
@@ -268,6 +270,38 @@ internal static class Program
             Report("M6 voice agent composes (same persona/skills/tools as the text surface)", voiceAgent is not null);
         }
 
+        // ---- M7: automations & schedules ----
+        Report("M7 natural-language schedule -> cron", NlCron.ToCron("every weekday at 8") == "0 8 * * 1-5");
+        Report("M7 a job missed while Ada was closed is due (catch-up)",
+            JobRunner.IsDue(new ScheduledJob("1", "b", "* * * * *", "x", LastRunUtc: DateTime.UtcNow.AddMinutes(-5)), DateTime.UtcNow));
+
+        var jobsDir = Directory.CreateTempSubdirectory("ada_jobs_").FullName;
+        try
+        {
+            var jstore = new JobStore(Path.Combine(jobsDir, "jobs.json"));
+            jstore.Upsert(new ScheduledJob("1", "morning-brief", "* * * * *", "what's today?", DeliveryTarget.Note, LastRunUtc: DateTime.UtcNow.AddMinutes(-5)));
+            var ndelivery = new NoteDeliveryService(jobsDir);
+            var jaudit = new InMemoryAuditLog();
+            var jkill = new KillSwitch(Path.Combine(jobsDir, "paused"));
+
+            var ran = await new JobRunner(jstore, ndelivery, jaudit, jkill).RunDueAsync(DateTime.UtcNow, new EchoEngine());
+            Report("M7 run-due runs the job, delivers a note, tags the audit log",
+                ran == 1 && File.Exists(ndelivery.PathFor(jstore.Load()[0])) && jaudit.Recent().Any(e => e.Outcome.Contains("autonomous")));
+
+            jkill.Paused = true;
+            Report("M7 one kill switch pauses all jobs",
+                await new JobRunner(jstore, ndelivery, jaudit, jkill).RunDueAsync(DateTime.UtcNow, new EchoEngine()) == 0);
+        }
+        finally { try { Directory.Delete(jobsDir, true); } catch { /* best effort */ } }
+
+        var noGrant = await new UnattendedApprovalHandler([]).RequestApprovalAsync(new ApprovalRequest("write_file", RiskTier.Low, "w", "x"));
+        var withGrant = await new UnattendedApprovalHandler([new StandingGrant("write_file", RiskTier.Low)]).RequestApprovalAsync(new ApprovalRequest("write_file", RiskTier.Low, "w", "x"));
+        Report("M7 unattended runs read-only by default; standing grants are narrow", !noGrant.Approved && withGrant.Approved);
+
+        const string testTask = "AdaJobRunnerSelfTest";
+        var taskInstalled = WindowsJobRunnerTask.Install("cmd /c echo ada", everyMinutes: 60, taskName: testTask);
+        Console.WriteLine($"       Windows Task Scheduler register/query/remove -> install={taskInstalled} exists={WindowsJobRunnerTask.Exists(testTask)} removed={WindowsJobRunnerTask.Uninstall(testTask)}");
+
         var ok = _failures == 0;
         Console.WriteLine(ok ? "\nSELF-TEST PASSED" : $"\nSELF-TEST FAILED ({_failures} failure(s))");
         return ok ? 0 : 1;
@@ -421,6 +455,64 @@ internal static class Program
         return 0;
     }
 
+    private static int Jobs(string[] args)
+    {
+        var sub = args.Length > 0 ? args[0].ToLowerInvariant() : "list";
+        var store = new JobStore();
+        switch (sub)
+        {
+            case "list":
+                var jobs = store.Load();
+                if (jobs.Count == 0) { Console.WriteLine("No scheduled jobs."); return 0; }
+                foreach (var j in jobs)
+                    Console.WriteLine($"  {j.Name,-20} {j.Cron,-14} -> {j.Delivery,-5} {(j.Enabled ? string.Empty : "[off] ")}last={(j.LastRunUtc?.ToString("u") ?? "never")}");
+                return 0;
+            case "add":
+                if (args.Length < 2) { Console.Error.WriteLine("usage: ada jobs add <name> --when \"...\" --do \"...\" [--deliver note]"); return 2; }
+                var flags = ParseFlags(args.Skip(2));
+                var cron = NlCron.ToCron(flags.GetValueOrDefault("when", string.Empty));
+                if (cron is null) { Console.Error.WriteLine("Could not parse --when into a schedule (try 'every weekday at 8')."); return 2; }
+                var target = Enum.TryParse<DeliveryTarget>(flags.GetValueOrDefault("deliver", "note"), true, out var d) ? d : DeliveryTarget.Note;
+                store.Upsert(new ScheduledJob(Guid.NewGuid().ToString("n"), args[1], cron, flags.GetValueOrDefault("do", string.Empty), target));
+                Console.WriteLine($"Added '{args[1]}' ({cron})."); return 0;
+            case "remove" when args.Length >= 2:
+                store.Remove(args[1]); Console.WriteLine($"Removed '{args[1]}'."); return 0;
+            case "pause":
+                new KillSwitch().Paused = true; Console.WriteLine("All jobs paused (kill switch on)."); return 0;
+            case "resume":
+                new KillSwitch().Paused = false; Console.WriteLine("Jobs resumed."); return 0;
+            case "install":
+                var exe = Environment.ProcessPath ?? "ada";
+                var ok = WindowsJobRunnerTask.Install($"\\\"{exe}\\\" run-due");
+                Console.WriteLine(ok ? "Installed Windows task 'AdaJobRunner' (runs every 10 minutes)." : "Failed to install the Windows task.");
+                return ok ? 0 : 1;
+            case "uninstall":
+                Console.WriteLine(WindowsJobRunnerTask.Uninstall() ? "Removed the Windows task." : "Nothing to remove (or failed).");
+                return 0;
+            default:
+                Console.Error.WriteLine("usage: ada jobs [list | add | remove <name> | pause | resume | install | uninstall]");
+                return 2;
+        }
+    }
+
+    private static async Task<int> RunDue()
+    {
+        var kill = new KillSwitch();
+        if (kill.Paused) { Console.WriteLine("Jobs are paused (kill switch on)."); return 0; }
+
+        var audit = new FileAuditLog();
+        using var provider = new ServiceCollection()
+            .AddSingleton<IApprovalHandler>(new UnattendedApprovalHandler(new GrantStore().Load()))
+            .AddSingleton<IAuditLog>(audit)
+            .AddAda()
+            .BuildServiceProvider();
+
+        var engine = provider.GetRequiredService<IAdaEngine>();
+        var count = await new JobRunner(new JobStore(), new NoteDeliveryService(), audit, kill).RunDueAsync(DateTime.UtcNow, engine);
+        Console.WriteLine($"Ran {count} due job(s).");
+        return 0;
+    }
+
     private static int Skills(string[] args)
     {
         var sub = args.Length > 0 ? args[0].ToLowerInvariant() : "list";
@@ -536,6 +628,8 @@ internal static class Program
               ada memory list             list durable memories (also: recall, remember, forget)
               ada skills list             list skills (also: enable <name>, disable <name>)
               ada mcp <command> [args]    mount a stdio MCP server and list its tools
+              ada jobs list               scheduled jobs (also: add, remove, pause, resume, install, uninstall)
+              ada run-due                 run any due jobs now (what the Windows task invokes headless)
 
             model config (env):
               ADA_PROVIDER=openai-compatible  ADA_ENDPOINT=http://localhost:11434/v1
