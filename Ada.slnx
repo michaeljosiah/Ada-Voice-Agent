@@ -5,6 +5,7 @@
     <Project Path="src/Ada.Core/Ada.Core.csproj" />
     <Project Path="src/Ada.Server/Ada.Server.csproj" />
     <Project Path="src/Ada.Tools/Ada.Tools.csproj" />
+    <Project Path="src/Ada.Voice/Ada.Voice.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Ada.Core.Tests/Ada.Core.Tests.csproj" />

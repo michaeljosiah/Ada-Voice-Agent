@@ -43,6 +43,12 @@
   .card .row{display:flex;gap:8px;margin-top:8px;}
   .card button{flex:0 0 auto;padding:6px 12px;font-size:13px;border-radius:8px;}
   .card .once{background:var(--evergreen);} .card .sess{background:var(--clay);} .card .deny{background:#9e2b1c;}
+  #voiceBtn{position:absolute;left:16px;bottom:78px;padding:8px 14px;border-radius:20px;border:1px solid var(--rule);
+    background:#fff;color:var(--ink);font:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(34,30,24,.1);z-index:4;}
+  #voiceBtn.on{background:var(--evergreen);color:#fff;border-color:var(--evergreen);}
+  #orbWrap{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    background:rgba(251,247,239,.93);z-index:6;}
+  .orbhint{color:var(--muted);font-size:13px;}
 </style>
 </head>
 <body>
@@ -52,6 +58,8 @@
   </header>
   <div id="log"></div>
   <div id="approvals"></div>
+  <button id="voiceBtn" title="Voice mode (Ctrl+Alt+Space)">🎙 Voice</button>
+  <div id="orbWrap"><canvas id="orb" width="220" height="220"></canvas><div class="orbhint">Listening — press Esc or the hotkey to stop</div></div>
   <form id="composer">
     <input id="box" autocomplete="off" placeholder="Ask Ada…" autofocus />
     <button id="send" type="submit">Send</button>
@@ -128,6 +136,91 @@
     const es = new EventSource('/api/approvals/stream');
     es.addEventListener('approval', e => approvalCard(JSON.parse(e.data)));
   } catch (_) { /* approvals stream unavailable */ }
+
+  // ---- Voice Mode (M6): Voxa WSS pipeline + amplitude-reactive orb ----
+  const voiceBtn = document.getElementById('voiceBtn');
+  const orbWrap = document.getElementById('orbWrap');
+  const orb = document.getElementById('orb');
+  const octx = orb.getContext('2d');
+  let voice = null;
+
+  function setAmp(a){ if (voice) voice.amp = Math.max(voice.amp, a); }
+
+  function drawOrb(){
+    if (!voice) return;
+    const w = orb.width, h = orb.height, cx = w/2, cy = h/2;
+    octx.clearRect(0,0,w,h);
+    const r = Math.min(w,h)*0.22 * (1 + voice.amp*1.8);
+    const g = octx.createRadialGradient(cx,cy,r*0.2,cx,cy,r);
+    g.addColorStop(0,'#2a7a5f'); g.addColorStop(1,'#1f5040');
+    octx.fillStyle = g; octx.beginPath(); octx.arc(cx,cy,r,0,Math.PI*2); octx.fill();
+    voice.amp *= 0.9;
+    requestAnimationFrame(drawOrb);
+  }
+
+  async function startVoice(){
+    if (voice) return;
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${proto}://${location.host}/voice`);
+    ws.binaryType = 'arraybuffer';
+    const ac = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+    voice = { ws, ac, amp: 0, playAt: 0, node: null, stream: null };
+    orbWrap.style.display = 'flex'; voiceBtn.classList.add('on'); drawOrb();
+
+    ws.onopen = async () => {
+      ws.send(JSON.stringify({ type: 'hello' }));
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 24000 } });
+        voice.stream = stream;
+        const src = ac.createMediaStreamSource(stream);
+        const node = ac.createScriptProcessor(4096, 1, 1);
+        voice.node = node;
+        node.onaudioprocess = e => {
+          const f = e.inputBuffer.getChannelData(0);
+          const pcm = new Int16Array(f.length);
+          let sum = 0;
+          for (let i = 0; i < f.length; i++){ const s = Math.max(-1, Math.min(1, f[i])); pcm[i] = s*0x7fff; sum += s*s; }
+          setAmp(Math.sqrt(sum/f.length));
+          if (ws.readyState === 1) ws.send(pcm.buffer);
+        };
+        src.connect(node); node.connect(ac.destination);
+      } catch (err) { bubble('ada').textContent = 'Microphone unavailable: ' + err; }
+    };
+
+    ws.onmessage = ev => {
+      if (typeof ev.data === 'string'){
+        const m = JSON.parse(ev.data);
+        if (m.type === 'transcription' && m.text) bubble('me').textContent = m.text;
+        else if (m.type === 'text' && m.text) bubble('ada').textContent = m.text;
+        else if (m.type === 'interruption') voice.playAt = voice.ac.currentTime;
+      } else {
+        const pcm = new Int16Array(ev.data);
+        const buf = ac.createBuffer(1, pcm.length, 24000);
+        const ch = buf.getChannelData(0);
+        let sum = 0;
+        for (let i = 0; i < pcm.length; i++){ ch[i] = pcm[i]/0x7fff; sum += ch[i]*ch[i]; }
+        setAmp(Math.sqrt(sum/pcm.length));
+        const s = ac.createBufferSource(); s.buffer = buf; s.connect(ac.destination);
+        const t = Math.max(ac.currentTime, voice.playAt); s.start(t); voice.playAt = t + buf.duration;
+      }
+    };
+    ws.onclose = stopVoice;
+    ws.onerror = () => { bubble('ada').textContent = 'Voice endpoint unavailable (is voice enabled?)'; stopVoice(); };
+  }
+
+  function stopVoice(){
+    if (!voice) return;
+    const v = voice; voice = null;
+    try { v.stream && v.stream.getTracks().forEach(t => t.stop()); } catch (_) {}
+    try { v.node && v.node.disconnect(); } catch (_) {}
+    try { v.ws.readyState <= 1 && v.ws.close(); } catch (_) {}
+    try { v.ac.close(); } catch (_) {}
+    orbWrap.style.display = 'none'; voiceBtn.classList.remove('on');
+  }
+
+  window.adaToggleVoice = () => { voice ? stopVoice() : startVoice(); };
+  voiceBtn.onclick = window.adaToggleVoice;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && voice) stopVoice(); });
 </script>
 </body>
 </html>

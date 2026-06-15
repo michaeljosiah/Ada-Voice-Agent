@@ -5,11 +5,13 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Ada.Core;
 using Ada.Tools;
+using Ada.Voice;
 
 namespace Ada.Server;
 
-/// <summary>Options for the loopback host. Port 0 = an OS-assigned ephemeral port.</summary>
-public sealed record AdaServerOptions(int Port = 0);
+/// <summary>Options for the loopback host. Port 0 = an OS-assigned ephemeral port.
+/// <paramref name="Voice"/> mounts the Voxa voice pipeline (opt-in; loads local speech models).</summary>
+public sealed record AdaServerOptions(int Port = 0, bool Voice = false);
 
 /// <summary>
 /// A started loopback server. Exposes only its bound <see cref="Url"/> (always 127.0.0.1) so
@@ -47,8 +49,22 @@ public static class AdaServer
         builder.Services.AddSingleton<IApprovalHandler>(sp => sp.GetRequiredService<InteractiveApprovalHandler>());
         builder.Services.AddAda();
 
+        var voiceReady = false;
+        if (options.Voice)
+        {
+            try { AdaVoice.AddAdaVoice(builder); voiceReady = true; }
+            catch (Exception ex) { Console.Error.WriteLine($"[voice] disabled: {ex.Message}"); }
+        }
+
         var app = builder.Build();
         AdaApi.Map(app);
+
+        if (voiceReady)
+        {
+            try { AdaVoice.MapAdaVoice(app); }
+            catch (Exception ex) { Console.Error.WriteLine($"[voice] endpoint not mapped: {ex.Message}"); }
+        }
+
         return app;
     }
 

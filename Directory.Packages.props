@@ -18,6 +18,12 @@
     <PackageVersion Include="Wasmtime" Version="44.0.0" />
     <!-- Memory (M4) -->
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <!-- Voice (M6) — Voxa .NET 10 voice framework -->
+    <PackageVersion Include="Voxa.AspNetCore" Version="0.5.0-alpha" />
+    <PackageVersion Include="Voxa.Services.MicrosoftAgents" Version="0.5.0-alpha" />
+    <PackageVersion Include="Voxa.Speech.WhisperCpp" Version="0.5.0-alpha" />
+    <PackageVersion Include="Voxa.Speech.Piper" Version="0.5.0-alpha" />
+    <PackageVersion Include="Voxa.Audio.SileroVad" Version="0.5.0-alpha" />
     <!-- MCP (M5) -->
     <PackageVersion Include="ModelContextProtocol" Version="1.4.0" />
     <!-- Tests -->

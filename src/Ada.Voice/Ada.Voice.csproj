@@ -6,16 +6,15 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Voxa.AspNetCore" />
+    <PackageReference Include="Voxa.Services.MicrosoftAgents" />
+    <PackageReference Include="Voxa.Speech.WhisperCpp" />
+    <PackageReference Include="Voxa.Speech.Piper" />
+    <PackageReference Include="Voxa.Audio.SileroVad" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Ada.Core/Ada.Core.csproj" />
-    <ProjectReference Include="..\Ada.Tools\Ada.Tools.csproj" />
-    <ProjectReference Include="..\Ada.Voice\Ada.Voice.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="wwwroot/index.html" />
   </ItemGroup>
 
 </Project>

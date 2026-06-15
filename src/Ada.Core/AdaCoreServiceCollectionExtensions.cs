@@ -1,3 +1,4 @@
+using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -26,6 +27,7 @@ public static class AdaCoreServiceCollectionExtensions
         services.TryAddSingleton(BuildCompaction);
 
         services.AddSingleton<IAdaEngine>(sp => BuildEngine(sp, options));
+        services.TryAddSingleton<AIAgent>(AdaAgentFactory.Create); // the agent the voice plane drives
         return services;
     }
 

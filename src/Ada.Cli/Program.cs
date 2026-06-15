@@ -4,6 +4,7 @@ using System.Text.Json;
 using Ada.Core;
 using Ada.Server;
 using Ada.Tools;
+using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -88,7 +89,7 @@ internal static class Program
     /// <summary>The cumulative headless acceptance gate for every milestone shipped so far.</summary>
     private static async Task<int> SelfTest()
     {
-        Console.WriteLine("Ada self-test (M0–M5)\n");
+        Console.WriteLine("Ada self-test (M0–M6)\n");
 
         // ---- M0: loopback server + streaming round-trip ----
         await using var server = await AdaServer.StartAsync(new AdaServerOptions(Port: 0));
@@ -255,6 +256,17 @@ internal static class Program
         using var webTools = new WebTools(new InMemoryAuditLog());
         var fetched = await webTools.WebFetch(server.Url + "/healthz");
         Report("M5 web_fetch retrieves content (egress) from the loopback", fetched.Contains("\"status\":\"ok\""));
+
+        // ---- M6: voice agent composition (the AIAgent Voxa drives) ----
+        using (var voiceProvider = new ServiceCollection()
+            .AddSingleton(new ProviderStore(provPath + ".voice"))
+            .AddSingleton<ICredentialVault>(new InMemoryCredentialVault())
+            .AddAda(new AdaModelOptions { Provider = "echo" })
+            .BuildServiceProvider())
+        {
+            var voiceAgent = voiceProvider.GetService<AIAgent>();
+            Report("M6 voice agent composes (same persona/skills/tools as the text surface)", voiceAgent is not null);
+        }
 
         var ok = _failures == 0;
         Console.WriteLine(ok ? "\nSELF-TEST PASSED" : $"\nSELF-TEST FAILED ({_failures} failure(s))");

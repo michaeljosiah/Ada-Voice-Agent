@@ -10,6 +10,8 @@ internal sealed class AdaApplicationContext : ApplicationContext
     private readonly string _url;
     private readonly NotifyIcon _tray;
     private readonly HotkeyWindow _hotkeys;
+    private int _openHotkeyId;
+    private int _voiceHotkeyId;
     private MainForm? _form;
 
     public AdaApplicationContext(string url)
@@ -26,8 +28,9 @@ internal sealed class AdaApplicationContext : ApplicationContext
         _tray.DoubleClick += (_, _) => ToggleWindow();
 
         _hotkeys = new HotkeyWindow();
-        _hotkeys.HotkeyPressed += (_, _) => ToggleWindow();
-        _hotkeys.Register(ModifierKeys.Control | ModifierKeys.Alt, Keys.A);
+        _hotkeys.HotkeyPressed += OnHotkey;
+        _openHotkeyId = _hotkeys.Register(ModifierKeys.Control | ModifierKeys.Alt, Keys.A);
+        _voiceHotkeyId = _hotkeys.Register(ModifierKeys.Control | ModifierKeys.Alt, Keys.Space);
     }
 
     private ContextMenuStrip BuildMenu()
@@ -39,12 +42,24 @@ internal sealed class AdaApplicationContext : ApplicationContext
         return menu;
     }
 
+    private void OnHotkey(int id)
+    {
+        if (id == _openHotkeyId) ToggleWindow();
+        else if (id == _voiceHotkeyId) ToggleVoice();
+    }
+
     private void ToggleWindow()
     {
         if (_form is { Visible: true })
             HideWindow();
         else
             ShowWindow();
+    }
+
+    private void ToggleVoice()
+    {
+        ShowWindow();
+        _form?.ToggleVoice();
     }
 
     private void ShowWindow()

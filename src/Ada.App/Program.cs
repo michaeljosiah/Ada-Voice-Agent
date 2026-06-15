@@ -14,7 +14,7 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
 
-        var server = AdaServer.StartAsync(new AdaServerOptions(Port: 0)).GetAwaiter().GetResult();
+        var server = AdaServer.StartAsync(new AdaServerOptions(Port: 0, Voice: true)).GetAwaiter().GetResult();
         try
         {
             using var ctx = new AdaApplicationContext(server.Url);

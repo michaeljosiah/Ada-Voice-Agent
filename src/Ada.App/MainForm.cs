@@ -46,6 +46,13 @@ internal sealed class MainForm : Form
         _web.Source = new Uri(_url);
     }
 
+    /// <summary>Toggle Voice Mode in the WebView2 page (driven by the global push-to-talk hotkey).</summary>
+    public void ToggleVoice()
+    {
+        if (_web.CoreWebView2 is not null)
+            _ = _web.ExecuteScriptAsync("window.adaToggleVoice && window.adaToggleVoice();");
+    }
+
     private void PositionNearTray()
     {
         var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 720);
