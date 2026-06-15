@@ -21,14 +21,19 @@ public static class AdaToolsServiceCollectionExtensions
         services.TryAddSingleton<ToolContext>();
         services.TryAddSingleton<ICodeSandbox, WasmCodeSandbox>();
 
+        services.TryAddSingleton<IMemoryStore>(_ => new FileMemoryStore());
         services.TryAddSingleton<FileSystemTools>();
         services.TryAddSingleton<ShellTools>();
+        services.TryAddSingleton<MemoryTools>();
 
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<FileSystemTools>().ReadFile, "read_file"));
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<FileSystemTools>().ListDirectory, "list_directory"));
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<FileSystemTools>().WriteFile, "write_file"));
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<FileSystemTools>().DeleteFile, "delete_file"));
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<ShellTools>().RunCommand, "run_command"));
+        services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<MemoryTools>().Remember, "remember"));
+        services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<MemoryTools>().Recall, "recall"));
+        services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<MemoryTools>().Forget, "forget"));
 
         return services;
     }

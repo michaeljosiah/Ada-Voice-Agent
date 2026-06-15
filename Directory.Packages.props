@@ -16,6 +16,8 @@
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4022.49" />
     <!-- Sandbox (Zone 1, M2) -->
     <PackageVersion Include="Wasmtime" Version="44.0.0" />
+    <!-- Memory (M4) -->
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="9.0.0" />
     <!-- MCP (M5) -->
     <PackageVersion Include="ModelContextProtocol" Version="1.4.0" />
     <!-- Tests -->

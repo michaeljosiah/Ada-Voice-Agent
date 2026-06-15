@@ -9,7 +9,7 @@ public static class AdaCoreServiceCollectionExtensions
     /// <summary>
     /// Registers Ada's core services and builds the engine from configuration: a hybrid router over a
     /// local default and a cloud escalation provider when both are configured; a single client when
-    /// only one is; the offline echo brain when none is — degraded, never broken.
+    /// only one is; the offline echo brain when none is. Memory and compaction are wired in too.
     /// </summary>
     public static IServiceCollection AddAdaCore(this IServiceCollection services, AdaModelOptions? options = null)
     {
@@ -19,6 +19,11 @@ public static class AdaCoreServiceCollectionExtensions
         services.TryAddSingleton<ICredentialVault>(_ => new DpapiCredentialVault());
         services.TryAddSingleton(_ => new ProviderStore());
         services.AddSingleton(sp => new ProviderRegistry(sp.GetRequiredService<ProviderStore>(), sp.GetRequiredService<ICredentialVault>()));
+
+        services.TryAddSingleton<IMemoryStore>(_ => new FileMemoryStore());
+        services.TryAddSingleton(_ => new UserModel());
+        services.TryAddSingleton<ITurnContext>(sp => new MemoryContextProvider(sp.GetRequiredService<IMemoryStore>(), sp.GetRequiredService<UserModel>()));
+        services.TryAddSingleton(BuildCompaction);
 
         services.AddSingleton<IAdaEngine>(sp => BuildEngine(sp, options));
         return services;
@@ -33,14 +38,23 @@ public static class AdaCoreServiceCollectionExtensions
         return services;
     }
 
+    private static ICompactionStrategy BuildCompaction(IServiceProvider sp)
+    {
+        var summarizer = sp.GetRequiredService<ProviderRegistry>().CreateForRole(ModelRole.Summarizer);
+        return summarizer is not null
+            ? new LengthCompactionStrategy(summarize: ModelSummarizer.For(summarizer))
+            : new LengthCompactionStrategy();
+    }
+
     private static IAdaEngine BuildEngine(IServiceProvider sp, AdaModelOptions options)
     {
         var registry = sp.GetRequiredService<ProviderRegistry>();
         var persona = sp.GetRequiredService<Persona>();
         var tools = sp.GetServices<AITool>();
         var audit = sp.GetService<IAuditLog>();
+        var memory = sp.GetService<ITurnContext>();
+        var compaction = sp.GetService<ICompactionStrategy>();
 
-        // Default (local) brain: a configured Default provider, else the env/M1 local model.
         var local = registry.CreateForRole(ModelRole.Default) ?? ModelClientFactory.Create(options);
         var cloud = registry.CreateForRole(ModelRole.Escalation);
 
@@ -53,11 +67,11 @@ public static class AdaCoreServiceCollectionExtensions
             var escalationId = registry.ForRole(ModelRole.Escalation)!.Id;
             var policy = new RoutingPolicy(hasEscalation: true, stayLocal, localLabel: "local", escalationLabel: escalationId);
             var hybrid = new HybridChatClient(local, cloud, policy, audit);
-            return new AgentEngine(hybrid, persona, tools: tools);
+            return new AgentEngine(hybrid, persona, tools: tools, memory: memory, compaction: compaction);
         }
 
         var single = local ?? cloud!;
         var route = local is not null ? "local" : registry.ForRole(ModelRole.Escalation)!.Id;
-        return new AgentEngine(single, persona, route, tools);
+        return new AgentEngine(single, persona, route, tools, memory, compaction);
     }
 }

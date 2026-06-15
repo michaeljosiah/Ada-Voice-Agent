@@ -30,6 +30,7 @@ internal static class Program
             "auth" => Auth(rest),
             "providers" => Providers(),
             "route" => RouteCmd(rest),
+            "memory" => Memory(rest),
             _ => Help(),
         };
     }
@@ -85,7 +86,7 @@ internal static class Program
     /// <summary>The cumulative headless acceptance gate for every milestone shipped so far.</summary>
     private static async Task<int> SelfTest()
     {
-        Console.WriteLine("Ada self-test (M0–M3)\n");
+        Console.WriteLine("Ada self-test (M0–M4)\n");
 
         // ---- M0: loopback server + streaming round-trip ----
         await using var server = await AdaServer.StartAsync(new AdaServerOptions(Port: 0));
@@ -187,6 +188,34 @@ internal static class Program
                 degraded.GetRequiredService<IAdaEngine>() is EchoEngine);
         }
         finally { try { File.Delete(provPath); } catch { /* best effort */ } }
+
+        // ---- M4: memory + compaction ----
+        var memDir = Directory.CreateTempSubdirectory("ada_mem_").FullName;
+        try
+        {
+            string slug;
+            using (var mem = new FileMemoryStore(memDir))
+            {
+                var e = mem.Remember("Accountant Tunde", "accountant; year-end 31 March", MemoryType.Reference, "Tunde is my accountant. Year-end is 31 March.");
+                slug = e.Name;
+                Report("M4 remember writes a readable file", File.Exists(Path.Combine(memDir, slug + ".md")));
+                Report("M4 MEMORY.md index gains a line", mem.IndexMarkdown().Contains(slug));
+                Report("M4 FTS5 recall finds the memory", mem.Recall("when is my accountant's year end").Any(h => h.Name == slug));
+            }
+            using (var mem2 = new FileMemoryStore(memDir))
+                Report("M4 a new session recalls remembered facts", mem2.Recall("accountant").Any(h => h.Name == slug));
+        }
+        finally { try { Directory.Delete(memDir, true); } catch { /* best effort */ } }
+
+        var longHistory = new List<ChatMessage>();
+        for (var i = 0; i < 40; i++)
+        {
+            longHistory.Add(new ChatMessage(ChatRole.User, new string('x', 400)));
+            longHistory.Add(new ChatMessage(ChatRole.Assistant, new string('y', 400)));
+        }
+        var compacted = await new LengthCompactionStrategy(maxChars: 4000, keepRecent: 6).CompactAsync(longHistory);
+        Report("M4 compaction bounds a long session without losing recent turns",
+            longHistory.Count == 80 && compacted.Count <= 7 && compacted[0].Role == ChatRole.System);
 
         var ok = _failures == 0;
         Console.WriteLine(ok ? "\nSELF-TEST PASSED" : $"\nSELF-TEST FAILED ({_failures} failure(s))");
@@ -341,6 +370,44 @@ internal static class Program
         return 0;
     }
 
+    private static int Memory(string[] args)
+    {
+        var sub = args.Length > 0 ? args[0].ToLowerInvariant() : "list";
+        using var store = new FileMemoryStore();
+
+        switch (sub)
+        {
+            case "list":
+                var all = store.List();
+                if (all.Count == 0) { Console.WriteLine("No memories yet."); return 0; }
+                foreach (var e in all) Console.WriteLine($"  {e.Name,-24} [{e.Type}] {e.Description}");
+                return 0;
+
+            case "recall":
+                var hits = store.Recall(string.Join(' ', args.Skip(1)));
+                if (hits.Count == 0) { Console.WriteLine("No matching memories."); return 0; }
+                foreach (var h in hits) Console.WriteLine($"  {h.Name}: {h.Snippet}");
+                return 0;
+
+            case "remember":
+                if (args.Length < 2) { Console.Error.WriteLine("usage: ada memory remember <name> --desc \"..\" --type reference --body \"..\""); return 2; }
+                var flags = ParseFlags(args.Skip(2));
+                var type = Enum.TryParse<MemoryType>(flags.GetValueOrDefault("type", "reference"), true, out var mt) ? mt : MemoryType.Reference;
+                var entry = store.Remember(args[1], flags.GetValueOrDefault("desc", string.Empty), type, flags.GetValueOrDefault("body", string.Empty));
+                Console.WriteLine($"Remembered '{entry.Name}'.");
+                return 0;
+
+            case "forget":
+                if (args.Length < 2) { Console.Error.WriteLine("usage: ada memory forget <name>"); return 2; }
+                Console.WriteLine(store.Forget(args[1]) ? $"Forgot '{args[1]}'." : $"No memory '{args[1]}'.");
+                return 0;
+
+            default:
+                Console.Error.WriteLine("usage: ada memory [list | recall <query> | remember <name> --desc .. --type .. --body .. | forget <name>]");
+                return 2;
+        }
+    }
+
     private static Dictionary<string, string> ParseFlags(IEnumerable<string> args)
     {
         var flags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -369,6 +436,7 @@ internal static class Program
               ada auth logout <id>        remove a provider and its key
               ada providers               show the built-in provider catalog
               ada route <message>         show how a message would be routed (local vs escalation)
+              ada memory list             list durable memories (also: recall, remember, forget)
 
             model config (env):
               ADA_PROVIDER=openai-compatible  ADA_ENDPOINT=http://localhost:11434/v1
