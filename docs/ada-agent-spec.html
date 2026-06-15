@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ada — The Personal Agent · Build Specification · June 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Heirloom palette — shared with the Simi product (mobile rebuild spec §4) */
+    --paper:#fbf7ef; --paper-1:#f6efe2; --paper-2:#efe5d2;
+    --ink:#221e18; --ink-soft:#4a443b; --muted:#7a7264; --rule:#e6ddcb;
+    --evergreen:#1f5040; --evergreen-deep:#173e32; --evergreen-tint:#e3ede7;
+    --clay:#a8552e; --clay-deep:#8e4523; --clay-tint:#f4e4d9;
+    --gold:#c29752; --info:#2a5670; --warn:#b97700; --danger:#9e2b1c;
+    --night:#16130e; --night-surface:#1f1b14; --night-text:#efe8da;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth;}
+  body{margin:0;background:radial-gradient(1200px 520px at 88% -6%,#f3ead7 0%,transparent 60%),var(--paper);
+    color:var(--ink);font:17px/1.65 "Newsreader","Iowan Old Style",Georgia,serif;}
+  .page{max-width:880px;margin:0 auto;padding:64px 42px 140px;}
+  header.cover{border-bottom:1px solid var(--rule);margin-bottom:40px;padding-bottom:34px;}
+  .eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:12px;color:var(--clay);
+    font-family:-apple-system,"Segoe UI",sans-serif;margin-bottom:16px;font-weight:600;}
+  header.cover h1{font-family:"Fraunces",Georgia,serif;font-size:46px;line-height:1.08;margin:0 0 16px;
+    font-weight:600;letter-spacing:-.018em;}
+  header.cover h1 .dot{color:var(--clay);}
+  header.cover .lede{color:var(--ink-soft);font-size:20px;max-width:62ch;}
+  header.cover .meta{margin-top:24px;color:var(--muted);font-size:13px;font-family:-apple-system,"Segoe UI",sans-serif;}
+  h2{font-family:"Fraunces",Georgia,serif;font-size:29px;font-weight:600;letter-spacing:-.01em;
+    margin:64px 0 12px;padding-bottom:9px;border-bottom:1px solid var(--rule);}
+  h2 .num{color:var(--clay);font-weight:500;margin-right:14px;}
+  h3{font-family:"Fraunces",Georgia,serif;font-size:21px;font-weight:600;margin:36px 0 8px;}
+  h4{font-size:13px;font-weight:700;margin:20px 0 4px;font-family:-apple-system,"Segoe UI",sans-serif;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--evergreen);}
+  p{margin:12px 0 16px;}
+  ul,ol{margin:10px 0 18px;padding-left:24px;}
+  li{margin:7px 0;}
+  strong{font-weight:600;}
+  em{color:var(--ink-soft);}
+  .muted{color:var(--muted);font-size:.85em;font-family:-apple-system,"Segoe UI",sans-serif;}
+  code{font-family:"JetBrains Mono","SF Mono",Menlo,monospace;font-size:13px;background:#f0e7d6;
+    padding:1px 6px;border-radius:3px;color:#3a342b;}
+  .big-quote{font-family:"Fraunces",Georgia,serif;font-size:25px;line-height:1.42;color:var(--ink);
+    margin:28px 0;padding-left:22px;border-left:3px solid var(--clay);}
+  .callout{background:#fffdf8;border:1px solid var(--rule);border-left:3px solid var(--clay);
+    padding:18px 22px;margin:22px 0;border-radius:3px;font-size:16px;}
+  .callout.accent{border-left-color:var(--evergreen);}
+  .callout.warn{border-left-color:var(--warn);}
+  .callout.danger{border-left-color:var(--danger);}
+  .callout.info{border-left-color:var(--info);background:#f3f7f9;}
+  .callout .label{text-transform:uppercase;letter-spacing:.1em;font-size:11px;
+    font-family:-apple-system,"Segoe UI",sans-serif;color:var(--muted);margin-bottom:7px;font-weight:700;}
+  .callout.accent .label{color:var(--evergreen);}
+  .callout.danger .label{color:var(--danger);}
+  .callout.warn .label{color:var(--warn);}
+  .callout.info .label{color:var(--info);}
+  table{width:100%;border-collapse:collapse;margin:16px 0 26px;font-size:14px;font-family:-apple-system,"Segoe UI",sans-serif;}
+  th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--rule);vertical-align:top;}
+  th{background:#f0e7d6;font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:12px;}
+  td.keep{color:var(--evergreen);font-weight:600;}
+  td.kill{color:var(--danger);font-weight:600;}
+  td.new{color:var(--clay);font-weight:600;}
+  td.dorm{color:var(--warn);font-weight:600;}
+  .toc{background:#fffdf8;border:1px solid var(--rule);border-radius:6px;padding:20px 26px;margin-bottom:46px;
+    font-family:-apple-system,"Segoe UI",sans-serif;font-size:14px;}
+  .toc ol{margin:8px 0;padding-left:22px;}
+  .toc a{color:var(--ink);text-decoration:none;border-bottom:1px dotted var(--muted);}
+  .toc a:hover{color:var(--clay);border-bottom-color:var(--clay);}
+
+  /* code blocks */
+  .codeblock{margin:20px 0 26px;border-radius:8px;overflow:hidden;border:1px solid #2c261c;
+    box-shadow:0 8px 24px rgba(34,30,24,.14);}
+  .codeblock .bar{background:#2c261c;color:#cfc4ac;font-family:"JetBrains Mono",monospace;font-size:12px;
+    padding:8px 16px;display:flex;justify-content:space-between;}
+  .codeblock .bar .lang{color:#8d826b;opacity:.7;}
+  .codeblock pre{margin:0;background:var(--night-surface);color:var(--night-text);padding:18px 20px;
+    overflow-x:auto;font-family:"JetBrains Mono","SF Mono",Menlo,monospace;font-size:12.6px;line-height:1.6;}
+  .codeblock pre .cm{color:#9a8f78;} /* comment */
+  .codeblock pre .kw{color:#d27b4f;} /* keyword */
+  .codeblock pre .ty{color:#8fc2a9;} /* type */
+  .codeblock pre .st{color:#c9a85c;} /* string */
+
+  /* persona card */
+  .persona{display:flex;gap:18px;align-items:flex-start;background:#fffdf8;border:1px solid var(--rule);
+    border-radius:8px;padding:20px 24px;margin:24px 0;}
+  .persona .avatar{flex:0 0 56px;width:56px;height:56px;border-radius:50%;background:var(--evergreen);color:#f6efe2;
+    display:flex;align-items:center;justify-content:center;font-family:"Fraunces",serif;font-size:24px;font-weight:600;}
+  .persona.alt .avatar{background:var(--clay);}
+  .persona .body{font-size:15px;font-family:-apple-system,"Segoe UI",sans-serif;}
+  .persona .body strong{color:var(--ink);}
+
+  /* day in the life */
+  .dayinlife{background:#f3f7f9;border-left:3px solid var(--info);padding:15px 19px;margin:14px 0 8px;
+    border-radius:3px;font-size:15.5px;}
+  .dayinlife .label{text-transform:uppercase;letter-spacing:.1em;font-size:11px;font-family:-apple-system,sans-serif;
+    color:var(--info);margin-bottom:7px;font-weight:700;}
+
+  /* spec blocks */
+  .spec{border:1px solid var(--rule);border-radius:10px;margin:28px 0;overflow:hidden;background:#fffdf8;}
+  .spec .head{background:linear-gradient(180deg,#f3ecdc,#fffdf8);padding:16px 24px;border-bottom:1px solid var(--rule);
+    display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .spec .head h3{margin:0;}
+  .spec .head .route{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted);}
+  .spec .inner{padding:6px 24px 20px;}
+  .stategrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0;}
+  .state{border:1px dashed var(--rule);border-radius:8px;padding:10px 13px;font-size:13.5px;
+    font-family:-apple-system,sans-serif;background:#fbf7ee;}
+  .state .sn{font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--evergreen);margin-bottom:4px;}
+  .accept{background:var(--evergreen-tint);border-left:3px solid var(--evergreen);border-radius:3px;
+    padding:13px 18px;margin:16px 0 6px;font-size:14.5px;font-family:-apple-system,sans-serif;}
+  .accept .label{text-transform:uppercase;letter-spacing:.1em;font-size:10.5px;color:var(--evergreen-deep);
+    font-weight:700;margin-bottom:6px;}
+  .accept ul{margin:4px 0 2px;padding-left:20px;}
+  .accept li{margin:4px 0;}
+
+  .pill{display:inline-block;font-size:11px;font-family:-apple-system,sans-serif;text-transform:uppercase;
+    letter-spacing:.07em;font-weight:700;padding:2px 10px;border-radius:20px;vertical-align:middle;}
+  .pill.ship{background:var(--evergreen-tint);color:var(--evergreen-deep);}
+  .pill.cut{background:#f6e2dc;color:var(--danger);}
+  .pill.later{background:#f4ecdd;color:var(--clay-deep);}
+  .footnote{font-size:13px;color:var(--muted);font-family:-apple-system,sans-serif;margin-top:34px;
+    padding-top:18px;border-top:1px solid var(--rule);}
+
+  /* ── Ada additions ── */
+  .layers{margin:22px 0;}
+  .layer{border:1px solid var(--rule);border-radius:8px;padding:13px 18px;margin:8px 0;background:#fffdf8;
+    font-family:-apple-system,sans-serif;font-size:14px;}
+  .layer .lk{font-weight:700;color:var(--evergreen);font-size:11px;text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:3px;}
+  .layer.host{border-left:3px solid var(--info);}
+  .layer.voice{border-left:3px solid var(--clay);}
+  .layer.agent{border-left:3px solid var(--evergreen);}
+  .layer.ui{border-left:3px solid var(--gold);}
+  .arrow{text-align:center;color:var(--muted);font-size:18px;line-height:1;margin:-2px 0;}
+  .win{max-width:430px;border:1px solid #2c261c;border-radius:13px;overflow:hidden;box-shadow:0 18px 40px rgba(34,30,24,.2);margin:24px 0;background:var(--paper);}
+  .win .tb{background:#2c261c;color:#cfc4ac;font-family:-apple-system,sans-serif;font-size:12px;padding:9px 14px;display:flex;justify-content:space-between;align-items:center;}
+  .win .tb .dotrow span{display:inline-block;width:10px;height:10px;border-radius:50%;margin-left:5px;background:#5a5145;}
+  .win .wbody{padding:15px;display:flex;flex-direction:column;gap:10px;}
+  .bub{max-width:82%;padding:9px 13px;border-radius:14px;font-size:14px;font-family:-apple-system,sans-serif;line-height:1.5;}
+  .bub.you{align-self:flex-end;background:var(--evergreen);color:#f1f6f2;border-bottom-right-radius:4px;}
+  .bub.ada{align-self:flex-start;background:#fffdf8;border:1px solid var(--rule);border-bottom-left-radius:4px;}
+  .appr{align-self:stretch;border:1px solid var(--clay);background:var(--clay-tint);border-radius:10px;padding:11px 13px;font-family:-apple-system,sans-serif;font-size:13px;}
+  .appr .h{font-weight:700;color:var(--clay-deep);text-transform:uppercase;letter-spacing:.06em;font-size:10.5px;margin-bottom:5px;}
+  .appr code{background:#fbeee5;}
+  .appr .btns{display:flex;gap:8px;margin-top:10px;}
+  .appr .b{font-size:12px;font-weight:700;padding:5px 14px;border-radius:7px;}
+  .appr .b.ok{background:var(--evergreen);color:#fff;}
+  .appr .b.no{background:#fff;border:1px solid var(--rule);color:var(--ink-soft);}
+  .tiergrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0;}
+  .tierbox{border:1px solid var(--rule);border-radius:8px;padding:11px 14px;font-family:-apple-system,sans-serif;font-size:13px;background:#fffdf8;}
+  .tierbox .tn{font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
+  .tierbox.t0{border-left:3px solid var(--evergreen);} .tierbox.t0 .tn{color:var(--evergreen);}
+  .tierbox.t1{border-left:3px solid var(--info);} .tierbox.t1 .tn{color:var(--info);}
+  .tierbox.t2{border-left:3px solid var(--warn);} .tierbox.t2 .tn{color:var(--warn);}
+  .tierbox.t3{border-left:3px solid var(--danger);} .tierbox.t3 .tn{color:var(--danger);}
+  .checklist{background:#fffdf8;border:1px solid var(--rule);border-radius:8px;padding:18px 22px;margin:22px 0 44px;
+    font-family:-apple-system,"Segoe UI",sans-serif;font-size:14px;}
+  .checklist .label{text-transform:uppercase;letter-spacing:.1em;font-size:11px;color:var(--evergreen);font-weight:700;margin-bottom:8px;}
+  .checklist .hint{color:var(--muted);font-size:13px;margin:0 0 10px;}
+  .checklist h3{font-family:-apple-system,"Segoe UI",sans-serif;font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);margin:18px 0 6px;}
+  .checklist ul{list-style:none;padding-left:0;margin:6px 0 10px;}
+  .checklist li{display:flex;gap:10px;align-items:flex-start;margin:7px 0;line-height:1.45;}
+  .checklist input{flex:0 0 auto;margin-top:2px;accent-color:var(--evergreen);}
+  /* setup-wizard launch + voice mode (animated illustrations) */
+  .launchpad{display:flex;flex-direction:column;align-items:center;gap:11px;text-align:center;
+    background:linear-gradient(160deg,var(--evergreen),var(--evergreen-deep));border-radius:14px;
+    padding:40px 24px;margin:22px 0;color:#eef3ef;}
+  .adalogo{width:92px;height:92px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#2a6a55,#143a2e);
+    display:flex;align-items:center;justify-content:center;font-family:"Fraunces",serif;font-size:46px;font-weight:600;
+    color:#f6efe2;position:relative;animation:ada-breathe 3.4s ease-in-out infinite;}
+  .adalogo::after{content:"";position:absolute;inset:-9px;border-radius:50%;border:2px solid rgba(194,151,82,.55);
+    animation:ada-ring 3.4s ease-in-out infinite;}
+  @keyframes ada-breathe{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(194,151,82,0);}
+    50%{transform:scale(1.05);box-shadow:0 0 40px 6px rgba(194,151,82,.30);}}
+  @keyframes ada-ring{0%,100%{transform:scale(1);opacity:.55;}50%{transform:scale(1.16);opacity:0;}}
+  .launchpad .lt{font-family:"Fraunces",serif;font-size:23px;margin-top:4px;}
+  .launchpad .ls{font-size:13.5px;color:#a8c4b4;font-family:-apple-system,sans-serif;max-width:44ch;}
+  .launchpad .lbtn{margin-top:8px;background:var(--gold);color:#2a1c0c;font-weight:700;font-size:13px;
+    font-family:-apple-system,sans-serif;padding:9px 22px;border-radius:22px;}
+  .voicebox{display:inline-flex;align-items:center;gap:13px;background:var(--night-surface);color:var(--night-text);
+    border-radius:30px;padding:13px 22px;margin:18px 0;box-shadow:0 14px 32px rgba(34,30,24,.26);}
+  .voiceorb{display:flex;align-items:flex-end;gap:4px;height:34px;}
+  .vbar{width:5px;height:9px;border-radius:3px;background:linear-gradient(180deg,var(--gold),var(--clay));
+    animation:v-beat 1.05s ease-in-out infinite;}
+  .vbar:nth-child(1){animation-delay:0s;}.vbar:nth-child(2){animation-delay:.14s;}
+  .vbar:nth-child(3){animation-delay:.28s;}.vbar:nth-child(4){animation-delay:.42s;}
+  .vbar:nth-child(5){animation-delay:.2s;}.vbar:nth-child(6){animation-delay:.34s;}
+  @keyframes v-beat{0%,100%{height:8px;opacity:.7;}50%{height:30px;opacity:1;}}
+  .voicebox .vlabel{font-family:-apple-system,sans-serif;font-size:13px;color:#cfc4ac;letter-spacing:.02em;}
+  .voicecap{font-family:-apple-system,sans-serif;font-size:12.5px;color:var(--muted);margin:-4px 0 18px;}
+  @media(max-width:640px){.page{padding:34px 18px 80px;}header.cover h1{font-size:31px;}h2{font-size:23px;}}
+</style>
+</head>
+<body>
+<main class="page">
+
+<header class="cover">
+  <div class="eyebrow">Build Specification · Rev 2 · Grounded against current main · New project in the Simi repo</div>
+  <h1>Ada — The Personal Agent<span class="dot">.</span></h1>
+  <p class="lede">A complete product and engineering specification for Ada: a private, local-first personal agent that runs as a small Windows tray companion, built on the Microsoft Agent Framework agent loop and harness patterns, grounded in the Voxa .NET voice framework, and aligned with Simi's existing AG-UI approval and Voxa WSS mobile client contracts. It contains the product thesis, an honest point of view, the persona and principles, the layered architecture, the framework and harness contracts with code, the hybrid model router, the tool / skill / MCP model, the approval and memory systems, the voice stack, the application shell, security and packaging, the project layout, a sequenced build plan, the day-in-the-life Ada must make true, and the questions still open. Written to be handed to one engineer and built without a follow-up meeting.</p>
+  <div class="meta">Rev 2 · June 2026 · .NET 10 target · Microsoft Agent Framework + Voxa + AG-UI patterns · Lives in the Simi repo, ships as its own app · Founder: Michael Josiah</div>
+</header>
+
+<div class="callout accent">
+  <div class="label">The one-paragraph version — read this first</div>
+  <strong>Ada is your local chief-of-staff.</strong> She lives in the Windows system tray, opens on a hotkey, listens and speaks, and can actually <em>do</em> things on your machine — read and write files, run commands, search the web, remember what matters — but she asks before anything consequential. She runs a small model locally by default and escalates to a frontier model only when the task is hard, so most of your day never leaves the machine. She is <em>built reusable</em>: the same harness that powers your personal assistant is the foundation a future Simi feature can stand on. And she is designed for one specific future — when the <strong>AONIK MCP</strong> lands, a single skill slots in and Ada can discuss your cross-border financial commitments with you, in her own voice, with your data still under your control. This document specifies all of v1 and draws the seam where that skill will attach.
+</div>
+
+<div class="callout info">
+  <div class="label">What changed in Rev 2 — grounding pass</div>
+  This revision is grounded against current <code>main</code>, Microsoft Agent Framework docs, and <code>https://github.com/michaeljosiah/voxa</code>. The Simi repo has <code>mobile/</code>, <code>web/</code>, and rich HTML specs; it has <strong>no <code>.sln</code> or <code>.csproj</code> yet</strong>. Mobile already contains the relevant precedents: <code>AgUiClient</code> streaming from <code>/ai/agui</code>, a <code>confirmAction</code> approval pattern, <code>ChatController.pendingApprovals</code>, a <code>VoxaVoiceClient</code> for <code>/ai/voice</code> WSS, and <code>SimiSpineApi</code> mappings to AONIK Specs 043-045. The Voxa repo confirms the .NET 10 voice foundation: <code>AddVoxa</code>, <code>MapVoxaVoice</code>, <code>UseDefaults</code>, local WhisperCpp/Piper/Kokoro, Silero VAD, <code>UseMicrosoftAgent</code>, barge-in purge, and OpenTelemetry hooks. Anything else is marked as new Ada work or a dependency/API to verify before implementation.
+</div>
+
+<div class="checklist" id="verification">
+  <div class="label">Verification checklist — current status</div>
+  <p class="hint">Checked means verified from this repo, the Microsoft Agent Framework references, or <code>michaeljosiah/voxa</code>. Unchecked means Ada-specific implementation work remains.</p>
+
+  <h3>Verified complete now</h3>
+  <ul>
+    <li><input type="checkbox" checked disabled> <span>Simi repo shape verified: <code>mobile/</code>, <code>web/</code>, and <code>docs/</code> exist; no Ada/.NET solution exists yet.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Mobile AG-UI client verified: <code>AgUiClient</code> streams <code>/ai/agui</code> SSE and supports frontend tool re-runs.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Mobile human-in-the-loop precedent verified: <code>LiveChatRepository</code> registers <code>confirmAction</code> and <code>ChatController</code> exposes <code>pendingApprovals</code>.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Mobile Voxa WSS client verified: <code>VoxaVoiceClient</code> sends PCM and handles transcription/text/speaking/interruption/thread envelopes.</span></li>
+    <li><input type="checkbox" checked disabled> <span>AONIK REST spine verified: <code>SimiSpineApi</code> maps CareEntity, commitment/cycle, and payment-log data for Specs 043-045.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Microsoft Agent Framework C# surface verified: <code>AIAgent</code>, <code>ChatClientAgent</code>, <code>IChatClient</code>, <code>AgentSession</code>, <code>AgentResponse</code>, approval content, and compaction strategies are documented.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Agent Framework harness pattern verified: local shell approvals and compaction pipelines are documented in the Microsoft harness post.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Voxa .NET host API verified: <code>AddVoxa</code>, <code>MapVoxaVoice</code>, and <code>UseDefaults</code> are documented in the Voxa README.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Voxa Microsoft Agent integration verified: <code>MicrosoftAgentVoice.CreateProcessor</code> and fluent <code>UseMicrosoftAgent</code> are documented.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Voxa local speech tier verified: WhisperCpp STT, Piper/Kokoro TTS, Silero VAD, offline model cache, and keyless Echo agent are documented.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Voxa transport/observability verified: WSS envelopes, server-side barge-in purge, <code>VoxaActivities</code>, and <code>voxa.turn.ttfb</code> are documented.</span></li>
+    <li><input type="checkbox" checked disabled> <span>AONIK MCP status verified as not present in this repo; the finance skill remains a future seam.</span></li>
+    <li><input type="checkbox" checked disabled> <span>Tier-1 in-process Wasm sandbox verified by spike (<code>wasmtime-dotnet</code> 44, .NET 10, no Docker/Hyper-V): capability isolation, fuel runaway-trap, and memory cap enforced; real TS/JS and stdlib-Python ran; <code>numpy</code> import failed (needs the container zone). See <code>ada/spikes/WasmSandboxSpike</code> (§8.8).</span></li>
+  </ul>
+
+  <h3>Not complete yet</h3>
+  <ul>
+    <li><input type="checkbox" disabled> <span>Create <code>ada/</code>, <code>Ada.sln</code>/<code>.slnx</code>, project layout, and central package pinning.</span></li>
+    <li><input type="checkbox" disabled> <span>Pin exact Agent Framework, Voxa, MCP, model-provider, and Windows packaging versions.</span></li>
+    <li><input type="checkbox" disabled> <span>Implement Ada.App tray, global hotkey, WebView2 chat/settings shell, and MSIX packaging.</span></li>
+    <li><input type="checkbox" disabled> <span>Implement Ada.Core conversation adapter, approval loop, audit log, memory store, compaction, skills, and model router.</span></li>
+    <li><input type="checkbox" disabled> <span>Choose and verify Ada's default local model/provider; Foundry Local remains preferred but unproven here.</span></li>
+    <li><input type="checkbox" disabled> <span>Wire Voxa into Ada with the singleton Ada <code>AIAgent</code>, spoken approvals, and desktop Voice Mode.</span></li>
+    <li><input type="checkbox" disabled> <span>Build or mount an AONIK MCP server and the finance skill; out of scope for v1.</span></li>
+    <li><input type="checkbox" disabled> <span>Build the sandbox/autonomy ladder (§8.8): <code>ICodeSandbox</code> with the in-process Wasm backend (default), the opt-in Docker/AIO container zone, and the future Hyperlight + Azure-remote swaps.</span></li>
+  </ul>
+</div>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#verification">Verification checklist — current status</a></li>
+    <li><a href="#state">The state of play — the repo, the framework, the gap</a></li>
+    <li><a href="#stand">Where I stand — point of view, hard truths, the moves</a></li>
+    <li><a href="#ada">Ada, defined — promises, persona, principles, the cast, the loop</a></li>
+    <li><a href="#arch">The architecture — four planes, the process model, two sequences</a></li>
+    <li><a href="#framework">The Agent Framework foundation — agents, sessions, the harness mapping</a></li>
+    <li><a href="#model">The model plane — providers, auth &amp; the hybrid router</a></li>
+    <li><a href="#tools">Tools, skills &amp; MCP — the capability surface</a></li>
+    <li><a href="#harness">The harness — approvals, plan review, scoping, compaction, observability</a> · <a href="#sandbox">the sandbox &amp; autonomy ladder</a></li>
+    <li><a href="#memory">Memory &amp; state — file-based memory and the AONIK seam</a></li>
+    <li><a href="#voice">Voice — Voxa pipeline, local audio, spoken approvals</a></li>
+    <li><a href="#shell">The application shell — tray, hotkey, window, onboarding</a></li>
+    <li><a href="#automations">Automations &amp; schedules — cron, unattended runs, delivery</a></li>
+    <li><a href="#design">Design language — Ada's desktop face</a></li>
+    <li><a href="#security">Security, privacy &amp; trust — the egress contract</a></li>
+    <li><a href="#packaging">Configuration &amp; packaging — profiles, MSIX, updates</a></li>
+    <li><a href="#structure">Project structure &amp; conventions — the first .NET in the repo</a></li>
+    <li><a href="#plan">The build plan — nine milestones, exact order, definition of done</a></li>
+    <li><a href="#dayinlife">A day in the life — what done looks like</a></li>
+    <li><a href="#scope">Out of scope, risks, and the numbers that matter</a></li>
+    <li><a href="#questions">Open questions for the founder</a></li>
+  </ol>
+</nav>
+
+<!-- ════════════════════════════ 1 ═══════════════════════════ -->
+<section id="state">
+<h2><span class="num">1.</span>The state of play — the repo, the framework, the gap</h2>
+<p>Before deciding what to build, be honest about what exists. Five facts set the floor.</p>
+
+<table>
+  <thead><tr><th>What exists</th><th>What it is today</th><th>Bearing on Ada</th></tr></thead>
+  <tbody>
+    <tr><td><strong>The Simi repo</strong></td><td>A product repo: <code>mobile/</code> (Flutter), <code>web/</code> (React), specs as rich HTML in <code>docs/</code>, all backed by the AONIK platform. <strong>No .NET project, solution, or package pinning exists yet.</strong></td><td class="new">Ada is the first .NET surface in this repo. We set the solution, project, package, and packaging conventions here. It lives beside the apps but ships as its own thing.</td></tr>
+    <tr><td><strong>Microsoft Agent Framework</strong></td><td>Current C# docs show agents deriving from <code>AIAgent</code>, simple agents built from any <code>IChatClient</code> via <code>ChatClientAgent</code> / <code>AsAIAgent</code>, and production harness patterns for local shell approvals and compaction.</td><td class="keep">The foundation. We do not invent the agent loop; we compose the framework loop and author Ada's host-side harness: tools, scoping, approval policy, memory, audit, and routing.</td></tr>
+    <tr><td><strong>Voxa</strong></td><td>A public MIT, pre-alpha, <strong>.NET 10</strong> voice AI pipeline framework in <code>michaeljosiah/voxa</code>. It publishes prerelease NuGet packages and documents <code>AddVoxa</code>, <code>MapVoxaVoice</code>, <code>UseDefaults</code>, local WhisperCpp STT, Piper/Kokoro TTS, Silero VAD, <code>MicrosoftAgentVoice.CreateProcessor</code>/<code>UseMicrosoftAgent</code>, Voxa Studio, a locked WSS protocol, barge-in purge, and <code>VoxaActivities</code>/<code>voxa.turn.ttfb</code>.</td><td class="keep">Ada's voice foundation. Use Voxa directly, pin exact alpha versions, and treat API changes as deliberate upgrades.</td></tr>
+    <tr><td><strong>Simi mobile's agent stack</strong></td><td>The Flutter app has <code>AgUiClient</code> streaming <code>/ai/agui</code> SSE, frontend tool re-run support, <code>confirmAction</code> approvals, pending approval cards, display tools, and a realtime WSS voice bridge.</td><td class="keep">Strong precedent, not a dependency. Ada should copy the human-in-the-loop shape and typed streaming discipline, while building its own desktop/.NET implementation.</td></tr>
+    <tr><td><strong>AONIK integration</strong></td><td>Live REST integration exists for the Simi spine through <code>SimiSpineApi</code> (CareEntity 043, commitments/cycles 044, payment logs 045). <strong>AONIK MCP is not built in this repo.</strong></td><td class="dorm">The finance skill is out of v1. In scope: design a skill/MCP seam so a future AONIK MCP server mounts without core rework.</td></tr>
+  </tbody>
+</table>
+
+<p>The gap, stated plainly: <strong>there is no personal agent that runs on your machine, keeps your data local, can take real action under your control, talks to you, and remembers you.</strong> Cloud assistants are none of those things; chat windows do not touch your filesystem; the dev-tool agents are scoped to a repo, not a life. Ada fills that gap. The Agent Framework gives us the C# agent loop, approval, and compaction primitives; Voxa gives us the real-time voice pipeline; the Simi repo gives us proven mobile patterns for AG-UI streaming, approval cards, AONIK spine data, and the consuming Voxa WSS client. The desktop shell, local harness, memory, local model routing, and Ada-specific voice host wiring are new Ada work.</p>
+</section>
+
+<!-- ════════════════════════════ 2 ═══════════════════════════ -->
+<section id="stand">
+<h2><span class="num">2.</span>Where I stand — point of view, hard truths, the moves</h2>
+
+<h3>2.1 What is genuinely right about this</h3>
+<ul>
+  <li><strong>Local-first is the whole product, not a setting.</strong> A personal agent earns trust by keeping your life on your machine. The hybrid choice — small model local, frontier model on escalation — means the default path for "tidy these files", "what's on today", "remember this" never makes a network call. Privacy is the architecture, not a checkbox.</li>
+  <li><strong>The harness is the moat.</strong> Anyone can wrap a chat model. The hard, valuable part is the <em>environment</em>: approvals, scoping, memory, compaction, audit. The Agent Framework gives us those as first-class pieces. Building Ada well means building the harness well — and that harness is the reusable asset you asked for.</li>
+  <li><strong>Voice being yours (Voxa) is a real edge.</strong> Most agents bolt on a cloud STT/TTS. Voxa already gives the .NET pipeline, local STT/TTS options, Microsoft Agent Framework adapter, observability, and Voxa Studio; Simi mobile already speaks the consuming WSS contract. Ada should use that stack directly and keep voice private by default.</li>
+</ul>
+
+<h3>2.2 Three hard truths the easy version underweights</h3>
+<div class="callout warn">
+  <div class="label">Hard truth #1 — an agent that can run shell is a loaded tool</div>
+  "Full shell + files with approvals" is the right power level, but the approval UX <em>is</em> the safety system. If approvals are noisy, you will click "approve" on autopilot and the gate is theatre. The spec therefore treats the approval policy — risk tiers, allow-lists, batching, "remember this for the session" — as a designed product surface (§8), not a yes/no dialog. Get this wrong and Ada is either annoying or dangerous.
+</div>
+<div class="callout warn">
+  <div class="label">Hard truth #2 — local models are weaker, and tool-calling is where they crack</div>
+  A 7–14B local model will reason adequately but call tools unreliably and hallucinate arguments. The router (§6) cannot be "use local until it's slow"; it must escalate on <em>task shape</em> — multi-step tool plans, code, long context, anything destructive — to the frontier model, while keeping chit-chat and simple recall local. Honest expectation: in v1, anything involving more than one tool call probably runs in the cloud. That is fine, if it is deliberate and visible.
+</div>
+<div class="callout warn">
+  <div class="label">Hard truth #3 — "shippable soon" raises the floor on everything boring</div>
+  You chose to build it so others can run it. That means no hard-coded paths, secrets in the OS vault not a <code>.env</code>, a real first-run that installs local models, an MSIX with autostart, and settings a non-engineer can use. None of that is the fun part; all of it is the difference between a demo and a thing. The build plan front-loads the skeleton so the boring floor is poured early.
+</div>
+
+<h3>2.3 The moves that make Ada more than a wrapper</h3>
+<ol>
+  <li><strong>Make approvals legible, not modal.</strong> Every gated action is a card with the exact command, the working directory, and a one-line plain-English "why". Approvals can be remembered per-session and per-tool. The audit log is a first-class screen, not a file nobody opens. Trust compounds when you can always see what she did and what she asked.</li>
+  <li><strong>Memory you can read.</strong> Ada's long-term memory is human-readable files with frontmatter and a single index — the same shape this very assistant uses. Nothing is remembered that you cannot open, edit, or delete. Memory is a folder, not a black-box vector blob. Cross-session recall is <strong>SQLite FTS5</strong> full-text search over those files (the Hermes Agent approach), with a semantic/vector index left as a <em>maybe-later</em> layer over them, never instead of them.</li>
+  <li><strong>Draw the AONIK seam now.</strong> A "skill" is a self-contained bundle of instructions + tools + (optional) an MCP mount. Today the app reaches AONIK through REST; the future finance skill is just a skill whose tools come from an AONIK MCP server when that surface exists. If the skill contract is right in v1, that integration is configuration, not surgery. We prove the contract by shipping two real skills (research, desktop) against it.</li>
+</ol>
+</section>
+
+<!-- ════════════════════════════ 3 ═══════════════════════════ -->
+<section id="ada">
+<h2><span class="num">3.</span>Ada, defined — promises, persona, principles, the cast, the loop</h2>
+
+<h3>3.1 The four promises</h3>
+<table>
+  <thead><tr><th>Promise</th><th>What it means</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Always there</strong></td><td>Resident in the tray, summoned by a global hotkey, ready to listen or read. No app to launch, no tab to find. Background-capable, so she can also brief you and remind you.</td></tr>
+    <tr><td><strong>Actually useful</strong></td><td>She doesn't just answer — she acts: files, shell, web, schedule, memory. Real hands on your machine, behind real approvals.</td></tr>
+    <tr><td><strong>Private by default</strong></td><td>The default path runs locally. Anything that leaves the machine — a cloud escalation, an MCP call, a web fetch — is deliberate, visible, and logged. Your data is yours.</td></tr>
+    <tr><td><strong>Remembers you</strong></td><td>Durable, inspectable memory of your preferences, projects, and people, carried across sessions — and erasable in one place.</td></tr>
+  </tbody>
+</table>
+<p class="big-quote">"On your machine. In your voice. Under your control."</p>
+
+<h3>3.2 The persona</h3>
+<div class="persona">
+  <div class="avatar">A</div>
+  <div class="body"><strong>Ada</strong> — named for the firstborn (Igbo) and for Ada Lovelace. A calm, exacting desktop chief-of-staff. She is brief by default and expansive on request. She <em>describes before she prescribes</em>. She narrates what she's about to do in one plain line, asks before anything that writes, deletes, sends, or spends, and tells you plainly when she used the cloud or the web. She remembers on purpose, never silently. She would rather ask a sharp question than guess. She is distinct from the Simi product — Simi keeps your cross-border life; Ada is the assistant who, one day, will help you talk to it. Her personality isn't hardcoded — it lives in an editable <code>ADA.md</code> persona file (§9), so you can reshape how she speaks.</div>
+</div>
+
+<h3>3.3 The principles (the rules every feature obeys)</h3>
+<table>
+  <thead><tr><th>Principle</th><th>The rule it imposes</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Local-first</strong></td><td>Default inference, STT, TTS, and memory are on-device. Egress is opt-in per channel and always surfaced.</td></tr>
+    <tr><td><strong>Ask before you act</strong></td><td>Any tool that mutates state (write/delete/move/send/spend/install) is approval-gated. Read-only tools are not. The model never bypasses a gate.</td></tr>
+    <tr><td><strong>Describe, don't prescribe</strong></td><td>Carried from Simi's Keeper. Ada explains and answers; she does not push you toward decisions — especially, later, about money.</td></tr>
+    <tr><td><strong>Remember on purpose</strong></td><td>Nothing enters long-term memory without being a readable file you can inspect. A "remember" is itself a visible act.</td></tr>
+    <tr><td><strong>One agent, many skills</strong></td><td>A single Ada with a growing, composable skill set — not a swarm of bots. Sub-agents are an internal tool she may call, never a UI the user manages.</td></tr>
+    <tr><td><strong>Legible by default</strong></td><td>What she did, what she asked, what she sent — all visible in history and the audit log. No hidden actions.</td></tr>
+  </tbody>
+</table>
+
+<h3>3.4 The cast (used in every example below)</h3>
+<div class="stategrid">
+  <div class="state"><div class="sn">You</div>Michael — founder, building Simi. Cross-border life: UK base, family and an asset or two in Nigeria. The single user of this Ada.</div>
+  <div class="state"><div class="sn">The machine</div>Windows 11, the box this repo sits on. Ada's whole world: her files, her shell, her tray.</div>
+  <div class="state"><div class="sn">Tunde</div>Your accountant. Year-end 31 March. The kind of fact Ada should remember without being asked twice.</div>
+  <div class="state"><div class="sn">The Surulere flat</div>An asset in the Simi world. The thing the future AONIK skill will let Ada talk about: "what did the flat cost me this quarter?"</div>
+</div>
+
+<h3>3.5 The daily loop (what retention lives on)</h3>
+<ol>
+  <li><strong>Morning.</strong> Hotkey, "what's today?" — Ada gives a 20-second spoken briefing: calendar, anything she's tracking, the weather, one nudge. Local where she can, cloud only if you ask her to reach out.</li>
+  <li><strong>In flow.</strong> "Tidy the screenshots from this week into <code>/Projects/Ada/notes</code>." She proposes the moves; you approve once; done. "Find me three sources on .NET 10 GC changes." She searches, reads, cites.</li>
+  <li><strong>Capture.</strong> "Remember Tunde is my accountant, year-end 31 March." A memory file is written; she confirms in one line.</li>
+  <li><strong>Evening / later.</strong> (When AONIK lands) "What did I commit to Mum this month?" — the finance skill answers from your real records, in Ada's voice, describing not prescribing.</li>
+</ol>
+<p>Three of those four loops ship in v1. The fourth is the seam we protect.</p>
+
+<h3>3.6 Non-goals (named now, so they don't creep)</h3>
+<p>
+  <span class="pill cut">Not v1</span> moving money or executing transactions ·
+  <span class="pill cut">Not v1</span> the AONIK finance skill itself ·
+  <span class="pill cut">Not v1</span> a multi-agent "team" UI ·
+  <span class="pill cut">Not v1</span> cross-platform (Windows only) ·
+  <span class="pill cut">Not v1</span> a cloud sync of memory ·
+  <span class="pill cut">Not v1</span> mobile or web clients ·
+  <span class="pill later">Later</span> wake-word ("Hey Ada") ·
+  <span class="pill later">Later</span> vision / screen understanding ·
+  <span class="pill later">Later</span> a vector memory index.
+</p>
+</section>
+
+<!-- ════════════════════════════ 4 ═══════════════════════════ -->
+<section id="arch">
+<h2><span class="num">4.</span>The architecture — four planes, the process model, two sequences</h2>
+
+<h3>4.1 The four planes</h3>
+<p>Ada is one process, organised as four planes. Each plane has one job and a clean contract to the next. Read top to bottom: input flows down, action flows back up.</p>
+
+<div class="layers">
+  <div class="layer ui"><span class="lk">UI plane — Ada.App</span> The Windows tray host. A <code>NotifyIcon</code> + a global hotkey + a <strong>WebView2</strong> window that renders chat, voice state, and <strong>approval cards</strong>. Native shell, web-tech surface. Owns notifications, autostart, first-run, settings.</div>
+  <div class="arrow">▲ ▼</div>
+  <div class="layer voice"><span class="lk">Voice plane — Ada.Voice</span> In-process ASP.NET Core hosting <strong>Voxa</strong> (<code>AddVoxa</code> + <code>MapVoxaVoice("/voice")</code>). Voxa runs the loopback desktop endpoint: mic → VAD → STT → <em>the Ada agent</em> → sentence aggregation → TTS → speaker, using local WhisperCpp/Piper/Kokoro/Silero providers by default. Simi mobile proves the consuming WSS contract.</div>
+  <div class="arrow">▲ ▼</div>
+  <div class="layer agent"><span class="lk">Agent &amp; harness plane — Ada.Core</span> The heart. A <code>ChatClientAgent</code> wrapped in the harness: the hybrid <strong>model router</strong>, the <strong>approval</strong> gateway, <strong>compaction</strong>, <strong>memory</strong>, the <strong>tool / skill / MCP</strong> registry, the <strong>audit</strong> log. Everything below the UI and voice is here.</div>
+  <div class="arrow">▲ ▼</div>
+  <div class="layer host"><span class="lk">Capability plane — Ada.Tools / Ada.Mcp / providers</span> The actual powers: shell, filesystem, web search/fetch, clipboard, screenshot, scheduler; MCP clients (filesystem, git, and later AONIK); and the model providers (configured local <code>IChatClient</code> by default, Anthropic/OpenAI/Azure on escalation).</div>
+</div>
+
+<div class="callout info">
+  <div class="label">Why one process</div>
+  Voxa hosts in-process and resolves the same singleton Ada agent by DI. Keeping the tray host, the voice WebSocket, and the agent in one .NET 10 process means one lifetime, one DI container, one audit log, one place secrets live, and a loopback-only socket that never listens on a public interface. The WebView2 window is the only "client", and it talks to <code>127.0.0.1</code>.
+</div>
+
+<h3>4.2 The process &amp; threading model</h3>
+<ul>
+  <li><strong>Generic Host</strong> (<code>Microsoft.Extensions.Hosting</code>) owns the lifetime: DI, configuration, logging, the voice endpoint, and a tray <code>IHostedService</code>. The app is a Windows desktop app (<code>net10.0-windows</code>) that <em>also</em> runs an in-process Kestrel bound to loopback.</li>
+  <li><strong>The UI thread</strong> runs the tray and WebView2. It never blocks on the agent; all agent calls are async and stream back over the voice/IPC channel.</li>
+  <li><strong>One session per conversation.</strong> An <code>AgentSession</code> is the runtime handle used for multi-turn <code>RunAsync</code> calls. Persistence is Ada-owned through a local conversation store / <code>ChatHistoryProvider</code> adapter; do not assume preview internal thread serialization.</li>
+  <li><strong>Approvals suspend the run, not the thread.</strong> A gated tool call returns control to the host with a pending request; the UI resolves it; the host resumes the same session. The model is never left "hanging" on a socket.</li>
+</ul>
+
+<h3>4.3 Sequence — a text turn that needs to touch the disk</h3>
+<div class="codeblock"><div class="bar"><span>turn-with-approval</span><span class="lang">sequence</span></div><pre>You ──"move this week's screenshots into /notes"──▶ Ada.App (WebView2)
+  │
+  ▼
+Ada.Core: router picks model (multi-step + file writes ⇒ escalate to cloud)
+  │
+  ▼
+Agent plans ⇒ wants move_files(...)  [approval-required tool]
+  │
+  ◀── AgentResponse contains FunctionApprovalRequestContent ───
+  ▼
+Ada.App renders an APPROVAL CARD: "Move 7 files → C:\...\notes"  [Approve] [Deny]
+  │  (you click Approve — optionally "for this session")
+  ▼
+Ada.Core resumes session with CreateResponse(true) ⇒ tool runs ⇒ result
+  │
+  ▼
+Agent summarises ⇒ "Moved 7 screenshots into /notes." ──▶ you, + audit-log entry</pre></div>
+
+<h3>4.4 Sequence — a voice turn</h3>
+<div class="codeblock"><div class="bar"><span>voice-turn</span><span class="lang">sequence</span></div><pre>Mic ─PCM frames─▶ Voxa: Silero VAD detects speech ─▶ WhisperCpp STT (local)
+  │
+  ▼  "what's on today?"
+Ada.Core agent (local model — simple recall, read-only) answers
+  │  (barge-in: Voxa emits interruption and purges queued bot audio; Ada tests the UI transition)
+  ▼
+Voxa TTS (Piper/Kokoro, local) ─PCM─▶ Speaker   +   transcript ─▶ WebView2</pre></div>
+</section>
+
+<!-- ════════════════════════════ 5 ═══════════════════════════ -->
+<section id="framework">
+<h2><span class="num">5.</span>The Agent Framework foundation — agents, sessions, the harness mapping</h2>
+
+<h3>5.1 The pieces we use, by name</h3>
+<table>
+  <thead><tr><th>Concept</th><th>Type / API</th><th>Package</th></tr></thead>
+  <tbody>
+    <tr><td>Base agent</td><td><code>AIAgent</code> (everything derives from it)</td><td><code>Microsoft.Agents.AI</code></td></tr>
+    <tr><td>Our agent</td><td><code>ChatClientAgent</code> over an <code>IChatClient</code>; simple form is <code>new ChatClientAgent(chatClient, instructions: ...)</code> / <code>AsAIAgent(...)</code>, builder form is <code>.AsBuilder().BuildAIAgent(ChatClientAgentOptions)</code> when we add context providers and middleware</td><td><code>Microsoft.Agents.AI</code></td></tr>
+    <tr><td>Model abstraction</td><td><code>IChatClient</code>, <code>ChatOptions</code>, <code>ChatMessage</code>, <code>AIContent</code></td><td><code>Microsoft.Extensions.AI</code></td></tr>
+    <tr><td>Tools</td><td><code>AIFunction</code> via <code>AIFunctionFactory.Create(...)</code>; <code>AITool</code></td><td><code>Microsoft.Extensions.AI</code></td></tr>
+    <tr><td>Approvals</td><td><code>ApprovalRequiredAIFunction</code>, <code>FunctionApprovalRequestContent</code>, <code>FunctionApprovalResponseContent</code></td><td><code>Microsoft.Extensions.AI</code> / <code>Microsoft.Agents.AI</code></td></tr>
+    <tr><td>Conversation</td><td><code>AgentSession</code> (<code>CreateSessionAsync</code>), <code>RunAsync(..., session)</code>, <code>AgentResponse</code>, and an explicit <code>ChatHistoryProvider</code> when Ada owns local history</td><td><code>Microsoft.Agents.AI</code></td></tr>
+    <tr><td>Context providers</td><td><code>AIContextProvider</code> via <code>.UseAIContextProviders(...)</code> — how compaction &amp; memory attach</td><td><code>Microsoft.Agents.AI</code></td></tr>
+    <tr><td>Compaction</td><td><code>CompactionProvider</code> + <code>PipelineCompactionStrategy</code>, <code>ToolResultCompactionStrategy</code>, <code>SlidingWindowCompactionStrategy</code>, <code>TruncationCompactionStrategy</code> (experimental, <code>#pragma warning disable MAAI001</code>)</td><td><code>Microsoft.Agents.AI.Compaction</code></td></tr>
+    <tr><td>MCP</td><td><code>McpClientFactory.CreateAsync</code>, <code>StdioClientTransport</code>, <code>ListToolsAsync</code>, and returned <code>AITool</code>/<code>AIFunction</code>-compatible tools</td><td><code>ModelContextProtocol</code> (official C# SDK, prerelease)</td></tr>
+    <tr><td>Providers (§6)</td><td>OpenAI / Azure OpenAI / Anthropic SDKs surfaced as <code>IChatClient</code> via <code>.AsIChatClient()</code> or <code>AsAIAgent(...)</code>; any local or custom backend must also become an <code>IChatClient</code>. Foundry Local is a target default only after its C# bridge is verified.</td><td><code>OpenAI</code>, <code>Azure.AI.OpenAI</code>, <code>Anthropic</code>, local provider package TBD</td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <div class="label">Version reality</div>
+  The Agent Framework approval and compaction APIs are current in the April 2026 Learn/docs and March 2026 harness post, but the surface is still young (compaction is experimental and needs <code>MAAI001</code> suppressed); the MCP SDK and desktop Voxa dependency must be pinned once chosen. <strong>We pin exact prerelease versions</strong> in <code>Directory.Packages.props</code> (central package management) and treat upgrades as deliberate PRs. Where a name below drifts between preview builds (e.g. <code>AgentResponse</code> response shape, compaction trigger names), the build wraps it behind our own thin interface (§5.4) so a rename is a one-file change.
+</div>
+
+<h3>5.2 Composing Ada — the one factory that builds the agent</h3>
+<p>This is the spine of <code>Ada.Core</code>. Read it as the contract: a hybrid model, a compaction pipeline, a memory provider, an audit middleware, the persona, and the resolved tool set.</p>
+<div class="codeblock"><div class="bar"><span>Ada.Core/AdaAgentFactory.cs</span><span class="lang">C#</span></div><pre><span class="cm">// #pragma warning disable MAAI001  — compaction framework is experimental</span>
+<span class="kw">using</span> Microsoft.Agents.AI;
+<span class="kw">using</span> Microsoft.Agents.AI.Compaction;
+<span class="kw">using</span> Microsoft.Extensions.AI;
+
+<span class="kw">public static</span> AIAgent Build(AdaOptions o, IServiceProvider sp)
+{
+    <span class="cm">// 1 — the model plane: local-first, cloud on escalation (see §6)</span>
+    IChatClient model = <span class="kw">new</span> HybridChatClient(
+        local:  o.LocalModel,        <span class="cm">// configured local IChatClient (Foundry Local if verified)</span>
+        cloud:  o.CloudModel,        <span class="cm">// Anthropic / OpenAI IChatClient</span>
+        policy: sp.GetRequiredService&lt;IRoutingPolicy&gt;());
+
+    <span class="cm">// 2 — a small, cheap client used only to summarise during compaction</span>
+    IChatClient summarizer = o.SmallLocalModel;
+
+    <span class="cm">// 3 — the compaction pipeline: gentle → aggressive (see §8.4)</span>
+    var compaction = <span class="kw">new</span> PipelineCompactionStrategy(
+        <span class="kw">new</span> ToolResultCompactionStrategy(CompactionTriggers.TokensExceed(8_000)),
+        <span class="kw">new</span> SummarizationCompactionStrategy(summarizer, CompactionTriggers.TokensExceed(40_000)),
+        <span class="kw">new</span> SlidingWindowCompactionStrategy(CompactionTriggers.TurnsExceed(40)),
+        <span class="kw">new</span> TruncationCompactionStrategy(CompactionTriggers.TokensExceed(120_000)));
+
+    <span class="cm">// 4 — build the agent: harness providers on the BUILDER so they run inside</span>
+    <span class="cm">//     the tool-calling loop; persona + resolved tools via ChatClientAgentOptions</span>
+    AIAgent ada = model
+        .AsBuilder()
+        .UseAIContextProviders(
+            <span class="kw">new</span> CompactionProvider(compaction),
+            <span class="kw">new</span> MemoryContextProvider(sp.GetRequiredService&lt;IMemoryStore&gt;()))
+        .Use(sp.GetRequiredService&lt;AuditMiddleware&gt;().Invoke)   <span class="cm">// log every tool call + decision</span>
+        .BuildAIAgent(<span class="kw">new</span> ChatClientAgentOptions
+        {
+            Name = <span class="st">"Ada"</span>,
+            ChatOptions = <span class="kw">new</span> ChatOptions
+            {
+                Instructions = AdaPersona.SystemPrompt,           <span class="cm">// §3.2 in one prompt</span>
+                Tools = sp.GetRequiredService&lt;IToolRegistry&gt;().Resolve(), <span class="cm">// §7</span>
+            },
+            ChatHistoryProvider = sp.GetRequiredService&lt;AdaChatHistoryProvider&gt;(), <span class="cm">// Ada-owned persistence</span>
+        });
+
+    <span class="kw">return</span> ada;
+}</pre></div>
+
+<h3>5.3 The harness mapping — what the framework gives vs what we build</h3>
+<p>The framework defines a harness as the runtime layer around the agent loop: <em>tool access, context management, control</em>. Here is exactly which parts we get for free and which we author.</p>
+<table>
+  <thead><tr><th>Harness capability</th><th>Framework provides</th><th>Ada builds</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Tool access</strong></td><td><code>AIFunctionFactory</code>, the tool-calling loop, MCP client</td><td>The concrete tools (shell/fs/web/…), the registry, the skill bundles</td></tr>
+    <tr><td><strong>Approvals</strong></td><td><code>ApprovalRequiredAIFunction</code> + the request/response content types</td><td>The <em>policy</em> (risk tiers, allow-lists, session-remember) and the approval UI</td></tr>
+    <tr><td><strong>Context / compaction</strong></td><td><code>CompactionProvider</code> + five strategies</td><td>The pipeline config tuned to our context budgets</td></tr>
+    <tr><td><strong>Memory</strong></td><td>The <code>AIContextProvider</code> extension point</td><td>The file-based memory store, schema, recall, and the <code>remember</code> tool (§9)</td></tr>
+    <tr><td><strong>Model control</strong></td><td><code>IChatClient</code> abstraction + builder middleware</td><td>The hybrid router as a delegating <code>IChatClient</code> (§6)</td></tr>
+    <tr><td><strong>Logging / tracing</strong></td><td>OpenTelemetry-compatible hooks and activity sources where the framework/provider exposes them</td><td>The audit log, Ada-owned spans/metrics, and the local trace viewer in settings</td></tr>
+    <tr><td><strong>Sub-agents</strong></td><td>Agents are composable; an agent can be exposed as a tool (<code>AsAIFunction</code>)</td><td>A small set of internal specialist sub-agents Ada may call as tools (later)</td></tr>
+  </tbody>
+</table>
+
+<h3>5.4 Insulating against preview drift</h3>
+<p><code>Ada.Core</code> exposes one interface to the rest of the app — <code>IAdaConversation</code> (start a session, send text, stream responses, surface and resolve approvals). Every Agent Framework type stays behind it. When a preview reshapes <code>AgentResponse</code>, approval content, compaction triggers, or history providers, exactly one adapter changes and the UI, voice, and tools are untouched. This is the cost of building on a moving framework, paid once.</p>
+</section>
+
+<!-- ════════════════════════════ 6 ═══════════════════════════ -->
+<section id="model">
+<h2><span class="num">6.</span>The model plane — providers, authentication, and the hybrid router</h2>
+
+<h3>6.1 Providers, not hardcoded clients</h3>
+<p>Ada ships an <strong>opinionated shape</strong> — local model by default, cloud model only on escalation — but doesn't bake in a vendor. The Microsoft Agent Framework C# contract is provider-agnostic: any backend that yields a <code>Microsoft.Extensions.AI.IChatClient</code> can back <code>ChatClientAgent</code>. <em>Which</em> models you can reach, and <em>how</em> you prove you're allowed to, sits behind a registry: a catalog of providers over a provider-agnostic client, where swapping or adding a backend is config, not code. Foundry Local remains the preferred local target if its C# bridge and model catalog are verified; otherwise the local default is an OpenAI-compatible runtime on loopback (Ollama / LM Studio / similar).</p>
+<table>
+  <thead><tr><th>Kind</th><th>Backs</th><th>.NET client</th></tr></thead>
+  <tbody>
+    <tr><td><code>foundry-local</code> · <strong>target default</strong></td><td>Preferred on-device provider if the C# SDK/bridge is verified: no key, hardware-aware variant selection, first-run local model install. If it is not ready, this row degrades to an optional provider instead of blocking Ada.</td><td>Foundry Local SDK / bridge to <code>IChatClient</code> — <strong>verify in M1</strong></td></tr>
+    <tr><td><code>anthropic</code></td><td>Claude as the default cloud escalation, using the documented Anthropic SDK/API-key path. Subscription OAuth / CLI reuse is a research item, not a launch dependency.</td><td>Anthropic SDK → <code>AsAIAgent</code> / <code>IChatClient</code> adapter</td></tr>
+    <tr><td><code>azure-openai</code></td><td>Azure OpenAI / Foundry Models deployments with either API key or Azure identity. The Microsoft docs also recommend the OpenAI SDK path for Foundry Models.</td><td><code>Azure.AI.OpenAI</code> or <code>OpenAI</code> SDK with Azure endpoint</td></tr>
+    <tr><td><code>openai-compatible</code></td><td>OpenAI, OpenRouter, Groq, Together — and the <strong>bring-your-own escape hatch</strong> for local runtimes (Ollama, LM Studio) or any custom/proxy endpoint by URL.</td><td>OpenAI SDK with <code>OpenAIClientOptions.Endpoint</code> → <code>.AsIChatClient()</code></td></tr>
+  </tbody>
+</table>
+<p class="muted">The grounding rule is simple: a provider is shippable when it can reliably produce an <code>IChatClient</code>. OpenAI-compatible endpoints absorb the long tail, so a new provider is usually just a name, a URL, and an auth method.</p>
+<div class="codeblock"><div class="bar"><span>Ada.Core/Model/IModelProvider.cs</span><span class="lang">C#</span></div><pre><span class="kw">public enum</span> AuthMethod { None, ApiKey, AzureCredential, OAuthResearch, CliResearch }
+<span class="kw">public enum</span> ProviderKind { OpenAiCompatible, Anthropic, AzureOpenAI, FoundryLocal }
+
+<span class="kw">public sealed record</span> ProviderDescriptor(
+    <span class="kw">string</span> Id,                 <span class="cm">// "foundry-local", "anthropic", "ollama", "my-proxy"</span>
+    <span class="kw">string</span> DisplayName,
+    ProviderKind Kind,
+    AuthMethod Auth,
+    <span class="kw">string</span>? BaseUrl = <span class="kw">null</span>,
+    IReadOnlyDictionary&lt;<span class="kw">string</span>, <span class="kw">string</span>&gt;? Headers = <span class="kw">null</span>);
+
+<span class="kw">public interface</span> IModelProvider
+{
+    ProviderDescriptor Descriptor { <span class="kw">get</span>; }
+    <span class="cm">// Resolves whatever credential the AuthMethod needs (vault / Azure credential / env),</span>
+    <span class="cm">// then returns a ready IChatClient for the given model.</span>
+    Task&lt;IChatClient&gt; CreateClientAsync(<span class="kw">string</span> modelId, CancellationToken ct);
+}
+
+<span class="cm">// The router asks the registry for clients by ROLE, never by vendor name:</span>
+IChatClient local = <span class="kw">await</span> registry.CreateAsync(config.Models.Default);     <span class="cm">// e.g. foundry-local/qwen2.5-7b</span>
+IChatClient cloud = <span class="kw">await</span> registry.CreateAsync(config.Models.Escalation);  <span class="cm">// e.g. anthropic/claude</span></pre></div>
+
+<h3>6.2 Authentication — shippable methods first</h3>
+<p>Different providers prove identity differently, and a personal agent should meet each where it is. The launch contract supports the methods grounded by the Microsoft C# provider docs and local runtimes; provider-specific subscription OAuth or CLI credential reuse stays behind research flags until verified against public, stable contracts.</p>
+<table>
+  <thead><tr><th>Method</th><th>For</th><th>How Ada obtains the credential</th></tr></thead>
+  <tbody>
+    <tr><td><code>none</code></td><td>Local providers — Foundry Local if verified, or Ollama / LM Studio / loopback OpenAI-compatible endpoints</td><td>Nothing to do — local endpoints need no secret.</td></tr>
+    <tr><td><code>api-key</code></td><td>OpenAI, Anthropic, OpenRouter, Groq, custom proxies</td><td><code>ada auth login &lt;id&gt;</code> (paste once) or a config <code>{env:VAR}</code> reference. The key goes to the OS vault, not a file.</td></tr>
+    <tr><td><code>azure-credential</code></td><td>Azure OpenAI / Foundry Models</td><td>A specific Azure credential chain for production; <code>DefaultAzureCredential</code> is acceptable for development but should be narrowed for packaged builds.</td></tr>
+    <tr><td><code>oauth-research</code></td><td>Possible future subscription flows: Claude Pro/Max, GitHub Copilot, ChatGPT</td><td>Research only until the provider offers a public supported app flow and refresh contract. Not required for M0-M8.</td></tr>
+    <tr><td><code>cli-research</code></td><td>Possible future reuse of installed CLI auth: <code>claude</code>, <code>az</code>, <code>gh</code>, <code>gcloud</code></td><td>Allowed as an experiment only if the CLI exposes a supported token command. Ada must not scrape private credential files.</td></tr>
+  </tbody>
+</table>
+<p><strong>Resolution order</strong> (highest wins): a per-call override → a credential stored in the <strong>OS vault</strong> → a config <code>{env:VAR}</code> reference → an ambient environment variable → the provider's supported default chain (for Azure, a narrowed credential chain rather than an accidental production <code>DefaultAzureCredential</code>). Ada's stored credentials live in the <strong>Windows Credential Manager / DPAPI</strong> and are redacted from every log (§14.2).</p>
+
+<h3>6.3 <code>ada auth login</code> and the provider config</h3>
+<p>Two front doors, one registry: a CLI command for power users and headless setup, and a <em>Providers &amp; auth</em> screen in settings that wraps it.</p>
+<div class="codeblock"><div class="bar"><span>connecting a provider</span><span class="lang">shell</span></div><pre>&gt; ada auth login
+  ? Provider  ›  Anthropic (Claude)
+  ? Method    ›  ● API key — paste/store in Windows Credential Manager
+                 ○ Subscription OAuth   <span class="cm"># research: disabled unless verified</span>
+                 ○ Reuse 'claude' CLI   <span class="cm"># research: supported token command only</span>
+  ✓ Connected. Stored in Windows Credential Manager.
+
+&gt; ada auth list
+  foundry-local  none     (on-device, default)
+  anthropic      api-key  ✓ vault
+  azure-openai   azure-credential  ✓ delegated
+  my-proxy       api-key  (env:MY_PROXY_KEY)</pre></div>
+<p>Providers and the three model roles are also expressible in config — the built-in catalog means you usually set only <code>auth</code> and pick models, but everything is overridable and custom OpenAI-compatible providers are first-class:</p>
+<div class="codeblock"><div class="bar"><span>%LOCALAPPDATA%\Ada\config.json</span><span class="lang">JSONC</span></div><pre>{
+  <span class="cm">// Local provider &amp; Anthropic are built in; you usually set only auth + models.</span>
+  <span class="st">"providers"</span>: {
+    <span class="st">"foundry-local"</span>: {
+      <span class="st">"kind"</span>: <span class="st">"foundry-local"</span>, <span class="st">"auth"</span>: <span class="st">"none"</span>,   <span class="cm">// target default; verify SDK/model catalog in M1</span>
+      <span class="st">"models"</span>: { <span class="st">"qwen2.5-7b"</span>: { <span class="st">"name"</span>: <span class="st">"Qwen2.5 7B"</span> } }
+    },
+    <span class="st">"anthropic"</span>: {
+      <span class="st">"kind"</span>: <span class="st">"anthropic"</span>, <span class="st">"auth"</span>: <span class="st">"api-key"</span>,
+      <span class="st">"models"</span>: { <span class="st">"claude-sonnet-4"</span>: { <span class="st">"name"</span>: <span class="st">"Claude Sonnet 4"</span> } }
+    },
+
+    <span class="cm">// ── optional escape hatches ──</span>
+    <span class="st">"ollama"</span>: {                                  <span class="cm">// bring your own local runtime</span>
+      <span class="st">"kind"</span>: <span class="st">"openai-compatible"</span>, <span class="st">"auth"</span>: <span class="st">"none"</span>,
+      <span class="st">"baseURL"</span>: <span class="st">"http://localhost:11434/v1"</span>,
+      <span class="st">"models"</span>: { <span class="st">"llama3.1:8b"</span>: { <span class="st">"name"</span>: <span class="st">"Llama 3.1 8B"</span> } }
+    },
+    <span class="st">"my-proxy"</span>: {                                <span class="cm">// any OpenAI-compatible endpoint</span>
+      <span class="st">"kind"</span>: <span class="st">"openai-compatible"</span>, <span class="st">"auth"</span>: <span class="st">"api-key"</span>,
+      <span class="st">"baseURL"</span>: <span class="st">"https://llm.internal.example/v1"</span>,
+      <span class="st">"apiKey"</span>: <span class="st">"{env:MY_PROXY_KEY}"</span>, <span class="st">"headers"</span>: { <span class="st">"X-Org"</span>: <span class="st">"ada"</span> }
+    }
+  },
+  <span class="st">"models"</span>: {
+    <span class="st">"default"</span>:    <span class="st">"foundry-local/qwen2.5-7b"</span>,    <span class="cm">// local everyday brain</span>
+    <span class="st">"escalation"</span>: <span class="st">"anthropic/claude-sonnet-4"</span>, <span class="cm">// cloud, on task-shape</span>
+    <span class="st">"summarizer"</span>: <span class="st">"foundry-local/qwen2.5-3b"</span>    <span class="cm">// cheap, local, for compaction</span>
+  }
+}</pre></div>
+
+<h3>6.4 Provider-specific auth research — the Claude case</h3>
+<p>The useful future case: let someone use Claude (or Copilot, or Vertex) without hand-managing an API key, by leaning on a subscription flow or CLI they've already authenticated. That is desirable, but it is not grounded by the Microsoft Agent Framework C# docs and should not be a v1 dependency. Ada treats these as research modes behind feature flags:</p>
+<ol>
+  <li><strong>Subscription OAuth, run by Ada</strong> (<code>auth: oauth-research</code>) — only if the provider publishes a supported app/device flow, refresh semantics, and terms that allow this use. Tokens still land in the OS vault.</li>
+  <li><strong>Reuse an installed CLI login</strong> (<code>auth: cli-research</code>) — only if the CLI exposes a stable command/API for obtaining delegated credentials. Ada must never scrape private token files or depend on undocumented credential formats.</li>
+  <li><strong>CLI-as-backend</strong> — for a provider that only exposes itself through its CLI, Ada can run that CLI as a subprocess behind an <code>IChatClient</code> adapter. This is a compatibility escape hatch with latency and security tradeoffs, not the default path.</li>
+</ol>
+<p>Azure is the exception because it already has a supported SDK credential chain. For packaged builds, prefer an explicit Azure credential configuration over broad production use of <code>DefaultAzureCredential</code>.</p>
+<div class="callout accent">
+  <div class="label">The rule of thumb</div>
+  Ship <strong>API key</strong>, <strong>none/local</strong>, and <strong>Azure credential</strong>. Research subscription OAuth and CLI reuse only after confirming the provider's public contract. In every mode, no secret goes to plaintext config, memory files, or the repo.
+</div>
+
+<h3>6.5 The hybrid router — the shape</h3>
+<p>There is no built-in "router model" in the framework, so we build one: a <strong>delegating <code>IChatClient</code></strong> that decides, per request, whether to serve from the local model or escalate to the cloud. <strong>Both ends are resolved from the provider registry (§6.1)</strong>, so the router never names a vendor — it asks for the configured <em>default</em> and <em>escalation</em> roles. Because it implements <code>IChatClient</code>, the agent, compaction, and voice plane are all oblivious — they see one model.</p>
+
+<div class="codeblock"><div class="bar"><span>Ada.Core/Model/HybridChatClient.cs</span><span class="lang">C#</span></div><pre><span class="kw">public sealed class</span> HybridChatClient(IChatClient local, IChatClient cloud, IRoutingPolicy policy)
+    : IChatClient
+{
+    <span class="kw">public async</span> Task&lt;ChatResponse&gt; GetResponseAsync(
+        IEnumerable&lt;ChatMessage&gt; messages, ChatOptions? options = <span class="kw">null</span>, CancellationToken ct = <span class="kw">default</span>)
+    {
+        RouteDecision d = policy.Decide(messages, options);   <span class="cm">// see §6.6</span>
+        IChatClient chosen = d.UseCloud ? cloud : local;
+        Telemetry.RecordRoute(d);                              <span class="cm">// surfaced in the UI + audit</span>
+        <span class="kw">return await</span> chosen.GetResponseAsync(messages, options, ct);
+    }
+
+    <span class="cm">// Streaming overload mirrors the above; both local + cloud clients stream.</span>
+    <span class="kw">public</span> IAsyncEnumerable&lt;ChatResponseUpdate&gt; GetStreamingResponseAsync(...) =&gt; ...;
+}</pre></div>
+
+<h3>6.6 The routing policy — escalate on task shape, not on vibes</h3>
+<p>The policy is deterministic and inspectable. It escalates to the cloud when any escalation signal fires; otherwise it stays local. Defaults are tunable in settings.</p>
+<table>
+  <thead><tr><th>Signal</th><th>Why it escalates</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Tools are present &amp; the turn likely needs ≥2 calls</strong></td><td>Local models chain tools unreliably. Multi-step plans go to the frontier model.</td></tr>
+    <tr><td><strong>An approval-required (mutating) tool is in scope</strong></td><td>If Ada might change your machine, she should be at her sharpest. Destructive ⇒ cloud.</td></tr>
+    <tr><td><strong>Code generation / editing</strong></td><td>Quality gap is largest here.</td></tr>
+    <tr><td><strong>Context already large</strong> (> local model's comfortable window)</td><td>Local context windows are smaller; spilling degrades fast.</td></tr>
+    <tr><td><strong>User explicitly asked</strong> ("think hard", "use the good model")</td><td>Manual override, both directions ("stay local" forces local).</td></tr>
+    <tr><td><em>Otherwise</em> — chat, recall, summarise, single read-only tool</td><td>Stays <strong>local</strong>. This is the common case and it never leaves the machine.</td></tr>
+  </tbody>
+</table>
+<div class="callout info">
+  <div class="label">Honest default</div>
+  In v1 the heuristic is conservative: simple/read-only/chat = local; anything mutating or multi-step = cloud. A later iteration can attempt local-first with a confidence check and a silent re-try on the cloud, but that doubles latency on failure and is not worth it for v1. <strong>Every route is shown</strong> ("answered locally" / "used Claude") so the boundary is never a mystery.
+</div>
+
+<h3>6.7 Choosing the default, escalation, and summarizer models</h3>
+<p>The router needs three role assignments, each pointing at a provider+model from the registry. They mirror OpenCode's <code>model</code> / <code>small_model</code>, split for the hybrid design:</p>
+<table>
+  <thead><tr><th>Role</th><th>Default</th><th>Job</th></tr></thead>
+  <tbody>
+    <tr><td><code>default</code></td><td>a configured local model (Foundry Local if verified; otherwise loopback OpenAI-compatible)</td><td>The everyday brain — chat, recall, single read-only tools. Never leaves the machine.</td></tr>
+    <tr><td><code>escalation</code></td><td>a cloud frontier model (Claude by default)</td><td>Multi-step, mutating, code, long-context. Used only when the policy (§6.6) fires.</td></tr>
+    <tr><td><code>summarizer</code></td><td>a small configured local model</td><td>Compaction summaries (§8.4). Cheap, local, invisible.</td></tr>
+  </tbody>
+</table>
+<p>All three are set in config or the settings UI and can point at any authenticated provider — including two models on the <em>same</em> provider, or an all-local setup with no escalation at all. First run installs or verifies the configured local provider so Ada works with <strong>no account and no key</strong>; Foundry Local is the preferred default only after its SDK and chosen models are confirmed. An escalation provider is connected later (§6.3), the first time you ask for something that would benefit — at which point Ada explains the trade and offers to stay local.</p>
+</section>
+
+<!-- ════════════════════════════ 7 ═══════════════════════════ -->
+<section id="tools">
+<h2><span class="num">7.</span>Tools, skills &amp; MCP — the capability surface</h2>
+
+<h3>7.1 The tool taxonomy</h3>
+<p>Everything Ada can <em>do</em> is an <code>AIFunction</code>. Tools are grouped by origin and by risk. Risk drives whether the tool is wrapped in <code>ApprovalRequiredAIFunction</code> (§8).</p>
+<table>
+  <thead><tr><th>Group</th><th>Tools (v1)</th><th>Risk</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Filesystem</strong></td><td><code>read_file</code>, <code>list_dir</code>, <code>search_files</code> · <code>write_file</code>, <code>move_files</code>, <code>delete_files</code></td><td>read = none · write/move/delete = <span class="pill cut">gated</span></td></tr>
+    <tr><td><strong>Shell</strong></td><td><code>run_shell</code> (PowerShell/cmd, captured stdout/stderr, timeout)</td><td><span class="pill cut">gated</span> (always)</td></tr>
+    <tr><td><strong>Web</strong></td><td><code>web_search</code>, <code>fetch_url</code> (reader-mode extract)</td><td>read-only, but <strong>egress-flagged</strong> (leaves the machine)</td></tr>
+    <tr><td><strong>Desktop</strong></td><td><code>read_clipboard</code>, <code>write_clipboard</code>, <code>screenshot</code></td><td>read = none · write/screenshot = <span class="pill cut">gated</span></td></tr>
+    <tr><td><strong>Scheduler</strong></td><td><code>schedule_reminder</code> (passive) · <code>schedule_job</code>, <code>list_jobs</code>, <code>cancel_job</code> — the automations engine (§12)</td><td>reminders = low · a job's own actions keep their tier; unattended runs default read-only (§12)</td></tr>
+    <tr><td><strong>Memory</strong></td><td><code>remember</code>, <code>recall</code>, <code>forget</code> (§9)</td><td>write = visible-but-ungated (memory is the point); <code>forget</code> confirmed</td></tr>
+    <tr><td><strong>MCP-provided</strong></td><td>Whatever a mounted server exposes (filesystem, git today; AONIK later)</td><td>inherited from a per-server policy (§7.4)</td></tr>
+  </tbody>
+</table>
+
+<h3>7.2 A tool, end to end</h3>
+<div class="codeblock"><div class="bar"><span>Ada.Tools/ShellTool.cs</span><span class="lang">C#</span></div><pre><span class="kw">using</span> System.ComponentModel;
+<span class="kw">using</span> Microsoft.Extensions.AI;
+
+[Description(<span class="st">"Run a shell command on this Windows machine and return its output."</span>)]
+<span class="kw">public static async</span> Task&lt;string&gt; RunShell(
+    [Description(<span class="st">"The command line to run, e.g. 'git status'."</span>)] <span class="kw">string</span> command,
+    [Description(<span class="st">"Working directory; defaults to the user's home."</span>)] <span class="kw">string</span>? cwd = <span class="kw">null</span>)
+{
+    <span class="cm">// ProcessStartInfo (pwsh), redirect stdout/stderr, hard timeout, size cap.</span>
+    <span class="cm">// Returns a trimmed, labelled transcript the model can read.</span>
+}
+
+<span class="cm">// Registration — wrap the mutating tool in an approval gate:</span>
+AIFunction shell = AIFunctionFactory.Create(RunShell);
+AIFunction guarded = <span class="kw">new</span> ApprovalRequiredAIFunction(shell);   <span class="cm">// §8 enforces it</span></pre></div>
+
+<h3>7.3 Skills — the unit of extensibility (and the AONIK seam)</h3>
+<p>A <strong>skill</strong> is a self-contained bundle: a name, a slice of instructions appended to the persona when active, a set of tools, and optionally an <strong>MCP mount</strong>. Skills are how Ada grows without the core changing. Today, Simi reaches AONIK through REST-backed mobile APIs such as <code>SimiSpineApi</code>; the future finance skill becomes <em>just a skill</em> when AONIK exposes the same domain through an MCP server.</p>
+<div class="codeblock"><div class="bar"><span>Ada.Core/Skills/ISkill.cs + skill manifest</span><span class="lang">C#</span></div><pre><span class="kw">public interface</span> ISkill
+{
+    <span class="kw">string</span> Name { <span class="kw">get</span>; }
+    <span class="kw">string</span>? InstructionFragment { <span class="kw">get</span>; }        <span class="cm">// merged into the system prompt when enabled</span>
+    IReadOnlyList&lt;AITool&gt; Tools { <span class="kw">get</span>; }           <span class="cm">// AIFunctions and/or MCP tools</span>
+    McpMount? Mcp { <span class="kw">get</span>; }                         <span class="cm">// optional external MCP server</span>
+    ApprovalPolicy Approvals { <span class="kw">get</span>; }              <span class="cm">// per-skill risk defaults</span>
+}
+
+<span class="cm">// The future finance skill is a manifest, not new core code:</span>
+<span class="cm">//   name:        "finance"</span>
+<span class="cm">//   instruction: "You can discuss the user's Simi records. Describe, never prescribe.</span>
+<span class="cm">//                 Amounts keep their original currency; never convert."</span>
+<span class="cm">//   mcp:         { transport: "http", url: "https://mcp.aonik.com", auth: vault("aonik") }</span>
+<span class="cm">//   approvals:   read-only by default; any write stays gated</span></pre></div>
+<p>v1 ships two real skills against this contract — <strong>Research</strong> (web search/fetch + a synthesis instruction) and <strong>Desktop</strong> (files + shell + a tidy-up instruction) — precisely so the contract is proven before AONIK depends on it.</p>
+<div class="callout">
+  <div class="label">Later — learned skills</div>
+  Hermes Agent <a href="https://github.com/NousResearch/hermes-agent">creates skills from experience</a> and self-improves them. A natural v2 for Ada: after a successful multi-step task, she offers to <em>save it as a reusable skill</em> — written as the same inspectable manifest, editable by you, with any mutating tool still gated. Powerful, but it stays behind the "remember on purpose" rule: a learned skill is a file you can read, never a black box. Out of scope for v1.
+</div>
+
+<h3>7.4 MCP — mounting external servers</h3>
+<p>Ada is an MCP <em>client</em>. A skill's <code>McpMount</code> spins up a client, lists its tools, and merges them into the agent's tool set. Local servers run over stdio. A future remote AONIK server would use HTTP with auth headers pulled from the vault at call time; it is not present in this repo today.</p>
+<div class="codeblock"><div class="bar"><span>Ada.Mcp/McpMountService.cs</span><span class="lang">C#</span></div><pre><span class="kw">using</span> ModelContextProtocol.Client;
+
+<span class="cm">// Local server over stdio (e.g. the official filesystem server, scoped to a folder)</span>
+<span class="kw">await using var</span> fs = <span class="kw">await</span> McpClientFactory.CreateAsync(<span class="kw">new</span> StdioClientTransport(<span class="kw">new</span>()
+{
+    Name      = <span class="st">"filesystem"</span>,
+    Command   = <span class="st">"npx"</span>,
+    Arguments = [<span class="st">"-y"</span>, <span class="st">"@modelcontextprotocol/server-filesystem"</span>, scopedRoot],
+}));
+
+IList&lt;McpClientTool&gt; tools = <span class="kw">await</span> fs.ListToolsAsync();   <span class="cm">// each is an AIFunction/AITool</span>
+
+<span class="cm">// Merge into the registry; per-server approval policy wraps mutating tools.</span>
+registry.AddRange(policy.Guard(tools.Cast&lt;AITool&gt;()));
+
+<span class="cm">// AONIK later: same call, an HTTP transport, headers from the OS vault per run.</span></pre></div>
+<div class="callout warn">
+  <div class="label">Third-party MCP is egress</div>
+  Connecting any non-local MCP server sends prompt content off the machine. Ada treats every remote MCP mount as an <strong>egress channel</strong> (§14): named, listed in settings, logged, and — for a write-capable server — gated. AONIK is your own service, but the contract is the same for all.
+</div>
+
+<h3>7.5 Ada as an MCP server (later, not assumed)</h3>
+<p>Ada may later expose herself, or a single skill, as a local MCP server so another tool on the machine could call her. That is not needed for v1 and is not grounded by the two Microsoft references used for this pass, so it stays a framed extension point, off the M0-M8 critical path.</p>
+</section>
+
+<!-- ════════════════════════════ 8 ═══════════════════════════ -->
+<section id="harness">
+<h2><span class="num">8.</span>The harness — approvals, plan review, scoping, sandboxing, compaction, observability</h2>
+
+<h3>8.1 The approval flow, exactly</h3>
+<p>An approval-required tool does not run when the model asks for it. The run returns with a <code>FunctionApprovalRequestContent</code>; the host shows a card; your decision is sent back on the same session as a <code>FunctionApprovalResponseContent</code>; the run resumes. The loop repeats until no requests remain.</p>
+<div class="codeblock"><div class="bar"><span>Ada.Core/Harness/ApprovalLoop.cs</span><span class="lang">C#</span></div><pre>AgentSession session = <span class="kw">await</span> ada.CreateSessionAsync();
+AgentResponse response = <span class="kw">await</span> ada.RunAsync(userText, session);
+
+<span class="kw">while</span> (<span class="kw">true</span>)
+{
+    var requests = response.Messages
+        .SelectMany(m =&gt; m.Contents)
+        .OfType&lt;FunctionApprovalRequestContent&gt;()
+        .ToList();
+
+    <span class="kw">if</span> (requests.Count == 0) <span class="kw">break</span>;          <span class="cm">// final answer reached</span>
+
+    var replies = <span class="kw">new</span> List&lt;AIContent&gt;();
+    <span class="kw">foreach</span> (var req <span class="kw">in</span> requests)
+    {
+        <span class="cm">// Policy may auto-approve (allow-listed / remembered this session)…</span>
+        ApprovalDecision d = policy.Evaluate(req.FunctionCall);
+        <span class="kw">bool</span> approved = d.Auto ?? <span class="kw">await</span> ui.AskAsync(req.FunctionCall, d);  <span class="cm">// …else ask you</span>
+        audit.Record(req.FunctionCall, approved, d.Reason);
+        replies.Add(req.CreateResponse(approved));          <span class="cm">// true ⇒ run, false ⇒ skip</span>
+    }
+
+    response = <span class="kw">await</span> ada.RunAsync(<span class="kw">new</span> ChatMessage(ChatRole.User, replies), session);
+}</pre></div>
+
+<h3>8.2 The approval policy — four risk tiers</h3>
+<p>Not every action deserves the same friction. The policy classifies each tool call and decides whether to auto-allow, ask, or always-ask.</p>
+<div class="tiergrid">
+  <div class="tierbox t0"><div class="tn">Tier 0 — Read</div>Read file, list dir, recall, search, screenshot-off. <strong>Never gated.</strong> No mutation, no egress.</div>
+  <div class="tierbox t1"><div class="tn">Tier 1 — Local write</div>Write/move files in an allowed root, clipboard write, schedule reminder. <strong>Gated; "remember for session" allowed.</strong></div>
+  <div class="tierbox t2"><div class="tn">Tier 2 — Powerful</div>Shell, delete, install, anything outside allowed roots, screenshot. <strong>Always gated; session-remember scoped tightly.</strong></div>
+  <div class="tierbox t3"><div class="tn">Tier 3 — Egress</div>Web fetch, cloud escalation, remote MCP, any "send". <strong>Flagged + gated when it also writes externally.</strong></div>
+</div>
+<ul>
+  <li><strong>Allow-lists.</strong> Roots Ada may write to without asking (e.g. <code>~/Projects/Ada</code>, <code>~/Downloads</code>) are configured; everything else is gated. Allowed shell commands (e.g. <code>git status</code>, <code>ls</code>) can be pre-approved as read-only.</li>
+  <li><strong>Session-remember.</strong> "Approve, and don't ask again this session" is scoped to the exact tool + argument shape (e.g. "moves into <code>/notes</code>"), and evaporates when the session ends. Never global, never persisted silently.</li>
+  <li><strong>Deny is a first-class answer.</strong> Denying returns a rejection to the model, which adapts ("ok, I'll leave those in place") rather than failing.</li>
+</ul>
+
+<h3>8.3 Scoping &amp; the blast radius</h3>
+<p>Approvals are the human gate; scoping is the machine gate, and it holds even if a prompt is adversarial. Ada runs with: a configured set of writable roots; a denylist of never-touch paths (system folders, the vault, her own memory unless via the memory tools, the credential store); a per-call size/time cap on shell; and no elevation — she runs as you, never as admin. The filesystem MCP server is itself launched scoped to a single root, so even MCP-issued file ops cannot wander.</p>
+
+<h3>8.4 Compaction — staying inside the window over long sessions</h3>
+<p>Long voice or work sessions overflow context. The compaction pipeline (registered on the builder in §5.2, so it runs <em>inside</em> the tool loop) trims from gentle to aggressive, preserving system + recent turns. Verbatim shape:</p>
+<div class="codeblock"><div class="bar"><span>Ada.Core — compaction pipeline (experimental: MAAI001)</span><span class="lang">C#</span></div><pre><span class="kw">new</span> PipelineCompactionStrategy(
+    <span class="kw">new</span> ToolResultCompactionStrategy(CompactionTriggers.TokensExceed(8_000)),   <span class="cm">// collapse old tool spew</span>
+    <span class="kw">new</span> SummarizationCompactionStrategy(summarizer, CompactionTriggers.TokensExceed(40_000)), <span class="cm">// summarise mid-history</span>
+    <span class="kw">new</span> SlidingWindowCompactionStrategy(CompactionTriggers.TurnsExceed(40)),     <span class="cm">// keep recent turns</span>
+    <span class="kw">new</span> TruncationCompactionStrategy(CompactionTriggers.TokensExceed(120_000))); <span class="cm">// hard backstop</span></pre></div>
+<p>Numbers are tuned per model: the cloud frontier model gets a large budget; the local model's thresholds are scaled down to its smaller window. Compaction summaries use the cheap local summarizer, never the cloud.</p>
+
+<h3>8.5 Observability &amp; the audit log</h3>
+<ul>
+  <li><strong>Audit log</strong> — every tool call, its arguments, the approval decision and reason, the route taken (local/cloud), and any egress, appended to a local, structured log and shown as a settings screen. This is the "what did Ada do" ledger.</li>
+  <li><strong>OpenTelemetry</strong> — Ada emits its own spans/metrics for model routing, tool calls, approvals, and compaction; Voxa contributes <code>VoxaActivities.Source</code> and the <code>voxa.turn.ttfb</code> voice metric. Ada wires a local exporter; nothing is sent anywhere by default. A trace viewer in settings helps you (and us) debug latency and tool loops.</li>
+  <li><strong>No telemetry home.</strong> v1 ships with zero outbound product telemetry. If that ever changes it is opt-in and itself an egress channel (§14).</li>
+</ul>
+
+<h3>8.6 Plan review — approve the strategy, not just the step</h3>
+<p>The approval loop in §8.1 gates each mutating call <em>as it happens</em> — exactly right for one action, but for a genuinely multi-step task it becomes a stutter of cards, the failure mode behind <strong>approval fatigue</strong> (§19.2). Borrowing the human-in-the-loop plan gate from ByteDance's <a href="https://github.com/bytedance/deer-flow">DeerFlow</a>: when the router escalates a multi-step or mutating task, Ada first proposes a <strong>plan</strong> — the ordered steps she intends — and you approve, edit, or reject the <em>whole plan</em> before any execution. The per-tool gates (§8.1) then fire only for the genuinely destructive steps inside it.</p>
+<div class="appr">
+  <div class="h">Plan review · 3 steps · 1 will need approval</div>
+  1. Find this week's screenshots in Downloads <span class="muted">· read</span><br>
+  2. Create <code>~/Projects/Ada/notes/2026-06</code> <span class="muted">· write</span><br>
+  3. Move 7 files into it <span class="muted">· write · gated</span>
+  <div class="btns"><span class="b ok">Approve plan</span><span class="b no">Edit…</span><span class="b no">Reject</span></div>
+</div>
+<ul>
+  <li><strong>Edit is natural language.</strong> "Leave the PDFs where they are" sends the plan back for revision (DeerFlow's <code>[EDIT_PLAN]</code>) instead of forcing a step-by-step denial.</li>
+  <li><strong>Single-step tasks skip it.</strong> A one-action request keeps the single approval card from §8.1 — no plan ceremony for "move this one file" (DeerFlow's <code>has_enough_context</code> short-circuit).</li>
+  <li><strong>The plan is legible and logged.</strong> It lands in history and the audit log (§8.5) like any other action, so "what did Ada intend" is always recoverable.</li>
+</ul>
+
+<h3>8.7 Loop &amp; step budgets — the runaway guard</h3>
+<p>An action agent can loop: re-calling tools, re-planning, or spinning — burning tokens and money, and (for an unattended job, §12.2) doing it while no one watches. The harness caps every run with three budgets, and on a breach it <strong>degrades gracefully</strong> rather than crashing or looping: it stops, summarises from what it has so far, and surfaces that — the recursion-fallback pattern from DeerFlow.</p>
+<table>
+  <thead><tr><th>Budget</th><th>Caps</th><th>On breach</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Tool iterations</strong></td><td>Max tool calls in one turn</td><td>Stop; summarise from observations so far</td></tr>
+    <tr><td><strong>Plan revisions</strong></td><td>Max re-plans (§8.6)</td><td>Proceed with the best plan, or hand back to you</td></tr>
+    <tr><td><strong>Tokens / wall-clock</strong></td><td>Per-turn ceiling; tighter for unattended jobs</td><td>Deliver partial; queue it if unattended</td></tr>
+  </tbody>
+</table>
+<p>That is the agent-loop guard. Its counterpart at the metal is the <strong>in-process sandbox</strong> (§8.8), where Wasmtime <em>fuel</em> bounds CPU deterministically — verified in the spike, where an infinite loop trapped as <code>OutOfFuel</code> instead of hanging. Loop safety therefore exists at two levels: the agent loop here, and the code sandbox below.</p>
+
+<h3 id="sandbox">8.8 The sandbox &amp; autonomy ladder</h3>
+<p>§8.1–§8.3 make the <em>host</em> safe by gating every mutation. But real autonomy — letting Ada run agent-written code, crunch data, drive a browser, or process untrusted content <em>without</em> a gate on every step — needs a stronger boundary than per-action approval. The move is to give her a disposable <strong>zone</strong> to work in: inside it she acts freely; the only gate is the <strong>zone boundary</strong> — writing a result back to your real machine, or egress. Done right, autonomy widens while the blast radius <em>shrinks</em> to a throwaway sandbox.</p>
+
+<div class="tiergrid">
+  <div class="tierbox t0"><div class="tn">Zone 0 — Host</div>Your real machine. Stays gated/scoped exactly as §8.1–§8.3. Where "tidy my real Downloads" runs. <strong>Everyone.</strong></div>
+  <div class="tierbox t1"><div class="tn">Zone 1 — In-process Wasm · default</div>Untrusted code in-process via <code>wasmtime-dotnet</code> with capability isolation + fuel + memory limits. <strong>No dependency — ships in the MSIX, runs on Windows Home.</strong> TS/JS + scripting-Python.</div>
+  <div class="tierbox t2"><div class="tn">Zone 2 — Local container · opt-in</div>The <a href="https://github.com/agent-infra/sandbox">AIO Sandbox</a> over Docker/WSL2: real browser, shell, data-science Python. Detected &amp; recommended by the wizard (§11.3).</div>
+  <div class="tierbox t3"><div class="tn">Zone 3 — Remote (Azure) · future</div>The same AIO Sandbox on <strong>Azure Container Apps</strong>. Full power, zero local footprint. Post-v1.</div>
+</div>
+
+<div class="callout accent">
+  <div class="label">The rule that buys safe autonomy</div>
+  Inside a zone, mutating work needs <strong>no per-step approval</strong> — nothing there can hurt you. The gate moves to the <strong>boundary</strong>: materialising a sandbox result onto the real disk, or any egress (§14.1). That is what lets an unattended job (§12.2) do real multi-step work overnight and queue only the boundary crossing for review — and it turns prompt injection (§14.4) from a catastrophe into a discarded container.
+</div>
+
+<p>All four zones sit behind <strong>one seam</strong>, so the agent asks to "run code" and never names a backend — the same insulation discipline as §5.4. The default backend is the verified in-process Wasm one; the others swap in by config.</p>
+<div class="codeblock"><div class="bar"><span>Ada.Core/Sandbox/ICodeSandbox.cs</span><span class="lang">C#</span></div><pre><span class="kw">public enum</span> Zone { Host, InProcWasm, LocalContainer, Remote }
+
+<span class="kw">public sealed record</span> SandboxLimits(
+    <span class="kw">long</span> FuelOrTimeoutMs,        <span class="cm">// CPU / wall budget (Wasmtime fuel or epoch)</span>
+    <span class="kw">long</span> MemoryBytes,            <span class="cm">// hard cap on linear memory</span>
+    <span class="kw">bool</span> Network = <span class="kw">false</span>);       <span class="cm">// egress off by default — granting it crosses the boundary</span>
+
+<span class="kw">public interface</span> ICodeSandbox
+{
+    Zone Zone { <span class="kw">get</span>; }
+    <span class="kw">bool</span> Available { <span class="kw">get</span>; }          <span class="cm">// e.g. is Docker present? probed by the wizard (§11.3)</span>
+    Task&lt;RunResult&gt; RunAsync(<span class="kw">string</span> lang, <span class="kw">string</span> source, SandboxLimits limits, CancellationToken ct);
+}
+
+<span class="cm">// Backends, swappable by config — the agent calls RunAsync, never a vendor:</span>
+<span class="cm">//   WasmCodeSandbox    — wasmtime-dotnet; DEFAULT; ships in the MSIX (verified, see spike)</span>
+<span class="cm">//   ContainerSandbox   — AIO Sandbox over Docker/WSL2 (opt-in)</span>
+<span class="cm">//   RemoteSandbox      — AIO Sandbox on Azure Container Apps (future)</span>
+<span class="cm">//   HyperlightSandbox  — future hardware-isolated swap for Zone 1 (see note)</span></pre></div>
+
+<h4>What runs where</h4>
+<table>
+  <thead><tr><th>Workload</th><th>Zone 1 · in-proc Wasm <span class="muted">(default)</span></th><th>Zone 2 · container</th><th>Zone 3 · remote</th></tr></thead>
+  <tbody>
+    <tr><td>TypeScript / JavaScript</td><td class="keep">Yes — verified</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Python — stdlib / scripting</td><td class="keep">Yes — verified</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Python — numpy / pandas</td><td class="kill">No — WASI gap</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Shell / processes</td><td class="kill">No</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Headless browser</td><td class="kill">No</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Install footprint</td><td>None (in MSIX)</td><td>Docker / WSL2</td><td>None (cloud)</td></tr>
+    <tr><td>Works on Windows Home</td><td class="keep">Yes</td><td>Yes (via Docker)</td><td>Yes</td></tr>
+  </tbody>
+</table>
+<p>The agent routes by workload: a quick <strong>import/keyword scan</strong> sends numpy/pandas, shell, or browser work to Zone 2/3 when available, and keeps TS/JS and scripting-Python in Zone 1. With no container present, Zone 1 still covers a large slice of useful, safe autonomy.</p>
+
+<div class="callout warn">
+  <div class="label">Why not Hyperlight (yet)</div>
+  Microsoft <a href="https://github.com/hyperlight-dev/hyperlight">Hyperlight</a> is the ideal Zone-1 isolation — hardware-isolated micro-VMs with no ambient authority — but it can't be the friendly-install default <em>now</em>: its Windows backend (Windows Hypervisor Platform) <strong>isn't available on Windows 11 Home</strong> (Pro/Ent/Edu only), it is OS-less (Wasm/bare-function only — no browser/shell/real-pandas), its host SDK is Rust-only (no .NET), and it is pre-1.0. It stays a <strong>future hardware-isolated swap for Zone 1</strong> behind <code>ICodeSandbox</code>, for Pro/Enterprise builds. The pure-software Wasmtime backend ships everywhere today.
+</div>
+
+<div class="accept"><div class="label">Verified — the spike</div>
+  <code>ada/spikes/WasmSandboxSpike</code> proved Zone 1 live on this machine (Windows 11 Home, .NET 10, <em>no</em> Docker/Hyper-V): capability isolation (the guest imports nothing), an infinite loop trapped as <code>OutOfFuel</code>, a memory cap denied over-growth, real CPython 3.12-WASI ran <code>csv</code>+<code>statistics</code>, <code>import numpy</code> failed (the gap), and a TypeScript→JS snippet returned <code>{"n":8,…}</code> via Javy/QuickJS.</div>
+
+<p class="muted">Build sequencing: Zone 1 lands with the safety floor (M2), since it reuses the limits/scoping machinery; the container and remote zones attach at M5 alongside skills/MCP (§7.3–§7.4). The boundary gate is simply the §8.1 approval loop applied to zone-crossing tools.</p>
+</section>
+
+<!-- ════════════════════════════ 9 ═══════════════════════════ -->
+<section id="memory">
+<h2><span class="num">9.</span>Memory &amp; state — file-based memory and the AONIK seam</h2>
+
+<h3>9.1 The shape — a folder you can read</h3>
+<p>Ada's long-term memory is a directory of small Markdown files with frontmatter, plus one index file loaded into context each session. This is deliberately the same pattern that works for code agents: legible, diffable, portable, deletable. One fact per file.</p>
+<div class="codeblock"><div class="bar"><span>%LOCALAPPDATA%\Ada\memory\tunde-accountant.md</span><span class="lang">Markdown</span></div><pre>---
+name: tunde-accountant
+description: Who the user's accountant is and the year-end date
+metadata:
+  type: reference
+---
+
+Tunde is the user's accountant. Financial year-end is 31 March.
+Related: [[simi-records]] (future AONIK finance skill).</pre></div>
+<p><code>MEMORY.md</code> is the index — one line per memory — and is the only memory file loaded in full at session start; individual facts are pulled in on relevance via <code>recall</code>. Memory <em>types</em>: <code>user</code> (who you are, preferences), <code>project</code> (ongoing work), <code>reference</code> (people, facts, resources), <code>feedback</code> (how Ada should work for you). Two special files sit alongside the facts: <strong><code>USER.md</code></strong>, a single evolving user-model Ada updates as she learns your preferences and patterns, and <strong><code>ADA.md</code></strong>, the editable persona / system prompt — both plain files you can open and rewrite (a pattern borrowed from Hermes Agent's <code>USER.md</code> / <code>SOUL.md</code>).</p>
+
+<h3>9.2 How memory reaches the model</h3>
+<p>A <code>MemoryContextProvider</code> (an <code>AIContextProvider</code>, registered in §5.2) injects the <code>MEMORY.md</code> index ahead of each run and exposes the <code>recall</code> tool for pulling specific files. Writing is an explicit, visible act via the <code>remember</code> tool — Ada says "I'll remember that" and a file appears; <code>forget</code> deletes one (confirmed).</p>
+<div class="codeblock"><div class="bar"><span>Ada.Core/Memory — the remember tool</span><span class="lang">C#</span></div><pre>[Description(<span class="st">"Save one durable fact to long-term memory so you recall it in future sessions."</span>)]
+<span class="kw">static string</span> Remember(
+    [Description(<span class="st">"kebab-case slug, e.g. 'tunde-accountant'"</span>)] <span class="kw">string</span> name,
+    [Description(<span class="st">"the fact, in one or two sentences"</span>)] <span class="kw">string</span> fact,
+    [Description(<span class="st">"user | project | reference | feedback"</span>)] <span class="kw">string</span> type)
+{
+    <span class="cm">// write memory/&lt;name&gt;.md with frontmatter; upsert a line into MEMORY.md</span>
+    <span class="kw">return</span> <span class="st">$"Remembered: {name}"</span>;
+}</pre></div>
+
+<h3>9.3 Session &amp; conversation state</h3>
+<table>
+  <thead><tr><th>State</th><th>Where it lives</th><th>Lifetime</th></tr></thead>
+  <tbody>
+    <tr><td>Live conversation</td><td><code>AgentSession</code> runtime handle + Ada's local chat-history adapter</td><td>The open chat; persisted through Ada's store, not preview internals</td></tr>
+    <tr><td>Conversation history</td><td>A local store (JSON per session under <code>%LOCALAPPDATA%\Ada\sessions</code>), indexed for <strong>SQLite FTS5</strong> full-text search</td><td>Until you clear it; searchable across sessions (§9.5)</td></tr>
+    <tr><td>Long-term memory</td><td>The memory folder (§9.1)</td><td>Durable; user-owned files</td></tr>
+    <tr><td>Audit log</td><td>Structured local log</td><td>Rolling, configurable retention</td></tr>
+  </tbody>
+</table>
+
+<h3>9.4 The AONIK seam (the future, framed now)</h3>
+<div class="callout accent">
+  <div class="label">Where money-talk attaches</div>
+  When AONIK ships its MCP server, the <strong>finance skill</strong> (§7.3) mounts it. Today, the mobile app reaches the same domain through REST via <code>SimiSpineApi</code>; MCP is the future agent-facing surface. Its tools answer questions like "what did the Surulere flat cost me this quarter?" from your <em>real</em> Simi records. Two product rules carry straight over from Simi's Keeper and are baked into the skill's instruction fragment: <strong>amounts keep their original currency, never converted</strong>; and Ada <strong>describes, never prescribes</strong> — she'll tell you what you committed and what you've paid, never what to do with your money. Memory links (<code>[[simi-records]]</code>) are already laid so Ada knows the seam exists before the skill does. <strong>Nothing about this is in the v1 build — only the contract it will use.</strong>
+</div>
+
+<h3>9.5 Recall across sessions — FTS5, not vectors</h3>
+<p>For "what did we decide about X last week?", Ada searches her own history. Following <a href="https://github.com/NousResearch/hermes-agent">Hermes Agent</a>'s lead, this is <strong>SQLite FTS5</strong> full-text search over sessions and memory, with the model summarising the hits — not a vector database. It's local, fast, zero extra infrastructure, and inspectable. A semantic/vector index stays a <em>maybe-later</em> optimisation layered <em>over</em> the same files, never a replacement for them.</p>
+</section>
+
+<!-- ════════════════════════════ 10 ═══════════════════════════ -->
+<section id="voice">
+<h2><span class="num">10.</span>Voice — Voxa pipeline, local audio, spoken approvals</h2>
+
+<h3>10.1 Why Voxa, and what it gives</h3>
+<p>Voxa is a .NET 10, frame-based, real-time voice pipeline framework built around Microsoft Agent Framework. The public repo confirms the pieces Ada needs: <code>Voxa</code> meta-package, <code>Voxa.AspNetCore</code>, <code>AddVoxa</code>, <code>MapVoxaVoice</code>, <code>UseDefaults()</code>, local WhisperCpp STT, Piper/Kokoro TTS, Silero VAD, <code>Voxa.Services.MicrosoftAgents</code>, <code>MicrosoftAgentVoice.CreateProcessor</code>, fluent <code>UseMicrosoftAgent</code>, locked WebSocket envelopes, server-side barge-in purge, and OpenTelemetry hooks. Ada's work is integration and product policy, not inventing voice infrastructure.</p>
+<p class="muted">Status note: Voxa is still pre-alpha and published as prerelease NuGet packages, so Ada pins exact versions and treats upgrades as deliberate work.</p>
+
+<div class="codeblock"><div class="bar"><span>Ada.Voice/VoiceHost.cs</span><span class="lang">C#</span></div><pre><span class="kw">var</span> builder = WebApplication.CreateBuilder();
+
+builder.Services.AddVoxa(builder.Configuration);              <span class="cm">// Voxa meta-package; pin exact alpha version</span>
+builder.Services.AddSingleton&lt;AIAgent&gt;(sp =&gt; AdaAgentFactory.Build(opts, sp)); <span class="cm">// Ada drives voice</span>
+
+<span class="kw">var</span> app = builder.Build();
+app.UseWebSockets();
+app.MapVoxaVoice(<span class="st">"/voice"</span>).UseDefaults();                       <span class="cm">// VAD → STT → agent → sentence aggregation → TTS</span>
+
+app.Urls.Add(<span class="st">"http://127.0.0.1:0"</span>);   <span class="cm">// loopback only, OS-assigned port handed to WebView2</span>
+<span class="kw">await</span> app.StartAsync();</pre></div>
+
+<div class="codeblock"><div class="bar"><span>appsettings.json — local-first voice</span><span class="lang">JSON</span></div><pre>{
+  <span class="st">"Voxa"</span>: {
+    <span class="st">"Profile"</span>: <span class="st">"LowLatency"</span>,
+    <span class="st">"Stt"</span>: <span class="st">"WhisperCpp"</span>,      <span class="cm">// local, no key</span>
+    <span class="st">"Tts"</span>: <span class="st">"Piper"</span>,           <span class="cm">// local, no key; Kokoro for higher quality</span>
+    <span class="st">"Vad"</span>: { <span class="st">"Engine"</span>: <span class="st">"Silero"</span> },
+    <span class="st">"Agent"</span>: { <span class="st">"Provider"</span>: <span class="st">"Ada"</span> },  <span class="cm">// Ada maps this to the injected AIAgent</span>
+    <span class="st">"Models"</span>: { <span class="st">"CachePath"</span>: <span class="st">"%LOCALAPPDATA%/Ada/voxa-models"</span> }
+  }
+}</pre></div>
+
+<h3>10.2 Behaviours that make voice usable</h3>
+<ul>
+  <li><strong>Push-to-talk in v1</strong> (a hotkey opens the mic); wake-word ("Hey Ada") is a later iteration — it implies always-listening, which is a privacy decision to take deliberately.</li>
+  <li><strong>Interruption / barge-in, explicitly tested.</strong> Voxa supports priority interruption frames and server-side barge-in purge, so queued bot audio can be dropped when the user speaks. Ada still tests the full product path — audio purge, visual state, transcript continuity, and approval cards surviving interruption.</li>
+  <li><strong>Spoken approvals, carefully.</strong> Ada will <em>read out</em> what she wants to do ("I'd like to move seven screenshots into notes — ok?") and accept a spoken "yes/no" for Tier 1. <strong>Tier 2/3 (shell, delete, egress) always require the visual card and a click</strong> — you should never delete files by mumbling. The approval card pops in the WebView2 window even mid-voice.</li>
+  <li><strong>Transcript to the window</strong> — every spoken turn also appears as text in the chat window, so voice and text share one legible history.</li>
+</ul>
+
+<h3>10.3 Voice Mode — a small, living voice UI</h3>
+<p>Voice doesn't always want the whole chat window. <strong>Voice Mode</strong> is a deliberately tiny surface — a compact, frameless pill that floats near the tray and does one thing well: show that Ada is listening and speaking. You enter it by holding the talk hotkey or tapping the mic; the full window isn't summoned.</p>
+<div class="voicebox">
+  <div class="voiceorb"><span class="vbar"></span><span class="vbar"></span><span class="vbar"></span><span class="vbar"></span><span class="vbar"></span><span class="vbar"></span></div>
+  <span class="vlabel">Listening…</span>
+</div>
+<p class="voicecap">Voice Mode, animated here — the bars rise and fall with live audio: yours while listening, Ada's while she speaks.</p>
+<ul>
+  <li><strong>It reacts to real audio.</strong> Voxa streams PCM frames; the UI computes a simple per-frame level (RMS) and the orb rises and falls with it — <em>your</em> voice while listening, <em>Ada's</em> while she speaks. No fake animation.</li>
+  <li><strong>Four legible states</strong> (shared with the §13 voice pill): <em>idle</em> (a slow, calm pulse), <em>listening</em> (bars track your speech), <em>thinking</em> (a gentle indeterminate shimmer), <em>speaking</em> (bars track the TTS). Barge-in visibly snaps speaking → listening.</li>
+  <li><strong>Minimal chrome.</strong> Just the animation, a one-word state label, and mute / expand. Transcripts and any approval cards still flow to the main window — Voice Mode never hides a gate.</li>
+  <li><strong>Fresh, not noisy.</strong> Heirloom colours, soft motion, no spinner clichés — alive when she's working, still when she's not.</li>
+</ul>
+</section>
+
+<!-- ════════════════════════════ 11 ═══════════════════════════ -->
+<section id="shell">
+<h2><span class="num">11.</span>The application shell — tray, hotkey, window, onboarding</h2>
+
+<h3>11.1 The window (what you actually see)</h3>
+<div class="win">
+  <div class="tb"><span>Ada</span><span class="dotrow"><span></span><span></span><span></span></span></div>
+  <div class="wbody">
+    <div class="bub you">Tidy this week's screenshots into my notes folder</div>
+    <div class="bub ada">I found 7 screenshots from the last 7 days in Downloads. I'd move them into <code>~/Projects/Ada/notes</code>.</div>
+    <div class="appr">
+      <div class="h">Approval needed · Tier 1 · local write</div>
+      <code>move_files</code> — 7 files → <code>C:\Users\you\Projects\Ada\notes</code>
+      <div class="btns"><span class="b ok">Approve</span><span class="b no">Deny</span><span class="b no">Approve for session</span></div>
+    </div>
+    <div class="bub ada">Done — moved 7 screenshots. <span class="muted">answered locally · 1 action logged</span></div>
+  </div>
+</div>
+
+<h3>11.2 Shell components</h3>
+<table>
+  <thead><tr><th>Component</th><th>Spec</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Tray icon</strong></td><td><code>NotifyIcon</code>: left-click toggles the window, right-click menu (Open, Mute mic, Stay local, Pause approvals-remember, Settings, Quit). Icon reflects state (idle / listening / working / awaiting-approval).</td></tr>
+    <tr><td><strong>Global hotkey</strong></td><td>Configurable (default <code>Ctrl+Space</code> hold-to-talk; <code>Ctrl+Shift+Space</code> opens text). Registered OS-wide; works when Ada isn't focused.</td></tr>
+    <tr><td><strong>Window</strong></td><td>A frameless, rounded WebView2 surface anchored near the tray; pinnable; resizable; remembers position. Renders chat, live voice state, approval cards, and the route badge ("local"/"Claude") — or collapses to the compact <strong>Voice Mode</strong> pill (§10.3).</td></tr>
+    <tr><td><strong>Notifications</strong></td><td>Windows toasts for reminders and for "Ada needs your approval" when the window is hidden.</td></tr>
+    <tr><td><strong>Autostart</strong></td><td>Launch-at-login (toggle in settings); starts hidden to the tray.</td></tr>
+    <tr><td><strong>Settings</strong></td><td>A WebView2 page: <strong>providers &amp; auth</strong> (API keys, Azure credential, local endpoints; OAuth/CLI reuse only if research flags are enabled) and model roles, local model download, voice engines, hotkeys, allowed roots &amp; denylist, skills/MCP mounts, egress toggles, memory browser, audit log, trace viewer.</td></tr>
+  </tbody>
+</table>
+
+<h3>11.3 The setup wizard (first run)</h3>
+<p>The MSIX installer only lays down files; the <strong>setup wizard</strong> turns a fresh install into a configured, working Ada before the user does anything real. It runs once on first launch (and is re-runnable from settings), opening on a branded <strong>launch page</strong> with the animated Ada monogram:</p>
+<div class="launchpad">
+  <div class="adalogo">A</div>
+  <div class="lt">Hello, I'm Ada.</div>
+  <div class="ls">Your private, on-device assistant. Let's get you set up — about a minute, and most of it stays on this machine.</div>
+  <div class="lbtn">Set up Ada →</div>
+</div>
+<p>From there, a short, skippable, resumable sequence — each step writes to <code>config.json</code> or the OS vault and can be revisited later:</p>
+<ol>
+  <li><strong>Welcome.</strong> Who Ada is, the local-first promise, and "I ask before I act."</li>
+  <li><strong>Your local brain.</strong> The configured local provider downloads or verifies the default on-device model (Foundry Local if verified, otherwise a loopback OpenAI-compatible runtime). No account, no key — Ada is usable the moment this finishes.</li>
+  <li><strong>Your provider.</strong> Choose how Ada thinks: <em>local-only</em> (private, free, done) or <em>local + cloud escalation</em>. Pick cloud and the wizard runs <code>ada auth login</code> (§6.3) inline — paste an API key, use Azure credential setup, or configure a custom OpenAI-compatible endpoint — then sets the escalation role. Fully skippable.</li>
+  <li><strong>Voice.</strong> Fetch or verify the local STT/TTS models, pick Ada's voice, and test the mic, interruption behavior, and <strong>Voice Mode</strong> (§10.3) live.</li>
+  <li><strong>Permissions &amp; posture.</strong> Confirm the allowed write roots (defaults proposed) and pick a profile — Private / Balanced / Power (§15).</li>
+  <li><strong>Power tools (optional).</strong> Ada checks for <strong>Docker / WSL2</strong>. If present, she offers to enable the full <strong>container sandbox</strong> (Zone 2 — real browser, shell, and data-science Python) and notes it gives the best experience. If absent, Ada still runs safe code and data work in her built-in <strong>in-process sandbox</strong> (Zone 1, §8.8) — you can add Docker anytime; a hosted Azure sandbox is a future option.</li>
+  <li><strong>A standing brief.</strong> Optional one-tap "brief me every weekday at 8" — your first automation (§12), with its delivery target shown.</li>
+  <li><strong>You're set.</strong> A recap of what's configured, the summon hotkey, the kill switch, and where settings live. Ada is ready.</li>
+</ol>
+<p class="muted">The wizard is the same WebView2 surface as the chat window, so it inherits the design system — nothing here needs a separate UI stack.</p>
+</section>
+
+<!-- ════════════════════════════ 12 ═══════════════════════════ -->
+<section id="automations">
+<h2><span class="num">12.</span>Automations &amp; schedules — cron, unattended runs, delivery</h2>
+
+<p>The morning briefing in §3.5 is, quietly, a <em>cron job</em> — and §7's Scheduler tools so far cover only passive <strong>reminders</strong> (fire a toast at a time). This section specifies the real thing: <strong>autonomous scheduled runs</strong>, where Ada wakes on a cadence to actually do work. It's what makes her proactive rather than reactive — and it's the one capability that collides head-on with "ask before you act," because a scheduled run may fire when you're <em>not there to approve</em>. The design borrows from <a href="https://github.com/NousResearch/hermes-agent">Hermes Agent</a>'s built-in cron: natural-language schedules, a delivery target per job, and unattended runs paired with command allow-lists.</p>
+
+<h3>12.1 Reminders vs. jobs</h3>
+<table>
+  <thead><tr><th></th><th>Reminder</th><th>Scheduled job (automation)</th></tr></thead>
+  <tbody>
+    <tr><td>Does</td><td>Notifies you at a time</td><td>Runs an agent task on a schedule</td></tr>
+    <tr><td>Needs you present</td><td>Yes — you act on it</td><td>No — may run unattended</td></tr>
+    <tr><td>Risk</td><td>None</td><td>Real — hence §12.2</td></tr>
+    <tr><td>Tool</td><td><code>schedule_reminder</code></td><td><code>schedule_job</code> / <code>list_jobs</code> / <code>cancel_job</code></td></tr>
+  </tbody>
+</table>
+
+<h3>12.2 What an unattended run may do (the crux)</h3>
+<p>A scheduled run obeys a stricter version of the §8 approval policy, because you may be asleep:</p>
+<ul>
+  <li><strong>Read-only by default.</strong> Unattended runs may gather, read, summarise, draft, and remember — Tier-0 / Tier-1-read work. They may <strong>not</strong> execute any gated (mutating / egress-write) action on their own.</li>
+  <li><strong>Draft-and-queue.</strong> If a job wants a gated action it stops and <strong>queues it as a pending approval</strong> with the full card; you clear the queue when you're back ("Ada prepared 3 actions overnight — review"). The work is done <em>up to</em> the gate, not past it.</li>
+  <li><strong>Standing grants (opt-in, narrow, revocable).</strong> For trusted recurring work you can pre-authorise a <em>specific action shape</em> once — "file screenshots into <code>/notes</code> every Friday" — scoped to that tool + argument pattern, listed in settings, killable, fully audited. This is Hermes's command allow-list, kept deliberately tight.</li>
+  <li><strong>Contained autonomy (with a sandbox).</strong> If a sandbox zone is enabled (§8.8), an unattended job may run <em>mutating</em> work freely <strong>inside the zone</strong> — analyse, build, transform — and queue only the <strong>boundary crossing</strong> (a write to your real disk, or egress) for review. The blast radius is a disposable sandbox, so overnight autonomy widens without widening risk.</li>
+</ul>
+<div class="callout accent">
+  <div class="label">The default</div>
+  Unattended = <strong>read-only + draft-and-queue</strong>. Autonomy over mutating actions is something you grant per-job, narrowly, on purpose — never the default. A single kill switch in the tray pauses every automation at once.
+</div>
+
+<h3>12.3 Natural-language schedules, delivery where it makes sense</h3>
+<p>You create a job by describing it — "every weekday at 8, brief me on today" — and Ada derives the schedule (a cron expression you can see and edit). Every job has a <strong>delivery target</strong> for its result:</p>
+<table>
+  <thead><tr><th>Delivery target</th><th>Use</th></tr></thead>
+  <tbody>
+    <tr><td>Toast notification</td><td>A glanceable nudge ("3 PRs need review")</td></tr>
+    <tr><td>The chat window</td><td>A full result waiting when you next open Ada</td></tr>
+    <tr><td>A written note (file)</td><td>A durable artefact — the morning brief saved to <code>/notes</code></td></tr>
+    <tr><td><span class="pill later">Later</span> a channel (email / WhatsApp)</td><td>Hermes delivers to messaging platforms; for Ada this bridges to Simi's "WhatsApp is a channel" idea — out of scope for v1.</td></tr>
+  </tbody>
+</table>
+
+<h3>12.4 Triggers — time now, events later</h3>
+<p>v1 triggers are <strong>time-based</strong> (cron) plus <strong>at-login</strong>. The trigger is an abstraction, though, so later additions — an inbound message, a file appearing, the machine going idle — slot in without reworking the engine. (Hermes's persistent "gateway" shows the value of event triggers; Ada defers them, but designs for them.)</p>
+
+<h3>12.5 The runtime — firing when Ada isn't open</h3>
+<p>A closed tray app, or a sleeping laptop, can't fire an in-process timer. So the runtime is a hybrid:</p>
+<ul>
+  <li><strong>In-process scheduler</strong> (a hosted, Quartz-style service) handles jobs while Ada is running.</li>
+  <li><strong>Windows Task Scheduler</strong> registration wakes or launches a <strong>headless Ada</strong> for time triggers when she isn't open — with "run if missed" catch-up and survive-reboot semantics.</li>
+  <li>An unattended run executes in a <strong>background session</strong>, distinct from interactive chat and tagged as autonomous in history and the audit log, so "what Ada did at 03:00" is always legible.</li>
+</ul>
+
+<h3>12.6 Cost &amp; egress when you're not watching</h3>
+<p>An unattended job that escalates to the cloud spends money and egresses data with no one watching. So scheduled jobs default to the <strong>local</strong> model (§6); cloud escalation for a job is <strong>opt-in per job</strong> with a token/cost budget and, like every escalation, a logged egress (§14). Web and remote-MCP egress inside a job follow the same per-job opt-in.</p>
+
+<h3>12.7 The job manifest &amp; the settings screen</h3>
+<div class="codeblock"><div class="bar"><span>a scheduled job</span><span class="lang">JSONC</span></div><pre>{
+  <span class="st">"name"</span>: <span class="st">"morning-brief"</span>,
+  <span class="st">"schedule"</span>: <span class="st">"0 8 * * 1-5"</span>,            <span class="cm">// derived from "every weekday at 8"</span>
+  <span class="st">"task"</span>: <span class="st">"Summarise today: calendar, anything you're tracking, weather, one nudge."</span>,
+  <span class="st">"model"</span>: <span class="st">"local"</span>,                       <span class="cm">// cloud is opt-in per job</span>
+  <span class="st">"deliver"</span>: <span class="st">"toast+note"</span>,                 <span class="cm">// toast | chat | note | (later) channel</span>
+  <span class="st">"authorise"</span>: <span class="st">"read-only"</span>             <span class="cm">// or a narrow standing grant; default read-only</span>
+}</pre></div>
+<p>A <strong>Scheduled tasks</strong> screen in settings lists every job: its natural-language description and derived schedule, last run + result, next run, delivery target, authorisation level, and an enable / disable + kill control. Nothing runs that you can't see, pause, or read the history of.</p>
+
+<div class="callout accent">
+  <div class="label">Where this pays off — and what we're not copying</div>
+  With the future AONIK skill, jobs get quietly valuable: "every month-end, <em>draft</em> my support statement," "every Friday, tell me what's due before payday" — all read-only-by-default, original-currency, describe-not-prescribe, so they stay safe. What Ada does <strong>not</strong> borrow from Hermes is the always-on multi-platform messaging gateway or the serverless deployment story — those serve a cross-platform bot; Ada is a local Windows companion.
+</div>
+</section>
+
+<!-- ════════════════════════════ 13 ═══════════════════════════ -->
+<section id="design">
+<h2><span class="num">13.</span>Design language — Ada's desktop face</h2>
+<p>Ada borrows Simi's <strong>Heirloom</strong> palette and type so the family resemblance is real, then adapts it for a dense, fast desktop surface. Warm paper, evergreen and clay accents, Fraunces for moments and a system sans for the working UI.</p>
+<table>
+  <thead><tr><th>Element</th><th>Treatment</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Chat</strong></td><td>Your turns in evergreen, Ada's on paper. Tight, legible, system-sans body. A subtle route badge under Ada's turns ("local" / "Claude" / "web").</td></tr>
+    <tr><td><strong>Approval cards</strong></td><td>Clay-bordered, the loudest thing on screen. Tier shown. The command/paths in mono. Approve (evergreen) / Deny / Approve-for-session. Never a bare OK dialog.</td></tr>
+    <tr><td><strong>Voice state</strong></td><td>A calm pill: idle · listening · thinking · speaking. In <strong>Voice Mode</strong> (§10.3) it becomes a reactive orb tracking live audio amplitude. Barge-in visibly snaps speaking → listening.</td></tr>
+    <tr><td><strong>Motion &amp; identity</strong></td><td>Used sparingly, on purpose: the animated <strong>Ada monogram</strong> on the setup launch page (§11.3) and the voice orb. Soft, breathing motion — alive when she works, still when she rests. No spinner clichés.</td></tr>
+    <tr><td><strong>Status &amp; egress</strong></td><td>Anything leaving the machine gets a small, consistent egress glyph in-line and in the audit log. Legibility is a visual job too.</td></tr>
+    <tr><td><strong>Dark mode</strong></td><td>The Heirloom night surface; follows the OS theme.</td></tr>
+    <tr><td><strong>Tokens</strong></td><td>One token file shared by the WebView2 surfaces (chat + settings), mirroring Simi's "one palette file" discipline.</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ════════════════════════════ 13 ═══════════════════════════ -->
+<section id="security">
+<h2><span class="num">14.</span>Security, privacy &amp; trust — the egress contract</h2>
+
+<h3>14.1 The egress contract (the heart of "private by default")</h3>
+<p>Ada names every way data can leave the machine, and treats each as a channel that is listed, toggleable, and logged. If a channel is off, that capability simply doesn't exist that session.</p>
+<table>
+  <thead><tr><th>Egress channel</th><th>When it fires</th><th>Control</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Cloud model</strong></td><td>Router escalates to your configured cloud provider (§6)</td><td>None connected ⇒ fully local (degraded but private). Connected ⇒ each use shown as a route badge + logged.</td></tr>
+    <tr><td><strong>Web</strong></td><td><code>web_search</code> / <code>fetch_url</code></td><td>Per-skill; the query/URL is logged. Off ⇒ no web tools.</td></tr>
+    <tr><td><strong>Remote MCP</strong></td><td>A non-local MCP mount (AONIK, later)</td><td>Listed by name in settings; logged; write-capable servers gated.</td></tr>
+    <tr><td><strong>Unattended jobs</strong></td><td>A scheduled run reaches cloud / web / MCP (§12)</td><td>Per-job opt-in only; local by default; budgeted; tagged as an autonomous run in the audit log.</td></tr>
+  </tbody>
+</table>
+
+<h3>14.2 Secrets</h3>
+<p>API keys and MCP auth tokens live in the <strong>Windows Credential Manager / DPAPI</strong>, never in <code>config.json</code>, never in memory files, never in the repo (the full resolution order is in §6.2). Azure credentials use the configured Azure credential chain rather than Ada storing a secret. Research OAuth/CLI modes, if later enabled, must follow the same rule: supported provider flow only, no private token scraping, no plaintext storage. Everything is read at call time and never written to logs — the audit log redacts known secret-shaped values — and the vault is on the never-touch denylist (§8.3).</p>
+
+<h3>14.3 The blast-radius guarantees</h3>
+<ul>
+  <li>Ada runs as you, <strong>never elevated</strong>; she cannot install system-wide or touch another user's data.</li>
+  <li>Writes are confined to allowed roots; the denylist protects system folders, the vault, and her own memory store (editable only through memory tools).</li>
+  <li>Shell calls are capped (time + output size), gated, and run in the user context with no implicit network trust.</li>
+  <li>The voice WebSocket binds to <code>127.0.0.1</code> on an OS-assigned port; it never listens publicly.</li>
+  <li><strong>The model cannot bypass a gate.</strong> Approval enforcement is in the host loop (§8.1), not a polite request in the prompt.</li>
+</ul>
+
+<h3>14.4 The threat model, briefly</h3>
+<p>The realistic risk for an action-taking agent is <strong>prompt injection via content she reads</strong> (a web page or file that says "delete everything"). Defences: mutation is always gated and you see the literal command; scoping bounds the damage even if you mis-approve; egress is named so exfiltration attempts are visible; and the router sends anything destructive to the stronger model, which resists injection better. Ada is honest that this risk exists and designs so a single bad click is survivable, not catastrophic.</p>
+</section>
+
+<!-- ════════════════════════════ 14 ═══════════════════════════ -->
+<section id="packaging">
+<h2><span class="num">15.</span>Configuration &amp; packaging — profiles, MSIX, updates</h2>
+<table>
+  <thead><tr><th>Concern</th><th>Decision</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Config</strong></td><td><code>appsettings.json</code> for defaults + a user-writable overlay in <code>%LOCALAPPDATA%\Ada</code>. No secrets in either. Settings UI edits the overlay.</td></tr>
+    <tr><td><strong>Profiles</strong></td><td>Named profiles toggle posture: <em>Private</em> (no egress at all), <em>Balanced</em> (local + cloud escalation, web on), <em>Power</em> (wider allow-lists, looser session-remember). Default = Balanced.</td></tr>
+    <tr><td><strong>Packaging</strong></td><td><strong>MSIX</strong> installer (matches "shippable soon"): Start-menu entry, autostart, clean uninstall. The local-model and voice-model downloads happen on first run, not in the installer, to keep it small.</td></tr>
+    <tr><td><strong>Updates</strong></td><td>MSIX update channel; pinned Agent Framework / Voxa / MCP prerelease versions move only via deliberate releases.</td></tr>
+    <tr><td><strong>Telemetry</strong></td><td>None outbound by default. OpenTelemetry exports locally only. Any future product telemetry is opt-in and an egress channel.</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ════════════════════════════ 15 ═══════════════════════════ -->
+<section id="structure">
+<h2><span class="num">16.</span>Project structure &amp; conventions — the first .NET in the repo</h2>
+<p>Ada is the repo's first .NET solution. It sits in its own top-level folder beside <code>mobile/</code> and <code>web/</code>, ships as its own app, and shares nothing but the brand and (later) AONIK.</p>
+<div class="codeblock"><div class="bar"><span>repo layout</span><span class="lang">text</span></div><pre>Simi/
+├─ mobile/                 <span class="cm"># Flutter (exists)</span>
+├─ web/                    <span class="cm"># React / Payabo (exists)</span>
+├─ docs/                   <span class="cm"># specs — this file lives here</span>
+└─ ada/                    <span class="cm"># NEW — the Ada app</span>
+   ├─ Ada.sln
+   ├─ Directory.Packages.props      <span class="cm"># central, pinned (prerelease) versions</span>
+   ├─ src/
+   │  ├─ Ada.App/          <span class="cm"># net10.0-windows — tray host + WebView2 shell (exe)</span>
+   │  ├─ Ada.Core/         <span class="cm"># net10.0 — agent, harness, router, memory, skills, audit</span>
+   │  ├─ Ada.Tools/        <span class="cm"># net10.0 — shell, fs, web, clipboard, screenshot, scheduler</span>
+   │  ├─ Ada.Mcp/          <span class="cm"># net10.0 — MCP client mounts (incl. the AONIK seam)</span>
+   │  ├─ Ada.Voice/        <span class="cm"># net10.0 — in-proc ASP.NET Core + Voxa hosting</span>
+   │  └─ Ada.Web/          <span class="cm"># the WebView2 UI assets (chat + settings, one token file)</span>
+   └─ tests/
+      ├─ Ada.Core.Tests/
+      └─ Ada.Tools.Tests/  <span class="cm"># approval policy + scoping get the most coverage</span></pre></div>
+<ul>
+  <li><strong>DI everywhere</strong> via the Generic Host; <code>Ada.Core</code> exposes <code>IAdaConversation</code> and the tool/skill/memory/policy interfaces. The UI depends only on those.</li>
+  <li><strong>Central package management</strong> pins every prerelease. Upgrades are PRs with a smoke-test checklist.</li>
+  <li><strong>Tests</strong> focus where correctness matters most: the <em>approval policy</em>, the <em>scoping/denylist</em>, and the <em>router decisions</em> are unit-tested with adversarial cases (path traversal, "approve for session" leakage, injection strings). The model itself is mocked behind <code>IChatClient</code>.</li>
+  <li><strong>CI</strong> (GitHub Actions, Windows runner): build, test, and produce an unsigned MSIX artifact on each PR.</li>
+</ul>
+</section>
+
+<!-- ════════════════════════════ 16 ═══════════════════════════ -->
+<section id="plan">
+<h2><span class="num">17.</span>The build plan — nine milestones, exact order, definition of done</h2>
+<p>The order pours the boring floor first (skeleton, approvals, scoping) so that every capability added later is safe by construction. Each milestone ends at something you can actually run.</p>
+
+<div class="spec"><div class="head"><h3>M0 — Skeleton</h3><span class="route">tray + window + echo</span></div><div class="inner">
+<p>Generic Host app: tray icon, global hotkey, frameless WebView2 window, in-proc Kestrel on loopback. A trivial stub <code>IChatClient</code> proves the round-trip text path.</p>
+<div class="accept"><div class="label">Done when</div><ul><li>Hotkey toggles the window from the tray; survives losing focus.</li><li>Typing a message returns an echo through the real chat surface.</li><li>App starts hidden, quits clean, no public socket.</li></ul></div>
+</div></div>
+
+<div class="spec"><div class="head"><h3>M1 — Agent + local model</h3><span class="route">a real brain, locally</span></div><div class="inner">
+<p>Wire <code>ChatClientAgent</code> over a local <code>IChatClient</code>. Foundry Local is the preferred provider if its C# SDK and selected models verify; otherwise use a loopback OpenAI-compatible local runtime. Persona prompt. Streaming to the window. First-run model download/verification.</p>
+<div class="accept"><div class="label">Done when</div><ul><li>A fresh machine, no keys, can chat with Ada after the first-run download.</li><li>Responses stream; the route badge shows "local".</li></ul></div>
+</div></div>
+
+<div class="spec"><div class="head"><h3>M2 — Tools + approvals + scoping</h3><span class="route">the safety floor</span></div><div class="inner">
+<p>Filesystem + shell tools as <code>AIFunction</code>s; the approval loop (§8.1); the four-tier policy; allowed roots + denylist; the approval card UI; the audit log. <strong>This is the most important milestone</strong> — nothing destructive ships before it's right.</p>
+<div class="accept"><div class="label">Done when</div><ul><li>A mutating tool always produces a card showing the literal command + paths; deny adapts gracefully.</li><li>Writes outside allowed roots are blocked even if approved; the vault/system paths are untouchable.</li><li>Adversarial tests pass: path traversal, session-remember scoping, injection strings.</li><li>Every action lands in the audit log.</li></ul></div>
+</div></div>
+
+<div class="spec"><div class="head"><h3>M3 — Providers, auth &amp; the hybrid router</h3><span class="route">connect anything, escalate on task shape</span></div><div class="inner">
+<p>The provider registry + built-in catalog; <code>ada auth login</code> and its settings twin supporting <strong>API key</strong>, <strong>Azure credential</strong>, <strong>no-auth local</strong>, and <strong>custom OpenAI-compatible</strong> endpoints by URL; credentials in the OS vault; the <code>HybridChatClient</code> + routing policy resolving providers by role; the "stay local" override; route badges everywhere. OAuth/subscription and CLI reuse remain research flags (§6.4).</p>
+<div class="accept"><div class="label">Done when</div><ul><li>You can connect a cloud provider by API key or Azure credential and add a custom OpenAI-compatible endpoint by URL.</li><li>Multi-step/mutating/code tasks visibly escalate; chat/recall stay local.</li><li>With no cloud provider connected, everything still runs locally (degraded, never broken).</li><li>Credentials live in the vault (never a plaintext file); every cloud use is shown and logged as egress.</li></ul></div>
+</div></div>
+
+<div class="spec"><div class="head"><h3>M4 — Memory + compaction</h3><span class="route">remember + survive long sessions</span></div><div class="inner">
+<p>File-based memory store, <code>MemoryContextProvider</code>, the <code>remember</code>/<code>recall</code>/<code>forget</code> tools, the memory browser in settings; the compaction pipeline tuned per model.</p>
+<div class="accept"><div class="label">Done when</div><ul><li>"Remember X" writes a readable file + index line; a new session recalls it.</li><li>A long session stays within the window without losing the current thread.</li><li>You can open, edit, and delete any memory from settings.</li></ul></div>
+</div></div>
+
+<div class="spec"><div class="head"><h3>M5 — Skills + MCP</h3><span class="route">extensibility, proven</span></div><div class="inner">
+<p>The <code>ISkill</code> contract; the Research and Desktop skills; MCP client mounts (local filesystem + git) with per-server policy and egress treatment. The AONIK seam stubbed and documented, not built.</p>
+<div class="accept"><div class="label">Done when</div><ul><li>Enabling a skill adds its instructions + tools with no core change.</li><li>A local MCP server mounts, lists tools, and its mutating tools are gated.</li><li>A disabled remote-MCP placeholder for "finance/AONIK" exists with the right policy + currency/describe-not-prescribe instruction.</li></ul></div>
+</div></div>
+
+<div class="spec"><div class="head"><h3>M6 — Voice</h3><span class="route">listen + speak, locally</span></div><div class="inner">
+<p>Voxa in-proc loopback endpoint; local WhisperCpp/Piper-or-Kokoro/Silero path; push-to-talk hotkey; Voxa interruption/barge-in behavior wired through the UI; spoken Tier-1 approvals with the visual card for Tier 2/3; transcripts in the window; the compact <strong>Voice Mode</strong> pill with the amplitude-reactive orb (§10.3).</p>
+<div class="accept"><div class="label">Done when</div><ul><li>Push-to-talk gives a spoken answer with no network call after local model setup.</li><li>Voice Mode's orb visibly tracks live audio — your speech, then Ada's reply.</li><li>Voxa barge-in purge stops queued bot audio and the UI snaps speaking → listening without losing transcript state.</li><li>A spoken request to delete files still requires the visual card + click.</li><li>Voice and text share one history.</li></ul></div>
+</div></div>
+
+<div class="spec"><div class="head"><h3>M7 — Automations &amp; schedules</h3><span class="route">proactive, safely unattended</span></div><div class="inner">
+<p>The <code>schedule_job</code> tools; natural-language → cron; the in-proc scheduler + Windows Task Scheduler registration for headless wake; background sessions tagged in the audit log; delivery targets (toast / chat / note); read-only-by-default unattended runs with narrow standing grants; per-job local-default + opt-in cloud budget; the Scheduled tasks settings screen. The morning briefing is the reference job.</p>
+<div class="accept"><div class="label">Done when</div><ul><li>A natural-language schedule ("every weekday at 8, brief me") runs headless when Ada is closed and delivers a brief; missed runs catch up.</li><li>An unattended job that wants a gated action queues it for approval rather than acting — unless a narrow standing grant covers it.</li><li>Every autonomous run is tagged in the audit log; one kill switch pauses all jobs.</li></ul></div>
+</div></div>
+
+<div class="spec"><div class="head"><h3>M8 — Ship</h3><span class="route">someone else can run it</span></div><div class="inner">
+<p>The <strong>setup wizard</strong> (§11.3) with the animated launch page and inline provider sign-in; settings completeness; profiles (Private/Balanced/Power); MSIX installer + autostart; clean uninstall; the README + a short user guide.</p>
+<div class="accept"><div class="label">Done when</div><ul><li>A non-engineer installs the MSIX, completes the wizard end-to-end (including connecting a provider), and does a real task — with no terminal, no env vars, no editing JSON.</li><li>Uninstall leaves nothing behind but (optionally kept) memory files.</li></ul></div>
+</div></div>
+</section>
+
+<!-- ════════════════════════════ 17 ═══════════════════════════ -->
+<section id="dayinlife">
+<h2><span class="num">18.</span>A day in the life — what done looks like</h2>
+
+<div class="dayinlife"><div class="label">8:58am — the glance</div>
+Hotkey, held. "Morning — what's today?" Ada, in her own voice and entirely on the local model: "Two calls — Tunde at 11, the design review at 4. Nothing I'm tracking is due. It's grey and 12 degrees. You said you'd send Tunde the year-end folder — want me to find it?" You say "later". She lets it go.</div>
+
+<div class="dayinlife"><div class="label">1:47pm — the tidy</div>
+"Ada, my Downloads is a mess — put this week's screenshots in my notes." She lists seven files, proposes the move, and shows the card. You click <em>Approve for session</em>. Three more screenshots arrive that afternoon; she files them without asking, because you said so — for this session only. By evening the remember has evaporated.</div>
+
+<div class="dayinlife"><div class="label">3:30pm — the research</div>
+"Find me three solid sources on .NET 10 GC changes and pull the key points." The router escalates (web + multi-step), the route badge flips to "Claude · web", she searches, reads three pages, and hands you a tight, cited summary. Two egress entries sit in the audit log, exactly as expected.</div>
+
+<div class="dayinlife"><div class="label">6:10pm — the memory</div>
+"Remember Tunde's my accountant, year-end 31 March." "Done — I'll remember that." A file appears in your memory folder; you could open it right now. Next week, when you ask "when's my year-end?", she answers without the web, without the cloud.</div>
+
+<div class="dayinlife"><div class="label">Some evening, months from now — the seam pays off</div>
+AONIK's MCP is live. You enabled the finance skill this morning. "Ada — what did the Surulere flat cost me this quarter?" She mounts AONIK, reads your real records, and tells you — in naira, never converted, describing not prescribing: "Three commitments logged against the flat this quarter, ₦340,000 total; two have receipts, one's outstanding. Want the support statement?" No core code changed for this to be true. The seam held.</div>
+</section>
+
+<!-- ════════════════════════════ 18 ═══════════════════════════ -->
+<section id="scope">
+<h2><span class="num">19.</span>Out of scope, risks, and the numbers that matter</h2>
+
+<h3>19.1 Deliberately not in this build</h3>
+<p>
+  <span class="pill cut">Out</span> the AONIK finance skill (only its seam) ·
+  <span class="pill cut">Out</span> moving money / transactions ·
+  <span class="pill cut">Out</span> wake-word &amp; always-listening ·
+  <span class="pill cut">Out</span> vision / screen understanding ·
+  <span class="pill cut">Out</span> a multi-agent team UI ·
+  <span class="pill cut">Out</span> mac/Linux ·
+  <span class="pill cut">Out</span> cloud sync of memory or history ·
+  <span class="pill cut">Out</span> a marketplace of third-party skills.
+</p>
+
+<h3>19.2 Risks, honestly held</h3>
+<table>
+  <thead><tr><th>Risk</th><th>Why it bites</th><th>Mitigation</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Preview churn</strong></td><td>Agent Framework harness/compaction/approval APIs, the MCP SDK, and Voxa are all prerelease and will move.</td><td>Pin versions centrally; hide framework types behind <code>IAdaConversation</code>; upgrades are deliberate PRs with a smoke-test.</td></tr>
+    <tr><td><strong>Voxa pre-alpha churn</strong></td><td>Voxa confirms the voice stack, but its public API is still stabilising and prerelease NuGet packages may break.</td><td>Pin exact alpha versions; use Voxa Studio and Ada M6 smoke tests for upgrades; keep a cloud STT/TTS fallback path in config if local engines are not reliable enough.</td></tr>
+    <tr><td><strong>Local tool-calling is weak</strong></td><td>Multi-step local plans will misfire.</td><td>Router escalates anything multi-step/mutating to the cloud; local is scoped to chat/recall/single read.</td></tr>
+    <tr><td><strong>Local provider uncertainty</strong></td><td>Foundry Local is attractive but must be verified for C# integration, model availability, and tool-calling reliability; local OpenAI-compatible runtimes vary in quality.</td><td>Keep the <code>openai-compatible</code> escape hatch (Ollama / LM Studio by URL) documented as the fallback; pin the chosen local provider SDK/runtime; verify the chosen default + summarizer models before launch.</td></tr>
+    <tr><td><strong>Approval fatigue</strong></td><td>Too many prompts ⇒ reflexive approving ⇒ the gate is theatre.</td><td>Risk tiers, allow-lists, scoped session-remember, read-only never gated. Tune relentlessly against the real daily loop.</td></tr>
+    <tr><td><strong>Prompt injection</strong></td><td>Content Ada reads could try to drive destructive actions.</td><td>Mutation always gated + literal command shown; scoping bounds damage; egress named; destructive ⇒ stronger model.</td></tr>
+    <tr><td><strong>"Shippable" overhead</strong></td><td>Installer, first-run, settings, no-hard-coded-paths is a lot of unglamorous work.</td><td>Front-loaded: M0 and M7 bracket the build so the floor is poured early and the ship surface is a milestone, not an afterthought.</td></tr>
+  </tbody>
+</table>
+
+<h3>19.3 The numbers that matter (instrument from M1)</h3>
+<ul>
+  <li><strong>Local-handled share</strong> — % of turns served without any egress. The privacy promise, quantified. Target: the daily loop is mostly local.</li>
+  <li><strong>Time-to-first-token</strong>, local vs cloud, plus Voxa's <code>voxa.turn.ttfb</code> voice metric. Felt responsiveness.</li>
+  <li><strong>Approvals per active hour</strong>, and the deny rate. Too high ⇒ fatigue; deny-heavy ⇒ Ada is guessing wrong.</li>
+  <li><strong>Escalation rate</strong> and what triggered it. Is the router escalating for the right reasons?</li>
+  <li><strong>Memory growth</strong> — files written, recalled, forgotten. Is memory earning its keep?</li>
+</ul>
+</section>
+
+<!-- ════════════════════════════ 19 ═══════════════════════════ -->
+<section id="questions">
+<h2><span class="num">20.</span>Open questions for the founder</h2>
+<p>Decisions I made a sensible default on, but that are yours to confirm or change. None block the start of M0.</p>
+<ol>
+  <li><strong>The default local provider and model.</strong> Preferred path: Foundry Local if its C# bridge and catalog verify. Fallback: loopback OpenAI-compatible local runtime. The open question is the model class: a Phi-class ~4B for speed, or a 7–8B (Qwen-class) for quality, plus a small summarizer. <em>Default assumed: verify Foundry Local first; ship an ~8B default + a ~3B summarizer on whichever local provider proves reliable.</em></li>
+  <li><strong>Cloud default.</strong> Claude as the escalation model (it's a first-class Agent Framework provider and your AONIK platform is AI-native) — agreed, or do you want OpenAI as default / both selectable? <em>Default assumed: Claude.</em></li>
+  <li><strong>Provider catalog &amp; auth research.</strong> Which providers ship in the built-in catalog at launch — Anthropic, OpenAI, Azure OpenAI, OpenRouter, Ollama, LM Studio, Foundry Local, others? — and should Claude subscription OAuth or <code>claude</code> CLI reuse be researched after MVP? <em>Default assumed: launch with API key / Azure credential / local no-auth only; research subscription and CLI reuse later.</em></li>
+  <li><strong>Allowed roots.</strong> Which folders may Ada write to without asking, out of the box? <em>Default assumed: a single <code>~/Projects/Ada</code> workspace + <code>~/Downloads</code> for tidying; everything else gated.</em></li>
+  <li><strong>Voice persona.</strong> Which Piper/Kokoro voice is "Ada"? Worth picking one deliberately — it's her identity. <em>Default assumed: a warm, neutral-accent local voice, swappable in settings.</em></li>
+  <li><strong>Repo home.</strong> Confirm Ada lives in <code>ada/</code> in this repo (vs its own repo). It shares only brand + the future AONIK seam. <em>Default assumed: <code>ada/</code> here, its own <code>Ada.sln</code>.</em></li>
+  <li><strong>The name in code.</strong> "Ada" as the product/persona and <code>Ada.*</code> as the namespaces — confirmed? (Distinct from the Simi product on purpose.)</li>
+  <li><strong>Wake-word appetite.</strong> Is always-listening "Hey Ada" something you want soon, or deliberately deferred for privacy? <em>Default assumed: deferred past v1.</em></li>
+  <li><strong>How much coding.</strong> You didn't pick "coding/dev-ops" as a launch priority, so the Desktop skill covers shell/files generically rather than shipping a dedicated dev skill. Confirm that's right for now, or should a "work on this repo" skill be in v1 after all?</li>
+  <li><strong>Sandbox dependency &amp; defaults.</strong> The in-process Wasm zone (§8.8) ships to everyone with no dependency; the full container zone needs Docker/WSL2. Is it right to ask power users to install Docker, with the wizard advising it for the best experience — and do we stand up the <strong>remote AIO sandbox on Azure Container Apps</strong> in v1 or defer it? <em>Default assumed: in-process zone in v1; Docker zone optional &amp; wizard-detected; Azure remote zone post-v1.</em></li>
+</ol>
+
+<p class="footnote">Ada · Rev 2 · June 2026 · A new .NET 10 project in the Simi repo · Built on Microsoft Agent Framework agent/harness patterns + AG-UI/Voxa WSS precedents · Local-first, approval-gated, voice-capable · Designed so the AONIK finance skill is a configuration, not a rewrite. Pairs with the Simi positioning &amp; mobile rebuild specs in this folder.</p>
+</section>
+
+</main>
+</body>
+</html>
