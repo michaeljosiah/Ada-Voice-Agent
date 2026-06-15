@@ -1,0 +1,57 @@
+using Microsoft.Extensions.AI;
+using ModelContextProtocol.Client;
+
+namespace Ada.Core;
+
+/// <summary>
+/// Mounts an external MCP server (spec §7.4): launches it, lists its tools, and — for a write-capable
+/// server — wraps each tool in Ada's approval gate. Every mount is an egress channel, recorded in the
+/// audit log. Clients are kept alive for the lifetime of the mounter so the tools remain callable.
+/// </summary>
+public sealed class McpMounter(IApprovalHandler approval, IAuditLog audit) : IAsyncDisposable
+{
+    private readonly List<McpClient> _clients = [];
+
+    public async Task<IReadOnlyList<AITool>> MountAsync(McpMount mount, CancellationToken ct = default)
+    {
+        if (mount.Transport != McpTransport.Stdio || string.IsNullOrWhiteSpace(mount.Command))
+            throw new NotSupportedException("Only stdio MCP mounts are supported in this build.");
+
+        var transport = new StdioClientTransport(new StdioClientTransportOptions
+        {
+            Name = mount.Name,
+            Command = mount.Command,
+            Arguments = mount.Args?.ToArray(),
+        });
+
+        var client = await McpClient.CreateAsync(transport, cancellationToken: ct).ConfigureAwait(false);
+        _clients.Add(client);
+
+        var tools = await client.ListToolsAsync(cancellationToken: ct).ConfigureAwait(false);
+        var result = new List<AITool>(tools.Count);
+        foreach (var tool in tools)
+        {
+            await audit.RecordAsync(new AuditEntry($"mcp:{mount.Name}", tool.Name, RiskTier.Medium, "mounted"), ct).ConfigureAwait(false);
+            result.Add(mount.GateMutatingTools
+                ? new GatedAIFunction(tool, () => GateAsync(mount, tool.Name))
+                : tool);
+        }
+        return result;
+    }
+
+    private async Task<bool> GateAsync(McpMount mount, string toolName)
+    {
+        var request = new ApprovalRequest($"mcp:{mount.Name}:{toolName}", RiskTier.Medium,
+            $"Run the MCP tool '{toolName}' on '{mount.Name}'", $"{mount.Name} → {toolName}");
+        var decision = await approval.RequestApprovalAsync(request).ConfigureAwait(false);
+        await audit.RecordAsync(new AuditEntry($"mcp:{mount.Name}", toolName, RiskTier.Medium, decision.Approved ? "approved" : "denied"));
+        return decision.Approved;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var client in _clients)
+            await client.DisposeAsync().ConfigureAwait(false);
+        _clients.Clear();
+    }
+}

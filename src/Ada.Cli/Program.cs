@@ -31,6 +31,8 @@ internal static class Program
             "providers" => Providers(),
             "route" => RouteCmd(rest),
             "memory" => Memory(rest),
+            "skills" => Skills(rest),
+            "mcp" => await Mcp(rest),
             _ => Help(),
         };
     }
@@ -86,7 +88,7 @@ internal static class Program
     /// <summary>The cumulative headless acceptance gate for every milestone shipped so far.</summary>
     private static async Task<int> SelfTest()
     {
-        Console.WriteLine("Ada self-test (M0–M4)\n");
+        Console.WriteLine("Ada self-test (M0–M5)\n");
 
         // ---- M0: loopback server + streaming round-trip ----
         await using var server = await AdaServer.StartAsync(new AdaServerOptions(Port: 0));
@@ -216,6 +218,43 @@ internal static class Program
         var compacted = await new LengthCompactionStrategy(maxChars: 4000, keepRecent: 6).CompactAsync(longHistory);
         Report("M4 compaction bounds a long session without losing recent turns",
             longHistory.Count == 80 && compacted.Count <= 7 && compacted[0].Role == ChatRole.System);
+
+        // ---- M5: skills + MCP gating + sandbox zones ----
+        var composedAgent = SkillComposer.Compose(new Persona("BASE"), [], [new ResearchSkill(new WebTools(new InMemoryAuditLog()))]);
+        Report("M5 enabling a skill adds its instruction", composedAgent.Instructions.Contains("synthesize"));
+        Report("M5 enabling a skill adds its tools", composedAgent.Tools.Any(t => t.Name == "web_fetch"));
+
+        var skillPath = Path.Combine(Path.GetTempPath(), $"ada_skills_{Guid.NewGuid():n}.json");
+        try
+        {
+            ISkill[] skills = [new ResearchSkill(new WebTools(new InMemoryAuditLog())), new FinanceRecordsSkill()];
+            var reg = new SkillRegistry(skills, skillPath);
+            Report("M5 research on by default, finance-records off (external seam)", reg.IsEnabled("research") && !reg.IsEnabled("finance-records"));
+            reg.Enable("finance-records");
+            Report("M5 skill enable persists across sessions", new SkillRegistry(skills, skillPath).IsEnabled("finance-records"));
+        }
+        finally { try { File.Delete(skillPath); } catch { /* best effort */ } }
+
+        var finance = new FinanceRecordsSkill();
+        Report("M5 finance seam: egress mount + describe-not-prescribe + original currency",
+            finance.Mcp!.IsEgress && finance.InstructionFragment!.Contains("never convert") && finance.InstructionFragment.Contains("Describe, never prescribe"));
+
+        var gatedDeny = new GatedAIFunction(AIFunctionFactory.Create((string x) => $"ran:{x}", "echo"), () => Task.FromResult(false));
+        Report("M5 a write-capable MCP tool is gated (deny blocks it)",
+            (await gatedDeny.InvokeAsync(new AIFunctionArguments { ["x"] = "y" }))?.ToString()?.Contains("Denied") == true);
+
+        var container = new ContainerCodeSandbox();
+        Report("M5 container zone rejects work it can't run cleanly", await container.RunAsync(new SandboxRequest("ruby", "puts 1")) is { Ok: false });
+        Console.WriteLine($"       Zone 2 (Docker container) available: {container.Available}");
+        if (container.Available)
+        {
+            var run = await container.RunAsync(new SandboxRequest("python", "print(40+2)"));
+            Console.WriteLine($"       Zone 2 python run -> ok={run.Ok} output=\"{run.Output}\" reason={run.Reason}");
+        }
+
+        using var webTools = new WebTools(new InMemoryAuditLog());
+        var fetched = await webTools.WebFetch(server.Url + "/healthz");
+        Report("M5 web_fetch retrieves content (egress) from the loopback", fetched.Contains("\"status\":\"ok\""));
 
         var ok = _failures == 0;
         Console.WriteLine(ok ? "\nSELF-TEST PASSED" : $"\nSELF-TEST FAILED ({_failures} failure(s))");
@@ -370,6 +409,52 @@ internal static class Program
         return 0;
     }
 
+    private static int Skills(string[] args)
+    {
+        var sub = args.Length > 0 ? args[0].ToLowerInvariant() : "list";
+        ISkill[] skills = [new ResearchSkill(new WebTools(new InMemoryAuditLog())), new DesktopSkill(), new FinanceRecordsSkill()];
+        var registry = new SkillRegistry(skills);
+
+        switch (sub)
+        {
+            case "list":
+                foreach (var s in registry.Available)
+                    Console.WriteLine($"  [{(registry.IsEnabled(s.Name) ? "x" : " ")}] {s.Name,-18} {(s.Mcp is not null ? "(mcp mount)" : string.Empty)}");
+                return 0;
+            case "enable" when args.Length >= 2:
+                registry.Enable(args[1]); Console.WriteLine($"Enabled '{args[1]}'."); return 0;
+            case "disable" when args.Length >= 2:
+                registry.Disable(args[1]); Console.WriteLine($"Disabled '{args[1]}'."); return 0;
+            default:
+                Console.Error.WriteLine("usage: ada skills [list | enable <name> | disable <name>]"); return 2;
+        }
+    }
+
+    private static async Task<int> Mcp(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            Console.Error.WriteLine("usage: ada mcp <command> [args...]   e.g. ada mcp npx -y @modelcontextprotocol/server-everything");
+            return 2;
+        }
+
+        var mount = new McpMount("cli", McpTransport.Stdio, Command: args[0], Args: args.Skip(1).ToArray());
+        await using var mounter = new McpMounter(new AutoApprovalHandler(approveMutations: true), new InMemoryAuditLog());
+        try
+        {
+            var tools = await mounter.MountAsync(mount);
+            Console.WriteLine($"Mounted '{args[0]}' — {tools.Count} tool(s):");
+            foreach (var t in tools.OfType<AIFunction>())
+                Console.WriteLine($"  {t.Name}: {t.Description}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"MCP mount failed: {ex.Message}");
+            return 1;
+        }
+    }
+
     private static int Memory(string[] args)
     {
         var sub = args.Length > 0 ? args[0].ToLowerInvariant() : "list";
@@ -437,6 +522,8 @@ internal static class Program
               ada providers               show the built-in provider catalog
               ada route <message>         show how a message would be routed (local vs escalation)
               ada memory list             list durable memories (also: recall, remember, forget)
+              ada skills list             list skills (also: enable <name>, disable <name>)
+              ada mcp <command> [args]    mount a stdio MCP server and list its tools
 
             model config (env):
               ADA_PROVIDER=openai-compatible  ADA_ENDPOINT=http://localhost:11434/v1

@@ -25,6 +25,14 @@ public static class AdaToolsServiceCollectionExtensions
         services.TryAddSingleton<FileSystemTools>();
         services.TryAddSingleton<ShellTools>();
         services.TryAddSingleton<MemoryTools>();
+        services.TryAddSingleton<WebTools>();
+
+        // Skills (spec §7.3) and the MCP mounter (§7.4).
+        services.AddSingleton<ISkill, ResearchSkill>();
+        services.AddSingleton<ISkill, DesktopSkill>();
+        services.AddSingleton<ISkill, FinanceRecordsSkill>();
+        services.TryAddSingleton(sp => new SkillRegistry(sp.GetServices<ISkill>()));
+        services.TryAddSingleton(sp => new McpMounter(sp.GetRequiredService<IApprovalHandler>(), sp.GetRequiredService<IAuditLog>()));
 
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<FileSystemTools>().ReadFile, "read_file"));
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<FileSystemTools>().ListDirectory, "list_directory"));

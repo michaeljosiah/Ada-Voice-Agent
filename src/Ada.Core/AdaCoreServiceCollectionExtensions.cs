@@ -49,11 +49,15 @@ public static class AdaCoreServiceCollectionExtensions
     private static IAdaEngine BuildEngine(IServiceProvider sp, AdaModelOptions options)
     {
         var registry = sp.GetRequiredService<ProviderRegistry>();
-        var persona = sp.GetRequiredService<Persona>();
-        var tools = sp.GetServices<AITool>();
         var audit = sp.GetService<IAuditLog>();
         var memory = sp.GetService<ITurnContext>();
         var compaction = sp.GetService<ICompactionStrategy>();
+
+        // Compose the persona + enabled skills' instructions and tools (no core change to add a skill).
+        var skillRegistry = sp.GetService<SkillRegistry>();
+        var composed = SkillComposer.Compose(sp.GetRequiredService<Persona>(), sp.GetServices<AITool>(), skillRegistry?.Enabled ?? []);
+        var persona = new Persona(composed.Instructions);
+        var tools = composed.Tools;
 
         var local = registry.CreateForRole(ModelRole.Default) ?? ModelClientFactory.Create(options);
         var cloud = registry.CreateForRole(ModelRole.Escalation);

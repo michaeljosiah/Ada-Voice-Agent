@@ -12,6 +12,7 @@
     <PackageReference Include="Azure.Identity" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="ModelContextProtocol" />
   </ItemGroup>
 
 </Project>
