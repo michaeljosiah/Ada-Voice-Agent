@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Ada.Core;
 using Ada.Server;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Ada.Cli;
 
@@ -28,18 +29,28 @@ internal static class Program
         };
     }
 
-    /// <summary>Talk to Ada's engine directly (no HTTP) — the simplest proof of the turn path.</summary>
+    /// <summary>Talk to Ada's configured engine (echo, or a real local model via ADA_* env vars).</summary>
     private static async Task<int> Chat(string[] args)
     {
         var message = string.Join(' ', args);
         if (string.IsNullOrWhiteSpace(message)) { Console.Error.WriteLine("usage: ada chat <message>"); return 2; }
 
-        IAdaEngine engine = new EchoEngine();
+        using var provider = new ServiceCollection().AddAdaCore().BuildServiceProvider();
+        var engine = provider.GetRequiredService<IAdaEngine>();
+
         var route = "local";
-        await foreach (var chunk in engine.RespondAsync(new AdaRequest(message)))
+        try
         {
-            Console.Write(chunk.Text);
-            if (chunk.IsFinal) route = chunk.Route;
+            await foreach (var chunk in engine.RespondAsync(new AdaRequest(message)))
+            {
+                Console.Write(chunk.Text);
+                route = chunk.Route;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"\n[could not reach the model: {ex.Message}]");
+            return 1;
         }
         Console.WriteLine();
         Console.WriteLine($"[route: {route}]");
@@ -66,33 +77,56 @@ internal static class Program
         return 0;
     }
 
-    /// <summary>The M0 acceptance gate, headless: loopback-only bind + echo round-trip over /api/chat.</summary>
+    /// <summary>The cumulative headless acceptance gate for every milestone shipped so far.</summary>
     private static async Task<int> SelfTest()
     {
-        Console.WriteLine("Ada M0 self-test");
-        await using var server = await AdaServer.StartAsync(new AdaServerOptions(Port: 0));
-        Console.WriteLine($"  server url : {server.Url}");
+        Console.WriteLine("Ada self-test (M0–M1)\n");
 
+        // ---- M0: loopback server + streaming round-trip ----
+        await using var server = await AdaServer.StartAsync(new AdaServerOptions(Port: 0));
         var uri = new Uri(server.Url);
-        Report("binds loopback only (no public socket)", uri.Host is "127.0.0.1" or "::1" or "localhost");
+        Report("M0 server binds loopback only (no public socket)", uri.Host is "127.0.0.1" or "::1" or "localhost");
 
         using var http = new HttpClient { BaseAddress = uri };
+        Report("M0 /healthz responds ok", (await http.GetStringAsync("/healthz")).Contains("\"status\":\"ok\""));
+        Report("M0 chat UI served at /", (await http.GetStringAsync("/")).Contains("Ada", StringComparison.OrdinalIgnoreCase));
 
-        var health = await http.GetStringAsync("/healthz");
-        Report("/healthz responds ok", health.Contains("\"status\":\"ok\""));
+        var (sReply, sRoute) = await PostChat(http, "hello world");
+        Report("M0 turn streams over /api/chat", sReply.Length > 0 && sRoute.Length > 0);
+        Console.WriteLine($"       server reply: \"{sReply}\" [{sRoute}]");
 
-        var index = await http.GetStringAsync("/");
-        Report("chat UI served at /", index.Contains("Ada", StringComparison.OrdinalIgnoreCase));
+        // ---- M0: echo engine ----
+        var echo = await Collect(new EchoEngine(), "hello world");
+        Report("M0 echo engine echoes input, route 'echo'", echo.text.Contains("hello world") && echo.route == "echo");
 
-        var (reply, route) = await PostChat(http, "hello world");
-        Console.WriteLine($"  reply      : \"{reply}\"");
-        Console.WriteLine($"  route      : {route}");
-        Report("echo round-trip over /api/chat", reply.StartsWith("Ada (echo):") && reply.Contains("hello world"));
-        Report("route badge reported", route == "echo");
+        // ---- M1: real agent path over a stub model (no model / keys / network) ----
+        var agent = new AgentEngine(new StubChatClient(), Persona.Load(), route: "local");
+        var ar = await Collect(agent, "remember the milk");
+        Report("M1 agent engine streams a reply", ar.text.Length > 0);
+        Report("M1 agent engine routes 'local'", ar.route == "local");
+        Report("M1 agent passes the user message to the model", ar.text.Contains("remember the milk"));
+        Console.WriteLine($"       agent reply : \"{ar.text}\" [{ar.route}]");
+
+        // ---- M1: provider wiring ----
+        Report("M1 echo provider yields no chat client", ModelClientFactory.Create(new AdaModelOptions { Provider = "echo" }) is null);
+        Report("M1 local provider builds a chat client", ModelClientFactory.Create(
+            new AdaModelOptions { Provider = "openai-compatible", Endpoint = "http://localhost:11434/v1", ModelId = "m" }) is not null);
 
         var ok = _failures == 0;
-        Console.WriteLine(ok ? "\nM0 SELF-TEST PASSED" : $"\nM0 SELF-TEST FAILED ({_failures} failure(s))");
+        Console.WriteLine(ok ? "\nSELF-TEST PASSED" : $"\nSELF-TEST FAILED ({_failures} failure(s))");
         return ok ? 0 : 1;
+    }
+
+    private static async Task<(string text, string route)> Collect(IAdaEngine engine, string message)
+    {
+        var sb = new StringBuilder();
+        var route = string.Empty;
+        await foreach (var chunk in engine.RespondAsync(new AdaRequest(message)))
+        {
+            sb.Append(chunk.Text);
+            route = chunk.Route;
+        }
+        return (sb.ToString(), route);
     }
 
     private static async Task<(string reply, string route)> PostChat(HttpClient http, string message)
@@ -138,9 +172,13 @@ internal static class Program
             ada — Ada Voice Agent CLI (test harness)
 
             usage:
-              ada chat <message>     talk to the engine directly (prints the streamed reply)
+              ada chat <message>     talk to the configured engine (echo, or a local model)
               ada serve [--port N]   run the loopback web server (default: ephemeral port)
-              ada selftest           run the current milestone's headless acceptance checks
+              ada selftest           run the cumulative headless acceptance checks
+
+            model config (env):
+              ADA_PROVIDER=openai-compatible   ADA_ENDPOINT=http://localhost:11434/v1
+              ADA_MODEL=qwen2.5:7b-instruct     ADA_API_KEY=(optional)
             """);
         return 0;
     }

@@ -6,6 +6,7 @@
   <ItemGroup>
     <!-- AI / Agent Framework -->
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.7.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.7.0" />
     <PackageVersion Include="Microsoft.Agents.AI" Version="1.10.0" />
     <!-- Desktop shell -->
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4022.49" />
