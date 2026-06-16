@@ -20,8 +20,8 @@ internal sealed class MainForm : Form
 
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
-        Size = new Size(468, 726);
-        MinimumSize = new Size(400, 560);
+        Size = new Size(920, 640);
+        MinimumSize = new Size(560, 560);
         ShowInTaskbar = false;
         TopMost = true;
         BackColor = Color.FromArgb(0xFB, 0xF7, 0xEF);
@@ -43,6 +43,15 @@ internal sealed class MainForm : Form
         core.Settings.AreDefaultContextMenusEnabled = false;
         core.Settings.IsZoomControlEnabled = false;
         core.Settings.AreDevToolsEnabled = false;
+
+        // The frameless chrome's window buttons post messages back to the host.
+        core.WebMessageReceived += (_, e) =>
+        {
+            var msg = e.TryGetWebMessageAsString();
+            if (msg == "minimise") WindowState = FormWindowState.Minimized;
+            else if (msg is "hide" or "close") RequestHide?.Invoke(this, EventArgs.Empty);
+        };
+
         _web.Source = new Uri(_url);
     }
 
