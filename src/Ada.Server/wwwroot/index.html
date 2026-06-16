@@ -53,64 +53,116 @@
   #orbWrap{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;
     background:rgba(251,247,239,.93);z-index:6;}
   .orbhint{color:var(--muted);font-size:13px;}
-  #wizard{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;gap:7px;
-    background:var(--paper);z-index:8;padding:24px 20px 28px;text-align:center;overflow-y:auto;overflow-x:hidden;}
-  #wizard .mono{flex:0 0 auto;width:50px;height:50px;font-size:26px;margin-bottom:2px;animation:pulse 2.4s ease-in-out infinite;}
+
+  /* ---- Setup wizard: a real first-run flow, one step at a time ---- */
+  #wizard{position:absolute;inset:0;display:none;flex-direction:column;background:var(--paper);z-index:8;}
+  .wzdots{flex:0 0 auto;display:flex;gap:6px;justify-content:center;padding:18px 0 4px;}
+  .wzdots i{width:7px;height:7px;border-radius:50%;background:var(--rule);transition:background .2s;}
+  .wzdots i.on{background:var(--evergreen);}
+  .wzbody{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:10px 26px 0;display:flex;flex-direction:column;}
+  .wzstep{display:none;flex:1;flex-direction:column;gap:10px;}
+  .wzstep.on{display:flex;}
+  .wzstep.center{align-items:center;justify-content:center;text-align:center;gap:13px;}
+  #wizard .mono{flex:0 0 auto;width:58px;height:58px;font-size:30px;animation:pulse 2.4s ease-in-out infinite;}
+  #wizard .mono.ok{animation:none;}
   @keyframes pulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(31,80,64,.35);}50%{transform:scale(1.04);box-shadow:0 0 0 14px rgba(31,80,64,0);}}
-  #wizard h2{font-family:Georgia,serif;font-size:20px;font-weight:600;margin:2px 0 0;}
-  #wizard .step{width:100%;max-width:300px;text-align:left;margin-top:7px;}
-  #wizard label{display:block;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;line-height:1.3;}
-  #wizard select,#wizard input{width:100%;padding:9px 11px;border:1px solid var(--rule);border-radius:9px;font:inherit;font-size:13.5px;background:#fff;color:var(--ink);}
-  .profiles{display:flex;gap:7px;}
-  .profiles button{flex:1;padding:8px 4px;border:1px solid var(--rule);border-radius:9px;background:#fff;
-    color:var(--ink);font:inherit;font-size:13px;font-weight:500;}
-  .profiles button.sel{background:var(--evergreen);color:#fff;border-color:var(--evergreen);}
-  #wzModelDl{margin-top:7px;padding:8px 18px;font-size:13px;}
-  #wzFinish{margin-top:14px;padding:11px 26px;}
-  #engineToggle{-webkit-app-region:no-drag;margin-left:auto;padding:5px 11px;border-radius:14px;border:1px solid var(--rule);
-    background:#fff;color:var(--ink-soft);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap;}
-  #engineToggle.browser{background:#2a5670;color:#fff;border-color:#2a5670;}
-  .enginenote{font-size:11px;color:var(--ink-soft);padding:5px 20px;background:#eef3f6;border-bottom:1px solid var(--rule);}
-  #attachBtn{-webkit-app-region:no-drag;padding:0 12px;border:1px solid var(--rule);border-radius:10px;background:#fff;cursor:pointer;font-size:16px;}
-  #attachPreview{padding:0 20px;}
-  #attachPreview img.attach,.msg img.attach{max-height:90px;border-radius:8px;display:block;margin-bottom:4px;}
+  #wizard h2{font-family:Georgia,serif;font-size:21px;font-weight:600;margin:0;line-height:1.2;}
+  .wzstep.center h2{font-size:23px;}
+  #wizard .lead{color:var(--muted);font-size:13px;line-height:1.5;margin:0;}
+  .wzstep.center .lead{max-width:282px;}
+  #wizard label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:8px 0 -3px;}
+  #wizard select,#wizard input{width:100%;padding:10px 12px;border:1px solid var(--rule);border-radius:10px;font:inherit;font-size:13.5px;background:#fff;color:var(--ink);}
+  #wizard select:focus,#wizard input:focus{outline:2px solid var(--evergreen);outline-offset:0;}
+  .pcards{display:flex;flex-direction:column;gap:9px;margin-top:2px;}
+  .pcard{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:11px 14px;
+    border:1px solid var(--rule);border-radius:11px;background:#fff;color:var(--ink);font:inherit;cursor:pointer;}
+  .pcard b{font-size:14px;font-weight:600;}
+  .pcard span{font-size:12px;color:var(--muted);font-weight:400;line-height:1.4;}
+  .pcard.sel{border:2px solid var(--evergreen);padding:10px 13px;}
+  button.ghost{margin-top:11px;background:#fff;color:var(--evergreen);border:1px solid var(--evergreen);font-weight:600;font-size:13.5px;}
+  .bar{height:7px;border-radius:4px;background:var(--rule);overflow:hidden;margin-top:13px;display:none;}
+  .bar.show{display:block;}
+  #wzBarFill{height:100%;width:0;background:var(--evergreen);transition:width .3s ease;}
+  .bar.indet #wzBarFill{width:38%;animation:indet 1.1s ease-in-out infinite;}
+  @keyframes indet{0%{margin-left:-38%;}100%{margin-left:100%;}}
+  .status{font-size:12px;color:var(--muted);margin-top:9px;min-height:17px;line-height:1.4;}
+  ul.done{list-style:none;padding:0;margin:0;text-align:left;display:flex;flex-direction:column;gap:10px;max-width:282px;}
+  ul.done li{font-size:13px;color:var(--ink-soft);line-height:1.45;}
+  ul.done b{color:var(--ink);font-weight:600;}
+  .wznav{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:14px 26px 20px;border-top:1px solid var(--rule);background:var(--paper-1);}
+  .wznav .sp{flex:1;}
+  .wznav .back{background:none;border:none;color:var(--muted);font-weight:500;padding:8px 2px;box-shadow:none;}
+  .wznav .skip{background:#fff;color:var(--ink-soft);border:1px solid var(--rule);font-weight:500;}
+  .wznav .next{min-width:108px;}
 </style>
 </head>
 <body>
   <header>
     <div class="mono">A</div>
     <div class="title"><h1>Ada</h1><div class="sub">On your machine. In your voice. Under your control.</div></div>
-    <button id="engineToggle" title="Switch model engine">🖥 Ada (local agent)</button>
   </header>
-  <div class="enginenote" id="engineNote" style="display:none"></div>
   <div id="log"></div>
   <div id="approvals"></div>
   <button id="voiceBtn" title="Voice mode (Ctrl+Alt+Space)">🎙 Voice</button>
   <div id="orbWrap"><canvas id="orb" width="220" height="220"></canvas><div class="orbhint">Listening — press Esc or the hotkey to stop</div></div>
+
   <div id="wizard">
-    <div class="mono">A</div>
-    <h2>Welcome to Ada</h2>
-    <div class="orbhint">On your machine. In your voice. Under your control.</div>
-    <div class="step"><label>Choose a profile</label>
-      <div class="profiles" id="profiles">
-        <button data-p="Private">Private</button><button data-p="Balanced" class="sel">Balanced</button><button data-p="Power">Power</button>
-      </div>
+    <div class="wzdots"><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="wzbody">
+      <section class="wzstep center" data-step="0">
+        <div class="mono">A</div>
+        <h2>Welcome to Ada</h2>
+        <p class="lead">Your private chief-of-staff. She runs on your machine, listens and speaks, remembers what matters — and asks before she acts.</p>
+      </section>
+
+      <section class="wzstep" data-step="1">
+        <h2>How much can Ada do on her own?</h2>
+        <p class="lead">Sets her default reach. You can change it anytime in settings.</p>
+        <div class="pcards" id="profiles">
+          <button type="button" class="pcard" data-p="Private"><b>Private</b><span>Everything stays on your machine. No cloud, ever.</span></button>
+          <button type="button" class="pcard sel" data-p="Balanced"><b>Balanced</b><span>Local by default; the cloud only for hard tasks.</span></button>
+          <button type="button" class="pcard" data-p="Power"><b>Power</b><span>Balanced, plus the widest autonomy and the container sandbox.</span></button>
+        </div>
+      </section>
+
+      <section class="wzstep" data-step="2">
+        <h2>Choose a local brain</h2>
+        <p class="lead">Runs entirely on your machine. Ada downloads and manages it for you — no terminal, no install.</p>
+        <label>Local model</label>
+        <select id="wzModel"></select>
+        <button type="button" id="wzModelDl" class="ghost">Download &amp; set up</button>
+        <div class="bar" id="wzBar"><div id="wzBarFill"></div></div>
+        <div class="status" id="wzModelStatus">You can also set this up later from settings.</div>
+      </section>
+
+      <section class="wzstep" data-step="3">
+        <h2>Add a cloud model</h2>
+        <p class="lead">Optional. A frontier model — Claude by default — for the hardest tasks. Your key is stored encrypted in Windows, never in a file.</p>
+        <label>Provider</label>
+        <select id="wzProvider"></select>
+        <label>API key</label>
+        <input id="wzKey" type="password" placeholder="Leave blank to stay fully local" />
+      </section>
+
+      <section class="wzstep center" data-step="4">
+        <div class="mono ok">✓</div>
+        <h2>You’re all set</h2>
+        <ul class="done">
+          <li><b>Ctrl + Alt + A</b> — summon Ada anytime</li>
+          <li><b>Ctrl + Alt + Space</b> — talk to her, fully on-device</li>
+          <li>She asks before anything that writes, runs, sends, or spends</li>
+        </ul>
+      </section>
     </div>
-    <div class="step"><label>Set up a local model — private, on your machine</label>
-      <select id="wzModel"></select>
-      <button type="button" id="wzModelDl">Set up</button>
-      <div class="orbhint" id="wzModelStatus"></div>
+    <div class="wznav">
+      <button type="button" class="back" id="wzBack">← Back</button>
+      <span class="sp"></span>
+      <button type="button" class="skip" id="wzSkip">Skip for now</button>
+      <button type="button" class="next" id="wzNext">Get started</button>
     </div>
-    <div class="step"><label>Or connect a cloud provider (optional)</label>
-      <select id="wzProvider"></select>
-      <input id="wzKey" type="password" placeholder="API key — leave blank for local only" />
-    </div>
-    <button id="wzFinish">Finish setup</button>
   </div>
-  <div id="attachPreview"></div>
+
   <form id="composer">
-    <input type="file" id="attachInput" accept="image/*" hidden />
-    <button type="button" id="attachBtn" title="Attach an image (browser Gemma 4)">📎</button>
     <input id="box" autocomplete="off" placeholder="Ask Ada…" autofocus />
     <button id="send" type="submit">Send</button>
   </form>
@@ -123,55 +175,16 @@
   function bubble(cls){ const d=document.createElement('div'); d.className='msg '+cls; log.appendChild(d);
     log.scrollTop=log.scrollHeight; return d; }
 
-  // Engine: the server-side Ada agent (tools/memory/approvals) or in-browser Gemma 4 (multimodal).
-  let engineMode = localStorage.getItem('adaEngine') || 'server';
-  let pendingImageUrl = null;
-  const engineToggle = document.getElementById('engineToggle');
-  const engineNote = document.getElementById('engineNote');
-  function renderEngine(){
-    if(engineMode === 'browser'){
-      engineToggle.textContent = '🌐 Gemma 4 · browser';
-      engineToggle.classList.add('browser');
-      engineNote.style.display = 'block';
-      engineNote.textContent = 'In-browser Gemma 4 — multimodal (text + image), runs locally in this window via WebGPU/WASM. Ada’s tools, memory, and approvals don’t apply on this engine.';
-    } else {
-      engineToggle.textContent = '🖥 Ada (local agent)';
-      engineToggle.classList.remove('browser');
-      engineNote.style.display = 'none';
-    }
-  }
-  engineToggle.onclick = () => {
-    engineMode = engineMode === 'server' ? 'browser' : 'server';
-    localStorage.setItem('adaEngine', engineMode);
-    renderEngine();
-  };
-  renderEngine();
-
-  // Image attach (browser / multimodal)
-  const attachInput = document.getElementById('attachInput');
-  const attachPreview = document.getElementById('attachPreview');
-  document.getElementById('attachBtn').onclick = () => attachInput.click();
-  attachInput.onchange = () => {
-    const f = attachInput.files[0]; if(!f) return;
-    const r = new FileReader();
-    r.onload = () => { pendingImageUrl = r.result; attachPreview.innerHTML = `<img class="attach" src="${pendingImageUrl}">`; };
-    r.readAsDataURL(f);
-  };
-
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = box.value.trim();
-    if(!text && !pendingImageUrl) return;
+    if(!text) return;
     box.value=''; send.disabled=true;
-    const me = bubble('me');
-    if(pendingImageUrl){ const im = document.createElement('img'); im.className='attach'; im.src = pendingImageUrl; me.appendChild(im); }
-    me.appendChild(document.createTextNode(text));
+    bubble('me').textContent = text;
     const reply = bubble('ada'); reply.textContent = '';
-    try {
-      if(engineMode === 'browser') await sendBrowser(text, reply);
-      else await sendServer(text, reply);
-    } catch(err){ reply.textContent = '… ('+err+')'; }
-    finally { pendingImageUrl = null; attachPreview.innerHTML = ''; send.disabled = false; box.focus(); }
+    try { await sendServer(text, reply); }
+    catch(err){ reply.textContent = '… ('+err+')'; }
+    finally { send.disabled = false; box.focus(); }
   });
 
   async function sendServer(text, reply){
@@ -202,17 +215,6 @@
         }
       }
     }
-  }
-
-  async function sendBrowser(text, reply){
-    if(!window.AdaBrowserModel){ reply.textContent = 'Browser engine unavailable.'; return; }
-    reply.textContent = 'Loading Gemma 4 in your browser…';
-    let first = true;
-    await window.AdaBrowserModel.generate(text, pendingImageUrl,
-      (tok) => { if(first){ reply.textContent=''; first=false; } reply.textContent += tok; log.scrollTop=log.scrollHeight; },
-      (p) => { if(p && p.status === 'progress' && p.file){ reply.textContent = `Downloading ${p.file}… ${Math.round(p.progress || 0)}% (one-time)`; } });
-    const badge = document.createElement('div'); badge.className = 'badge'; badge.textContent = 'gemma 4 · browser';
-    reply.appendChild(document.createElement('br')); reply.appendChild(badge);
   }
 
   // Approval cards — the agent's gated tools surface here, showing the literal command/paths.
@@ -324,32 +326,49 @@
   voiceBtn.onclick = window.adaToggleVoice;
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && voice) stopVoice(); });
 
-  // ---- Setup wizard (M8): first-run, no terminal or JSON ----
-  let wzProfile = 'Balanced';
+  // ---- Setup wizard (M8): first-run, multi-step, no terminal or JSON ----
+  const wzEl = id => document.getElementById(id);
+  const wizard = wzEl('wizard');
+  const wzBack = wzEl('wzBack'), wzSkip = wzEl('wzSkip'), wzNext = wzEl('wzNext');
+  const WZ_LAST = 4;
+  let wzStep = 0, wzProfile = 'Balanced';
+
+  function wzRender(){
+    document.querySelectorAll('.wzstep').forEach(s => s.classList.toggle('on', +s.dataset.step === wzStep));
+    document.querySelectorAll('.wzdots i').forEach((d,i) => d.classList.toggle('on', i === wzStep));
+    wzBack.style.visibility = wzStep === 0 ? 'hidden' : 'visible';
+    wzSkip.style.display = (wzStep === 2 || wzStep === 3) ? 'inline-block' : 'none';
+    wzNext.textContent = wzStep === 0 ? 'Get started' : wzStep === WZ_LAST ? 'Finish' : 'Continue';
+    document.querySelector('.wzbody')?.scrollTo(0, 0);
+  }
+  function wzGo(n){ wzStep = Math.max(0, Math.min(WZ_LAST, n)); wzRender(); }
+
   (async function maybeWizard(){
     let cfg;
     try { cfg = await (await fetch('/api/config')).json(); } catch { return; }
     if (cfg.setupComplete) return;
 
-    const w = document.getElementById('wizard');
-    const sel = document.getElementById('wzProvider');
-    sel.innerHTML = '<option value="">— none (local only) —</option>' +
+    // Cloud providers (step 3)
+    const prov = wzEl('wzProvider');
+    prov.innerHTML = '<option value="">— none (stay fully local) —</option>' +
       cfg.catalog.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
 
-    // Local model picker — Ollama (recommended, managed) or an in-process ONNX model
-    const modelSel = document.getElementById('wzModel');
+    // Local model picker (step 2) — managed Ollama (recommended) or an in-process ONNX model
+    const modelSel = wzEl('wzModel');
     try {
       const mj = await (await fetch('/api/models')).json();
       modelSel.innerHTML =
-        '<option value="ollama:gemma4:e4b" selected>Gemma 4 · via Ollama (recommended)</option>' +
-        '<option value="ollama:gemma4:e2b">Gemma 4 E2B · via Ollama (smaller)</option>' +
+        '<option value="ollama:gemma4:e4b" selected>Gemma 4 · via Ollama (recommended · ~9.6 GB)</option>' +
+        '<option value="ollama:gemma4:e2b">Gemma 4 E2B · via Ollama (smaller · ~5 GB)</option>' +
         mj.models.map(m => `<option value="onnx:${m.id}"${m.downloaded ? ' selected' : ''}>${m.label} · in-process${m.downloaded ? ' ✓' : ''}</option>`).join('');
     } catch (_) {}
-    document.getElementById('wzModelDl').onclick = async () => {
-      const v = modelSel.value, status = document.getElementById('wzModelStatus');
+
+    wzEl('wzModelDl').onclick = async () => {
+      const v = modelSel.value, status = wzEl('wzModelStatus'), bar = wzEl('wzBar'), fill = wzEl('wzBarFill');
       const sep = v.indexOf(':'), kind = v.slice(0, sep), id = v.slice(sep + 1);
       const url = kind === 'ollama' ? '/api/ollama/setup?model=' + encodeURIComponent(id) : '/api/models/' + id + '/pull';
-      status.textContent = 'Setting up… (first time downloads the runtime + model)';
+      bar.classList.add('show', 'indet'); fill.style.width = '';
+      status.textContent = 'Setting up… first time downloads the runtime + model.';
       try {
         const res = await fetch(url, { method: 'POST' });
         const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '', ev = '';
@@ -363,74 +382,38 @@
               if (line.startsWith('event:')) ev = line.slice(6).trim();
               else if (line.startsWith('data:')) {
                 const d = JSON.parse(line.slice(5).trim() || '{}');
-                if (ev === 'progress') status.textContent = (typeof d === 'string' ? d : `Downloading ${d.file} (${d.i}/${d.n})`) + '…';
-                else if (ev === 'done') status.textContent = 'Ready ✓';
-                else if (ev === 'error') status.textContent = 'Setup failed: ' + d;
+                if (ev === 'progress') {
+                  if (typeof d === 'string') { status.textContent = d + '…'; }
+                  else if (d.n) { bar.classList.remove('indet'); fill.style.width = Math.round(d.i / d.n * 100) + '%'; status.textContent = `Downloading ${d.file} (${d.i}/${d.n})…`; }
+                } else if (ev === 'done') { bar.classList.remove('indet'); fill.style.width = '100%'; status.textContent = 'Ready ✓ — your local brain is set up.'; }
+                else if (ev === 'error') { bar.classList.remove('show', 'indet'); status.textContent = 'Setup failed: ' + d; }
               }
             }
           }
         }
-      } catch (e) { status.textContent = 'Setup failed: ' + e; }
+      } catch (e) { bar.classList.remove('show', 'indet'); status.textContent = 'Setup failed: ' + e; }
     };
 
-    document.querySelectorAll('#profiles button').forEach(b => b.onclick = () => {
-      document.querySelectorAll('#profiles button').forEach(x => x.classList.remove('sel'));
+    document.querySelectorAll('#profiles .pcard').forEach(b => b.onclick = () => {
+      document.querySelectorAll('#profiles .pcard').forEach(x => x.classList.remove('sel'));
       b.classList.add('sel'); wzProfile = b.dataset.p;
     });
 
-    document.getElementById('wzFinish').onclick = async () => {
-      const id = sel.value, key = document.getElementById('wzKey').value.trim();
+    wzBack.onclick = () => wzGo(wzStep - 1);
+    wzSkip.onclick = () => wzGo(wzStep + 1);
+    wzNext.onclick = async () => {
+      if (wzStep < WZ_LAST) { wzGo(wzStep + 1); return; }
+      const id = prov.value, key = wzEl('wzKey').value.trim();
       if (id) await fetch('/api/providers', { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ id, key: key || null }) });
       await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ profile: wzProfile, setupComplete: true }) });
-      w.style.display = 'none';
+      wizard.style.display = 'none';
     };
-    w.style.display = 'flex';
+
+    wzGo(0);
+    wizard.style.display = 'flex';
   })();
-</script>
-<script type="module">
-  // In-browser Gemma 4 (multimodal) via Transformers.js — runs locally in the WebView (WebGPU, WASM
-  // fallback). Fetches the library + model from the network on first use; the browser caches them
-  // afterward. This engine is the model only — Ada's tools/memory/approvals stay on the server engine.
-  import { AutoProcessor, Gemma4ForConditionalGeneration, TextStreamer, RawImage }
-    from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers';
-
-  const MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
-  let processor = null, model = null, loadingPromise = null;
-  const convo = [];
-
-  async function ensureLoaded(onProgress){
-    if(model) return;
-    loadingPromise ??= (async () => {
-      processor = await AutoProcessor.from_pretrained(MODEL_ID, { progress_callback: onProgress });
-      model = await Gemma4ForConditionalGeneration.from_pretrained(MODEL_ID, {
-        dtype: 'q4f16',
-        device: (navigator.gpu ? 'webgpu' : 'wasm'),
-        progress_callback: onProgress,
-      });
-    })();
-    await loadingPromise;
-  }
-
-  window.AdaBrowserModel = {
-    async generate(text, imageDataUrl, onToken, onProgress){
-      await ensureLoaded(onProgress);
-      const content = [];
-      if(imageDataUrl) content.push({ type: 'image', image: await RawImage.fromURL(imageDataUrl) });
-      content.push({ type: 'text', text });
-      convo.push({ role: 'user', content });
-
-      const inputs = await processor.apply_chat_template(convo, { add_generation_prompt: true, tokenize: true, return_dict: true });
-      let full = '';
-      const streamer = new TextStreamer(processor.tokenizer, {
-        skip_prompt: true, skip_special_tokens: true,
-        callback_function: (t) => { full += t; onToken(t); },
-      });
-      await model.generate({ ...inputs, max_new_tokens: 512, do_sample: false, streamer });
-      convo.push({ role: 'assistant', content: [{ type: 'text', text: full }] });
-    }
-  };
 </script>
 </body>
 </html>

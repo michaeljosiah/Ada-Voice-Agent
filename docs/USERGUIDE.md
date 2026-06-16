@@ -29,11 +29,10 @@ You can manage local models any time with `ada model list | pull <id> | use <id>
   voice and hers. Press Esc or the hotkey again to stop.
 - A small **route badge** shows where each reply was served: `local`, or e.g. `anthropic · code task`
   when Ada escalated to the cloud. Escalation is always visible and logged.
-- **Two engines** (toggle, top-right): *Ada (local agent)* — the full agent with tools, memory, and
-  approvals — or *Gemma 4 · browser*, a multimodal model (text + image; 📎 to attach a picture) that
-  runs entirely in this window via WebGPU. The browser engine is the **model only** — no tools,
-  memory, or approvals, and it's slower than the in-process model — so use it for quick multimodal
-  questions. It downloads ~3 GB once (cached by the browser).
+- **Voice is fully on-device.** The first time voice runs, Ada downloads a small speech-to-text model
+  (whisper `base.en`) and a text-to-speech voice (Piper `en_US-lessac-medium`) — about 150 MB total,
+  cached under `%LOCALAPPDATA%\voxa\models`. After that, listening and speaking never leave your
+  machine. Nothing to configure; it just works on first press.
 
 ## Approvals — Ada asks before she acts
 

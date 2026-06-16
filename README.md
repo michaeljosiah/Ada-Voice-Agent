@@ -149,11 +149,6 @@ GenAI** is the opt-in no-sidecar alternative (`ada ollama use-onnx` then `ada mo
 and you can point at any OpenAI-compatible endpoint or a cloud provider via `ada auth`. With nothing
 set up Ada runs on a built-in echo brain — degraded, never broken.
 
-There's also an **in-browser engine** (toggle at the top-right of the chat): the multimodal
-**Gemma-4-E2B** model running client-side in the WebView via **Transformers.js** (text + image),
-for quick multimodal questions. It's the model only — no agent tools/memory/approvals — and slower
-than the native path, but it's the one way to run that exact multimodal Gemma 4 on-device.
-
 ### The `ada` CLI (test harness + management)
 
 ```
