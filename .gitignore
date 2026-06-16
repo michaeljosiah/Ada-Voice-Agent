@@ -51,8 +51,9 @@ BundleArtifacts/
 *.cer
 *.pfx
 
-# Ada runtime data — never commit local models, secrets, or memory
-models/
+# Ada runtime data — never commit local models, secrets, or memory.
+# Anchored to repo root so it never matches source folders like src/Ada.Core/Models/.
+/models/
 *.gguf
 *.onnx
 *.bin
