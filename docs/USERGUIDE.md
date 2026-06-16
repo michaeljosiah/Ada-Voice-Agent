@@ -12,8 +12,9 @@ before anything consequential, and most of your day never leaves your machine.
 2. Ada starts hidden in the system tray. Press **Ctrl+Alt+A** (or double-click the tray icon) to open her.
 3. On first run the **setup wizard** appears:
    - Pick a **profile** — *Private* (everything local), *Balanced* (cloud for hard tasks), or *Power*.
-   - **Download a local model** — pick a Gemma 3 (or Phi-4-mini) build and click *Download*. It runs
-     **in-process** (no separate server) and stays fully on your machine. Gemma 3 1B is ~0.9 GB.
+   - **Set up a local model** — pick **Gemma 4 via Ollama** (recommended — Ada downloads and manages
+     Ollama for you, no install needed) or an **in-process ONNX** model, and click *Set up*. It stays
+     fully on your machine. (First time, this downloads the runtime + model.)
    - Optionally **connect a cloud provider** (Anthropic, OpenAI, Azure) for hard tasks. The API key is
      stored encrypted in the Windows credential vault — never in a file.
    - Click **Finish**. That's it — no terminal, no JSON.

@@ -120,6 +120,30 @@ public static class AdaApi
         app.MapGet("/api/jobs", (JobStore store) =>
             Results.Json(store.Load().Select(j => new { j.Name, j.Cron, delivery = j.Delivery.ToString(), j.Enabled })));
 
+        // Set up the managed Ollama runtime from the wizard: detect-or-download, pull the model, and
+        // make it the local runtime — streamed as SSE progress. Ollama is left running for the session.
+        app.MapPost("/api/ollama/setup", async (HttpContext http, CancellationToken ct) =>
+        {
+            var model = http.Request.Query["model"].FirstOrDefault() ?? new OllamaOptions().DefaultModel;
+            http.Response.Headers.ContentType = "text/event-stream";
+            var progress = new Progress<string>(s =>
+                _ = http.Response.WriteAsync($"event: progress\ndata: {JsonSerializer.Serialize(s)}\n\n", ct));
+            try
+            {
+                var runtime = await OllamaRuntime.StartAsync(new OllamaOptions(), allowDownload: true, progress, ct);
+                if (runtime is null) { await http.Response.WriteAsync("event: error\ndata: \"Could not start Ollama.\"\n\n", ct); return; }
+
+                await runtime.PullAsync(model, progress, ct); // intentionally left running for this session
+                var cfg = new ConfigStore();
+                var c = cfg.Load(); c.LocalRuntime = "ollama"; c.OllamaModel = model; cfg.Save(c);
+                await http.Response.WriteAsync("event: done\ndata: {}\n\n", ct);
+            }
+            catch (Exception ex)
+            {
+                await http.Response.WriteAsync($"event: error\ndata: {JsonSerializer.Serialize(ex.Message)}\n\n", ct);
+            }
+        });
+
         // Local ONNX models — the catalog + which are downloaded (the wizard's "download a brain" step).
         app.MapGet("/api/models", () =>
         {

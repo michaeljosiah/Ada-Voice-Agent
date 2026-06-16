@@ -91,9 +91,9 @@
         <button data-p="Private">Private</button><button data-p="Balanced" class="sel">Balanced</button><button data-p="Power">Power</button>
       </div>
     </div>
-    <div class="step"><label>Local model — runs in-process, fully private</label>
+    <div class="step"><label>Set up a local model — private, on your machine</label>
       <select id="wzModel"></select>
-      <button type="button" id="wzModelDl">Download</button>
+      <button type="button" id="wzModelDl">Set up</button>
       <div class="orbhint" id="wzModelStatus"></div>
     </div>
     <div class="step"><label>Or connect a cloud provider (optional)</label>
@@ -331,18 +331,22 @@
     sel.innerHTML = '<option value="">— none (local only) —</option>' +
       cfg.catalog.map(c => `<option value="${c.id}">${c.label}</option>`).join('');
 
-    // Local ONNX model picker + downloader
+    // Local model picker — Ollama (recommended, managed) or an in-process ONNX model
     const modelSel = document.getElementById('wzModel');
     try {
       const mj = await (await fetch('/api/models')).json();
-      modelSel.innerHTML = mj.models.map(m =>
-        `<option value="${m.id}"${m.downloaded ? ' selected' : ''}>${m.label}${m.downloaded ? ' ✓ downloaded' : ''}</option>`).join('');
+      modelSel.innerHTML =
+        '<option value="ollama:gemma4:e4b" selected>Gemma 4 · via Ollama (recommended)</option>' +
+        '<option value="ollama:gemma4:e2b">Gemma 4 E2B · via Ollama (smaller)</option>' +
+        mj.models.map(m => `<option value="onnx:${m.id}"${m.downloaded ? ' selected' : ''}>${m.label} · in-process${m.downloaded ? ' ✓' : ''}</option>`).join('');
     } catch (_) {}
     document.getElementById('wzModelDl').onclick = async () => {
-      const id = modelSel.value, status = document.getElementById('wzModelStatus');
-      status.textContent = 'Starting download…';
+      const v = modelSel.value, status = document.getElementById('wzModelStatus');
+      const sep = v.indexOf(':'), kind = v.slice(0, sep), id = v.slice(sep + 1);
+      const url = kind === 'ollama' ? '/api/ollama/setup?model=' + encodeURIComponent(id) : '/api/models/' + id + '/pull';
+      status.textContent = 'Setting up… (first time downloads the runtime + model)';
       try {
-        const res = await fetch('/api/models/' + id + '/pull', { method: 'POST' });
+        const res = await fetch(url, { method: 'POST' });
         const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '', ev = '';
         while (true) {
           const { value, done } = await reader.read(); if (done) break;
@@ -354,14 +358,14 @@
               if (line.startsWith('event:')) ev = line.slice(6).trim();
               else if (line.startsWith('data:')) {
                 const d = JSON.parse(line.slice(5).trim() || '{}');
-                if (ev === 'progress') status.textContent = `Downloading ${d.file} (${d.i}/${d.n})…`;
-                else if (ev === 'done') status.textContent = 'Model ready ✓';
-                else if (ev === 'error') status.textContent = 'Download failed: ' + d;
+                if (ev === 'progress') status.textContent = (typeof d === 'string' ? d : `Downloading ${d.file} (${d.i}/${d.n})`) + '…';
+                else if (ev === 'done') status.textContent = 'Ready ✓';
+                else if (ev === 'error') status.textContent = 'Setup failed: ' + d;
               }
             }
           }
         }
-      } catch (e) { status.textContent = 'Download failed: ' + e; }
+      } catch (e) { status.textContent = 'Setup failed: ' + e; }
     };
 
     document.querySelectorAll('#profiles button').forEach(b => b.onclick = () => {

@@ -16,13 +16,22 @@ public static class AdaCoreServiceCollectionExtensions
     {
         options ??= AdaModelOptions.FromEnvironment();
 
-        // Prefer a downloaded in-process ONNX model as the local brain, unless the env set a provider.
+        // Choose the local brain (unless the env set a provider explicitly). Default after setup is the
+        // managed Ollama runtime (consumed via its OpenAI-compatible surface); ONNX in-process is opt-in.
         if (options.Provider == "echo")
         {
-            var store = new OnnxModelStore();
-            var modelId = new ConfigStore().Load().LocalModelId ?? store.Downloaded().FirstOrDefault();
-            if (modelId is not null && store.IsReady(modelId))
-                options = new AdaModelOptions { Provider = "onnx", ModelId = modelId };
+            var cfg = new ConfigStore().Load();
+            if (cfg.LocalRuntime == "ollama")
+            {
+                options = new AdaModelOptions { Provider = "openai-compatible", Endpoint = "http://127.0.0.1:11434/v1", ModelId = cfg.OllamaModel ?? "gemma4:e4b" };
+            }
+            else
+            {
+                var store = new OnnxModelStore();
+                var modelId = cfg.LocalModelId ?? store.Downloaded().FirstOrDefault();
+                if (modelId is not null && store.IsReady(modelId))
+                    options = new AdaModelOptions { Provider = "onnx", ModelId = modelId };
+            }
         }
 
         services.AddSingleton(options);

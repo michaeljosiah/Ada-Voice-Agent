@@ -141,13 +141,13 @@ dotnet run --project src/Ada.Cli -- selftest     # cumulative acceptance checks 
 dotnet run --project src/Ada.App                 # the desktop app (tray + window + voice)
 ```
 
-**Local model.** The recommended path is an **in-process ONNX Runtime GenAI** model (no separate
-server, CPU or DirectML GPU): `ada model pull gemma-3-1b` (~0.9 GB, Gemma 3) downloads it into
-`%APPDATA%\Ada\models` and Ada uses it automatically — the first-run wizard offers the same with a
-progress bar. Alternatives: a local OpenAI-compatible endpoint (`ADA_PROVIDER=openai-compatible
-ADA_ENDPOINT=http://localhost:11434/v1 ADA_MODEL=<model>` for Ollama / LM Studio / Foundry Local), or
-a cloud provider via `ada auth`. With nothing configured Ada still runs on a built-in echo brain —
-degraded, never broken.
+**Local model.** The default is **Gemma 4 via a managed Ollama runtime**: the first-run wizard (or
+`ada ollama setup`) detects an existing Ollama, or downloads the standalone binaries into
+`%APPDATA%\Ada\ollama`, runs `ollama serve` on loopback, pulls `gemma4:e4b` (vision included), and Ada
+talks to it over its OpenAI-compatible API — zero user setup, no admin. **In-process ONNX Runtime
+GenAI** is the opt-in no-sidecar alternative (`ada ollama use-onnx` then `ada model pull gemma-3-1b`),
+and you can point at any OpenAI-compatible endpoint or a cloud provider via `ada auth`. With nothing
+set up Ada runs on a built-in echo brain — degraded, never broken.
 
 There's also an **in-browser engine** (toggle at the top-right of the chat): the multimodal
 **Gemma-4-E2B** model running client-side in the WebView via **Transformers.js** (text + image),
@@ -167,7 +167,8 @@ ada skills  list | enable | disable
 ada mcp <command> [args]      mount a stdio MCP server and list its tools
 ada jobs    list | add | remove | pause | resume | install | uninstall
 ada run-due                   run due jobs now (what the scheduled task invokes)
-ada model   list | pull <id> | use <id> | status   download/select the local ONNX model (Gemma/Phi)
+ada ollama  status | setup [model] | pull <model> | use-onnx   manage the local Ollama runtime
+ada model   list | pull <id> | use <id> | status   download/select the in-process ONNX model
 ada config [profile|autostart] · ada doctor
 ```
 

@@ -37,8 +37,9 @@ internal static class Program
             "jobs" => Jobs(rest),
             "run-due" => await RunDue(),
             "config" => Config(rest),
-            "doctor" => Doctor(),
+            "doctor" => await Doctor(),
             "model" => await Model(rest),
+            "ollama" => await Ollama(rest),
             _ => Help(),
         };
     }
@@ -350,6 +351,11 @@ internal static class Program
         finally { try { Directory.Delete(onnxTmp, true); } catch { /* best effort */ } }
         Report("ONNX downloader fetches a real model file from Hugging Face", onnxDownloaded);
 
+        // ---- Ollama (managed local runtime — the default after setup) ----
+        Report("Ollama default targets gemma4:e4b on loopback",
+            new OllamaOptions() is { DefaultModel: "gemma4:e4b" } oo && oo.Endpoint.Contains("11434"));
+        Report("Ollama reachability probe works (none running here)", !await OllamaRuntime.IsReachableAsync("http://127.0.0.1:1"));
+
         var ok = _failures == 0;
         Console.WriteLine(ok ? "\nSELF-TEST PASSED" : $"\nSELF-TEST FAILED ({_failures} failure(s))");
         return ok ? 0 : 1;
@@ -551,6 +557,48 @@ internal static class Program
         }
     }
 
+    private static async Task<int> Ollama(string[] args)
+    {
+        var sub = args.Length > 0 ? args[0].ToLowerInvariant() : "status";
+        var opts = new OllamaOptions();
+
+        switch (sub)
+        {
+            case "status":
+                Console.WriteLine($"  running ({opts.Endpoint}): {await OllamaRuntime.IsReachableAsync(opts.Endpoint)}");
+                Console.WriteLine($"  executable            : {OllamaRuntime.FindExecutable(null) ?? "(not installed — downloads on setup)"}");
+                Console.WriteLine($"  managed dir           : {OllamaRuntime.DefaultRuntimeDir}");
+                Console.WriteLine($"  configured runtime    : {new ConfigStore().Load().LocalRuntime ?? "(not set up)"}");
+                return 0;
+
+            case "setup":
+            case "pull":
+                var model = args.Length > 1 ? args[1] : opts.DefaultModel;
+                Console.WriteLine("Bringing up Ollama (detect an existing one, or download the standalone runtime)…");
+                var rt = await OllamaRuntime.StartAsync(opts, allowDownload: true, new Progress<string>(s => Console.WriteLine("  " + s)));
+                if (rt is null) { Console.Error.WriteLine("Could not start Ollama."); return 1; }
+                try
+                {
+                    Console.WriteLine($"Pulling {model} (large, one-time)…");
+                    var last = string.Empty;
+                    await rt.PullAsync(model, new Progress<string>(s => { if (s != last) { last = s; Console.WriteLine("  " + s); } }));
+                    var cfg = new ConfigStore(); var c = cfg.Load(); c.LocalRuntime = "ollama"; c.OllamaModel = model; cfg.Save(c);
+                    Console.WriteLine($"Done. Ada's local engine is now Ollama + {model}.");
+                    return 0;
+                }
+                finally { await rt.DisposeAsync(); }
+
+            case "use-onnx":
+                var cf = new ConfigStore(); var cc = cf.Load(); cc.LocalRuntime = "onnx"; cf.Save(cc);
+                Console.WriteLine("Switched the local runtime to in-process ONNX.");
+                return 0;
+
+            default:
+                Console.Error.WriteLine("usage: ada ollama [status | setup [model] | pull <model> | use-onnx]");
+                return 2;
+        }
+    }
+
     private static int Config(string[] args)
     {
         var store = new ConfigStore();
@@ -580,17 +628,20 @@ internal static class Program
         }
     }
 
-    private static int Doctor()
+    private static async Task<int> Doctor()
     {
         Console.WriteLine("Ada doctor — readiness check\n");
         var providers = new ProviderStore().Load();
+        var cfg = new ConfigStore().Load();
         Console.WriteLine($"  .NET runtime       : {Environment.Version}");
         Console.WriteLine($"  data directory     : {AdaPaths.DataDir}");
         Console.WriteLine($"  providers          : {(providers.Count == 0 ? "none (local/echo only)" : string.Join(", ", providers.Select(p => p.Id)))}");
+        Console.WriteLine($"  local runtime      : {cfg.LocalRuntime ?? "(not set up)"}");
+        Console.WriteLine($"  ollama             : reachable={await OllamaRuntime.IsReachableAsync(new OllamaOptions().Endpoint)}, installed={OllamaRuntime.FindExecutable(null) is not null}");
         Console.WriteLine($"  container sandbox  : {(new ContainerCodeSandbox().Available ? "Docker present (Zone 2 ready)" : "Docker absent (Zone 1 only)")}");
         Console.WriteLine($"  scheduled jobs     : {new JobStore().Load().Count} (paused: {new KillSwitch().Paused})");
         Console.WriteLine($"  windows autostart  : {Autostart.IsEnabled()}");
-        Console.WriteLine($"  setup complete     : {new ConfigStore().Load().SetupComplete}");
+        Console.WriteLine($"  setup complete     : {cfg.SetupComplete}");
         return 0;
     }
 
@@ -771,7 +822,8 @@ internal static class Program
               ada run-due                 run any due jobs now (what the Windows task invokes headless)
               ada config [profile|autostart]   show or set profile (Private/Balanced/Power) and autostart
               ada doctor                  print a readiness check
-              ada model list|pull <id>|use <id>|status   manage the local ONNX model (Gemma/Phi)
+              ada ollama status|setup [model]|pull <model>|use-onnx   manage the local Ollama runtime
+              ada model list|pull <id>|use <id>|status   manage the in-process ONNX model (Gemma/Phi)
 
             model config (env):
               ADA_PROVIDER=openai-compatible  ADA_ENDPOINT=http://localhost:11434/v1
