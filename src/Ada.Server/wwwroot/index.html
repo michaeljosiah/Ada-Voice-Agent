@@ -62,13 +62,22 @@
   .profiles button{flex:1;padding:8px;border:1px solid var(--rule);border-radius:8px;background:#fff;cursor:pointer;font:inherit;}
   .profiles button.sel{background:var(--evergreen);color:#fff;border-color:var(--evergreen);}
   #wzFinish{background:var(--clay);color:#fff;border:none;border-radius:10px;padding:11px 22px;font:inherit;font-weight:600;cursor:pointer;margin-top:10px;}
+  #engineToggle{-webkit-app-region:no-drag;margin-left:auto;padding:5px 11px;border-radius:14px;border:1px solid var(--rule);
+    background:#fff;color:var(--ink-soft);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap;}
+  #engineToggle.browser{background:#2a5670;color:#fff;border-color:#2a5670;}
+  .enginenote{font-size:11px;color:var(--ink-soft);padding:5px 20px;background:#eef3f6;border-bottom:1px solid var(--rule);}
+  #attachBtn{-webkit-app-region:no-drag;padding:0 12px;border:1px solid var(--rule);border-radius:10px;background:#fff;cursor:pointer;font-size:16px;}
+  #attachPreview{padding:0 20px;}
+  #attachPreview img.attach,.msg img.attach{max-height:90px;border-radius:8px;display:block;margin-bottom:4px;}
 </style>
 </head>
 <body>
   <header>
     <div class="mono">A</div>
     <div><h1>Ada</h1><div class="sub">On your machine. In your voice. Under your control.</div></div>
+    <button id="engineToggle" title="Switch model engine">🖥 Ada (local agent)</button>
   </header>
+  <div class="enginenote" id="engineNote" style="display:none"></div>
   <div id="log"></div>
   <div id="approvals"></div>
   <button id="voiceBtn" title="Voice mode (Ctrl+Alt+Space)">🎙 Voice</button>
@@ -93,7 +102,10 @@
     </div>
     <button id="wzFinish">Finish setup</button>
   </div>
+  <div id="attachPreview"></div>
   <form id="composer">
+    <input type="file" id="attachInput" accept="image/*" hidden />
+    <button type="button" id="attachBtn" title="Attach an image (browser Gemma 4)">📎</button>
     <input id="box" autocomplete="off" placeholder="Ask Ada…" autofocus />
     <button id="send" type="submit">Send</button>
   </form>
@@ -106,45 +118,97 @@
   function bubble(cls){ const d=document.createElement('div'); d.className='msg '+cls; log.appendChild(d);
     log.scrollTop=log.scrollHeight; return d; }
 
+  // Engine: the server-side Ada agent (tools/memory/approvals) or in-browser Gemma 4 (multimodal).
+  let engineMode = localStorage.getItem('adaEngine') || 'server';
+  let pendingImageUrl = null;
+  const engineToggle = document.getElementById('engineToggle');
+  const engineNote = document.getElementById('engineNote');
+  function renderEngine(){
+    if(engineMode === 'browser'){
+      engineToggle.textContent = '🌐 Gemma 4 · browser';
+      engineToggle.classList.add('browser');
+      engineNote.style.display = 'block';
+      engineNote.textContent = 'In-browser Gemma 4 — multimodal (text + image), runs locally in this window via WebGPU/WASM. Ada’s tools, memory, and approvals don’t apply on this engine.';
+    } else {
+      engineToggle.textContent = '🖥 Ada (local agent)';
+      engineToggle.classList.remove('browser');
+      engineNote.style.display = 'none';
+    }
+  }
+  engineToggle.onclick = () => {
+    engineMode = engineMode === 'server' ? 'browser' : 'server';
+    localStorage.setItem('adaEngine', engineMode);
+    renderEngine();
+  };
+  renderEngine();
+
+  // Image attach (browser / multimodal)
+  const attachInput = document.getElementById('attachInput');
+  const attachPreview = document.getElementById('attachPreview');
+  document.getElementById('attachBtn').onclick = () => attachInput.click();
+  attachInput.onchange = () => {
+    const f = attachInput.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = () => { pendingImageUrl = r.result; attachPreview.innerHTML = `<img class="attach" src="${pendingImageUrl}">`; };
+    r.readAsDataURL(f);
+  };
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = box.value.trim();
-    if(!text) return;
+    if(!text && !pendingImageUrl) return;
     box.value=''; send.disabled=true;
-    bubble('me').textContent = text;
-    const reply = bubble('ada'); reply.textContent='';
-
+    const me = bubble('me');
+    if(pendingImageUrl){ const im = document.createElement('img'); im.className='attach'; im.src = pendingImageUrl; me.appendChild(im); }
+    me.appendChild(document.createTextNode(text));
+    const reply = bubble('ada'); reply.textContent = '';
     try {
-      const res = await fetch('/api/chat', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ message: text })
-      });
-      const reader = res.body.getReader();
-      const dec = new TextDecoder();
-      let buf='', ev='message';
-      while(true){
-        const {value, done} = await reader.read();
-        if(done) break;
-        buf += dec.decode(value, {stream:true});
-        let i;
-        while((i = buf.indexOf('\n\n')) >= 0){
-          const frame = buf.slice(0, i); buf = buf.slice(i+2);
-          for(const line of frame.split('\n')){
-            if(line.startsWith('event:')) ev = line.slice(6).trim();
-            else if(line.startsWith('data:')){
-              const data = JSON.parse(line.slice(5).trim());
-              if(ev==='chunk' && data.text){ reply.textContent += data.text; log.scrollTop=log.scrollHeight; }
-              else if(ev==='done' && data.route){
-                const b=document.createElement('div'); b.className='badge'; b.textContent=data.route;
-                reply.appendChild(document.createElement('br')); reply.appendChild(b);
-              }
+      if(engineMode === 'browser') await sendBrowser(text, reply);
+      else await sendServer(text, reply);
+    } catch(err){ reply.textContent = '… ('+err+')'; }
+    finally { pendingImageUrl = null; attachPreview.innerHTML = ''; send.disabled = false; box.focus(); }
+  });
+
+  async function sendServer(text, reply){
+    const res = await fetch('/api/chat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ message: text })
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf='', ev='message';
+    while(true){
+      const {value, done} = await reader.read();
+      if(done) break;
+      buf += dec.decode(value, {stream:true});
+      let i;
+      while((i = buf.indexOf('\n\n')) >= 0){
+        const frame = buf.slice(0, i); buf = buf.slice(i+2);
+        for(const line of frame.split('\n')){
+          if(line.startsWith('event:')) ev = line.slice(6).trim();
+          else if(line.startsWith('data:')){
+            const data = JSON.parse(line.slice(5).trim());
+            if(ev==='chunk' && data.text){ reply.textContent += data.text; log.scrollTop=log.scrollHeight; }
+            else if(ev==='done' && data.route){
+              const b=document.createElement('div'); b.className='badge'; b.textContent=data.route;
+              reply.appendChild(document.createElement('br')); reply.appendChild(b);
             }
           }
         }
       }
-    } catch(err){ reply.textContent = '… (could not reach Ada: '+err+')'; }
-    finally { send.disabled=false; box.focus(); }
-  });
+    }
+  }
+
+  async function sendBrowser(text, reply){
+    if(!window.AdaBrowserModel){ reply.textContent = 'Browser engine unavailable.'; return; }
+    reply.textContent = 'Loading Gemma 4 in your browser…';
+    let first = true;
+    await window.AdaBrowserModel.generate(text, pendingImageUrl,
+      (tok) => { if(first){ reply.textContent=''; first=false; } reply.textContent += tok; log.scrollTop=log.scrollHeight; },
+      (p) => { if(p && p.status === 'progress' && p.file){ reply.textContent = `Downloading ${p.file}… ${Math.round(p.progress || 0)}% (one-time)`; } });
+    const badge = document.createElement('div'); badge.className = 'badge'; badge.textContent = 'gemma 4 · browser';
+    reply.appendChild(document.createElement('br')); reply.appendChild(badge);
+  }
 
   // Approval cards — the agent's gated tools surface here, showing the literal command/paths.
   const approvals = document.getElementById('approvals');
@@ -315,6 +379,49 @@
     };
     w.style.display = 'flex';
   })();
+</script>
+<script type="module">
+  // In-browser Gemma 4 (multimodal) via Transformers.js — runs locally in the WebView (WebGPU, WASM
+  // fallback). Fetches the library + model from the network on first use; the browser caches them
+  // afterward. This engine is the model only — Ada's tools/memory/approvals stay on the server engine.
+  import { AutoProcessor, Gemma4ForConditionalGeneration, TextStreamer, RawImage }
+    from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers';
+
+  const MODEL_ID = 'onnx-community/gemma-4-E2B-it-ONNX';
+  let processor = null, model = null, loadingPromise = null;
+  const convo = [];
+
+  async function ensureLoaded(onProgress){
+    if(model) return;
+    loadingPromise ??= (async () => {
+      processor = await AutoProcessor.from_pretrained(MODEL_ID, { progress_callback: onProgress });
+      model = await Gemma4ForConditionalGeneration.from_pretrained(MODEL_ID, {
+        dtype: 'q4f16',
+        device: (navigator.gpu ? 'webgpu' : 'wasm'),
+        progress_callback: onProgress,
+      });
+    })();
+    await loadingPromise;
+  }
+
+  window.AdaBrowserModel = {
+    async generate(text, imageDataUrl, onToken, onProgress){
+      await ensureLoaded(onProgress);
+      const content = [];
+      if(imageDataUrl) content.push({ type: 'image', image: await RawImage.fromURL(imageDataUrl) });
+      content.push({ type: 'text', text });
+      convo.push({ role: 'user', content });
+
+      const inputs = await processor.apply_chat_template(convo, { add_generation_prompt: true, tokenize: true, return_dict: true });
+      let full = '';
+      const streamer = new TextStreamer(processor.tokenizer, {
+        skip_prompt: true, skip_special_tokens: true,
+        callback_function: (t) => { full += t; onToken(t); },
+      });
+      await model.generate({ ...inputs, max_new_tokens: 512, do_sample: false, streamer });
+      convo.push({ role: 'assistant', content: [{ type: 'text', text: full }] });
+    }
+  };
 </script>
 </body>
 </html>

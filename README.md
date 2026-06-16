@@ -149,6 +149,11 @@ ADA_ENDPOINT=http://localhost:11434/v1 ADA_MODEL=<model>` for Ollama / LM Studio
 a cloud provider via `ada auth`. With nothing configured Ada still runs on a built-in echo brain —
 degraded, never broken.
 
+There's also an **in-browser engine** (toggle at the top-right of the chat): the multimodal
+**Gemma-4-E2B** model running client-side in the WebView via **Transformers.js** (text + image),
+for quick multimodal questions. It's the model only — no agent tools/memory/approvals — and slower
+than the native path, but it's the one way to run that exact multimodal Gemma 4 on-device.
+
 ### The `ada` CLI (test harness + management)
 
 ```
