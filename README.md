@@ -136,14 +136,18 @@ Windows desktop session to exercise fully; everything else is verified in this r
 
 ```sh
 dotnet build Ada.slnx
-dotnet test  Ada.slnx                            # 55 unit tests
-dotnet run --project src/Ada.Cli -- selftest     # cumulative M0–M8 acceptance checks
+dotnet test  Ada.slnx                            # 58 unit tests
+dotnet run --project src/Ada.Cli -- selftest     # cumulative acceptance checks (incl. ONNX)
 dotnet run --project src/Ada.App                 # the desktop app (tray + window + voice)
 ```
 
-A real local model is optional: set `ADA_PROVIDER=openai-compatible ADA_ENDPOINT=http://localhost:11434/v1
-ADA_MODEL=<model>` (Ollama/LM Studio/Foundry Local), or connect a provider in the first-run wizard. With
-nothing configured Ada still runs locally on a built-in echo brain — degraded, never broken.
+**Local model.** The recommended path is an **in-process ONNX Runtime GenAI** model (no separate
+server, CPU or DirectML GPU): `ada model pull gemma-3-1b` (~0.9 GB, Gemma 3) downloads it into
+`%APPDATA%\Ada\models` and Ada uses it automatically — the first-run wizard offers the same with a
+progress bar. Alternatives: a local OpenAI-compatible endpoint (`ADA_PROVIDER=openai-compatible
+ADA_ENDPOINT=http://localhost:11434/v1 ADA_MODEL=<model>` for Ollama / LM Studio / Foundry Local), or
+a cloud provider via `ada auth`. With nothing configured Ada still runs on a built-in echo brain —
+degraded, never broken.
 
 ### The `ada` CLI (test harness + management)
 
@@ -158,6 +162,7 @@ ada skills  list | enable | disable
 ada mcp <command> [args]      mount a stdio MCP server and list its tools
 ada jobs    list | add | remove | pause | resume | install | uninstall
 ada run-due                   run due jobs now (what the scheduled task invokes)
+ada model   list | pull <id> | use <id> | status   download/select the local ONNX model (Gemma/Phi)
 ada config [profile|autostart] · ada doctor
 ```
 

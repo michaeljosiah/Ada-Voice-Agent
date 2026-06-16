@@ -119,6 +119,43 @@ public static class AdaApi
 
         app.MapGet("/api/jobs", (JobStore store) =>
             Results.Json(store.Load().Select(j => new { j.Name, j.Cron, delivery = j.Delivery.ToString(), j.Enabled })));
+
+        // Local ONNX models — the catalog + which are downloaded (the wizard's "download a brain" step).
+        app.MapGet("/api/models", () =>
+        {
+            var store = new OnnxModelStore();
+            var active = new ConfigStore().Load().LocalModelId;
+            return Results.Json(new
+            {
+                active,
+                models = OnnxModelCatalog.Models.Select(m => new
+                {
+                    m.Id, m.Label, m.ApproxMb, m.License, downloaded = store.IsReady(m.Id),
+                }),
+            });
+        });
+
+        app.MapPost("/api/models/{id}/pull", async (string id, HttpContext http, CancellationToken ct) =>
+        {
+            var entry = OnnxModelCatalog.Find(id);
+            if (entry is null) { http.Response.StatusCode = 404; return; }
+
+            http.Response.Headers.ContentType = "text/event-stream";
+            var store = new OnnxModelStore();
+            var progress = new Progress<DownloadProgress>(p =>
+                _ = http.Response.WriteAsync($"event: progress\ndata: {{\"file\":\"{p.File}\",\"i\":{p.FileIndex},\"n\":{p.FileCount}}}\n\n", ct));
+            try
+            {
+                await store.DownloadAsync(entry, progress, ct);
+                var cfg = new ConfigStore();
+                var c = cfg.Load(); c.LocalModelId = entry.Id; cfg.Save(c);
+                await http.Response.WriteAsync("event: done\ndata: {}\n\n", ct);
+            }
+            catch (Exception ex)
+            {
+                await http.Response.WriteAsync($"event: error\ndata: {System.Text.Json.JsonSerializer.Serialize(ex.Message)}\n\n", ct);
+            }
+        });
     }
 
     private static string Serialize(ApprovalRequest r) => JsonSerializer.Serialize(new

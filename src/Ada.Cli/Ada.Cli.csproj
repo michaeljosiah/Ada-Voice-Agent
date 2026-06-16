@@ -10,6 +10,8 @@
   <ItemGroup>
     <!-- Runtime needs the ASP.NET shared framework because the CLI hosts the loopback server. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- CPU-native ONNX Runtime GenAI for in-process local inference (swap for .DirectML for GPU). -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI" />
   </ItemGroup>
 
   <ItemGroup>

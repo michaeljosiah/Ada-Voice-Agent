@@ -38,6 +38,7 @@ internal static class Program
             "run-due" => await RunDue(),
             "config" => Config(rest),
             "doctor" => Doctor(),
+            "model" => await Model(rest),
             _ => Help(),
         };
     }
@@ -330,6 +331,25 @@ internal static class Program
         Report("M8 settings endpoint serves config + provider catalog", apiConfig.Contains("setupComplete") && apiConfig.Contains("catalog"));
         Report("M8 first-run setup wizard is served (no terminal needed)", (await http.GetStringAsync("/")).Contains("Welcome to Ada"));
 
+        // ---- ONNX local model: in-process provider + first-run download ----
+        Report("ONNX catalog includes a Gemma default", OnnxModelCatalog.Find(OnnxModelCatalog.DefaultModelId)?.Family == "gemma");
+        var onnxClearFail = false;
+        try { ModelClientFactory.Create(new AdaModelOptions { Provider = "onnx", ModelId = "not-downloaded" }); }
+        catch (InvalidOperationException ex) { onnxClearFail = ex.Message.Contains("ada model pull"); }
+        Report("ONNX provider without a model fails with a clear 'pull' hint", onnxClearFail);
+        Report("ONNX models surfaced by the settings endpoint", (await http.GetStringAsync("/api/models")).Contains("gemma-3-1b"));
+
+        var onnxTmp = Directory.CreateTempSubdirectory("ada_onnx_").FullName;
+        var onnxDownloaded = false;
+        try
+        {
+            await new HuggingFaceDownloader().DownloadAsync("smartvest-llc/gemma-3-1b-it-genai", "", ["genai_config.json"], onnxTmp);
+            onnxDownloaded = File.Exists(Path.Combine(onnxTmp, "genai_config.json"));
+        }
+        catch (Exception ex) { Console.WriteLine($"       (ONNX live-download note: {ex.Message})"); }
+        finally { try { Directory.Delete(onnxTmp, true); } catch { /* best effort */ } }
+        Report("ONNX downloader fetches a real model file from Hugging Face", onnxDownloaded);
+
         var ok = _failures == 0;
         Console.WriteLine(ok ? "\nSELF-TEST PASSED" : $"\nSELF-TEST FAILED ({_failures} failure(s))");
         return ok ? 0 : 1;
@@ -481,6 +501,54 @@ internal static class Program
             .Route([new ChatMessage(ChatRole.User, message)], null);
         Console.WriteLine($"route: {decision.Label}   (role={decision.Role}, reason={decision.Reason})");
         return 0;
+    }
+
+    private static async Task<int> Model(string[] args)
+    {
+        var sub = args.Length > 0 ? args[0].ToLowerInvariant() : "list";
+        var store = new OnnxModelStore();
+
+        switch (sub)
+        {
+            case "list":
+                foreach (var m in OnnxModelCatalog.Models)
+                    Console.WriteLine($"  [{(store.IsReady(m.Id) ? "downloaded" : "          ")}] {m.Id,-12} {m.Label}  ({m.License})");
+                return 0;
+
+            case "status":
+                var downloaded = store.Downloaded();
+                Console.WriteLine(downloaded.Count == 0 ? "No local models downloaded." : "Downloaded: " + string.Join(", ", downloaded));
+                Console.WriteLine($"Active local model: {new ConfigStore().Load().LocalModelId ?? "(none — using echo/endpoint)"}");
+                return 0;
+
+            case "pull":
+                if (args.Length < 2) { Console.Error.WriteLine("usage: ada model pull <id>   ids: " + string.Join(", ", OnnxModelCatalog.Models.Select(m => m.Id))); return 2; }
+                var entry = OnnxModelCatalog.Find(args[1]);
+                if (entry is null) { Console.Error.WriteLine($"Unknown model '{args[1]}'."); return 2; }
+                Console.WriteLine($"Downloading {entry.Label} (~{entry.ApproxMb} MB) from {entry.Repo} …");
+                var lastFile = string.Empty;
+                var progress = new Progress<DownloadProgress>(p =>
+                {
+                    if (p.File != lastFile) { lastFile = p.File; Console.WriteLine($"  [{p.FileIndex}/{p.FileCount}] {p.File}"); }
+                });
+                try
+                {
+                    await store.DownloadAsync(entry, progress);
+                    var cfg = new ConfigStore(); var c = cfg.Load(); c.LocalModelId = entry.Id; cfg.Save(c);
+                    Console.WriteLine($"Done. '{entry.Id}' is now Ada's local model.");
+                    return 0;
+                }
+                catch (Exception ex) { Console.Error.WriteLine($"Download failed: {ex.Message}"); return 1; }
+
+            case "use" when args.Length >= 2:
+                if (!store.IsReady(args[1])) { Console.Error.WriteLine($"Model '{args[1]}' is not downloaded. Run: ada model pull {args[1]}"); return 2; }
+                var cf = new ConfigStore(); var cc = cf.Load(); cc.LocalModelId = args[1]; cf.Save(cc);
+                Console.WriteLine($"Ada will use '{args[1]}' locally."); return 0;
+
+            default:
+                Console.Error.WriteLine("usage: ada model [list | pull <id> | use <id> | status]");
+                return 2;
+        }
     }
 
     private static int Config(string[] args)
@@ -703,6 +771,7 @@ internal static class Program
               ada run-due                 run any due jobs now (what the Windows task invokes headless)
               ada config [profile|autostart]   show or set profile (Private/Balanced/Power) and autostart
               ada doctor                  print a readiness check
+              ada model list|pull <id>|use <id>|status   manage the local ONNX model (Gemma/Phi)
 
             model config (env):
               ADA_PROVIDER=openai-compatible  ADA_ENDPOINT=http://localhost:11434/v1

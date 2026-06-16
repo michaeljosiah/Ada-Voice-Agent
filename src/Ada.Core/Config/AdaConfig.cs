@@ -27,6 +27,9 @@ public sealed class AdaConfig
     public bool SetupComplete { get; set; }
     public bool Autostart { get; set; }
     public string Hotkey { get; set; } = "Ctrl+Alt+A";
+
+    /// <summary>The downloaded ONNX model Ada uses as her local brain (e.g. "gemma-3-1b"), if any.</summary>
+    public string? LocalModelId { get; set; }
 }
 
 public sealed class ConfigStore

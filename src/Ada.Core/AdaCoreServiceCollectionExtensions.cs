@@ -15,6 +15,16 @@ public static class AdaCoreServiceCollectionExtensions
     public static IServiceCollection AddAdaCore(this IServiceCollection services, AdaModelOptions? options = null)
     {
         options ??= AdaModelOptions.FromEnvironment();
+
+        // Prefer a downloaded in-process ONNX model as the local brain, unless the env set a provider.
+        if (options.Provider == "echo")
+        {
+            var store = new OnnxModelStore();
+            var modelId = new ConfigStore().Load().LocalModelId ?? store.Downloaded().FirstOrDefault();
+            if (modelId is not null && store.IsReady(modelId))
+                options = new AdaModelOptions { Provider = "onnx", ModelId = modelId };
+        }
+
         services.AddSingleton(options);
         services.AddSingleton(_ => Persona.Load());
         services.TryAddSingleton<ICredentialVault>(_ => new DpapiCredentialVault());

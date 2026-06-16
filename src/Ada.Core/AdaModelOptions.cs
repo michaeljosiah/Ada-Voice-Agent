@@ -22,7 +22,7 @@ public sealed class AdaModelOptions
     /// <summary>A sensible default for a local OpenAI-compatible runtime (Ollama).</summary>
     public const string DefaultLocalEndpoint = "http://localhost:11434/v1";
 
-    public bool IsLocalModel => Provider is "openai-compatible" or "foundry-local";
+    public bool IsLocalModel => Provider is "openai-compatible" or "foundry-local" or "onnx";
 
     /// <summary>Reads configuration from <c>ADA_*</c> environment variables.</summary>
     public static AdaModelOptions FromEnvironment()

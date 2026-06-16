@@ -11,6 +11,8 @@
     <!-- The tray app hosts the loopback server in-process; needs the ASP.NET shared framework. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Web.WebView2" />
+    <!-- CPU-native ONNX Runtime GenAI for in-process local inference (swap for .DirectML for GPU). -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI" />
   </ItemGroup>
 
   <ItemGroup>
