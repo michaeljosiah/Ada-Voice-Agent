@@ -20,8 +20,8 @@ internal sealed class MainForm : Form
 
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
-        Size = new Size(440, 660);
-        MinimumSize = new Size(360, 480);
+        Size = new Size(468, 726);
+        MinimumSize = new Size(400, 560);
         ShowInTaskbar = false;
         TopMost = true;
         BackColor = Color.FromArgb(0xFB, 0xF7, 0xEF);
