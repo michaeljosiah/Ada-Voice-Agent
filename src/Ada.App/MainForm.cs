@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
 namespace Ada.App;
@@ -94,6 +95,13 @@ internal sealed class MainForm : Form
             _loaded = true;
             foreach (var js in _pendingJs) _ = _web.ExecuteScriptAsync(js);
             _pendingJs.Clear();
+        };
+
+        // Voice needs the microphone; Ada is local and the user initiated it, so auto-grant (no prompt).
+        core.PermissionRequested += (_, e) =>
+        {
+            if (e.PermissionKind == CoreWebView2PermissionKind.Microphone)
+                e.State = CoreWebView2PermissionState.Allow;
         };
 
         _web.Source = new Uri(_url);

@@ -404,62 +404,94 @@ function setWidget(w){
 }
 function setTrans(t){ const e=$('#vtrans'); if(e){ e.textContent=t; } }
 
-/* ---------- voice (Voxa WSS) ---------- */
+/* ---------- voice (Voxa WSS) — 16k Int16 PCM in (binary), 22.05k out; no handshake ---------- */
+const VOICE_IN_RATE = 16000, VOICE_OUT_RATE = 22050;
 let voice = null;
 function startVoice(){
   if (voice) return;
   const proto = location.protocol==='https:'?'wss':'ws';
   let ws; try { ws = new WebSocket(proto+'://'+location.host+'/voice'); } catch(e){ return; }
   ws.binaryType='arraybuffer';
-  const ac = new (window.AudioContext||window.webkitAudioContext)({sampleRate:24000});
-  voice = { ws, ac, rate:24000, playAt:0, node:null, stream:null, adaTx:null, lastTrans:'' };
+  const micCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:VOICE_IN_RATE});
+  const outCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:VOICE_OUT_RATE});
+  voice = { ws, micCtx, outCtx, outRate:VOICE_OUT_RATE, nextPlay:0, node:null, src:null, stream:null, adaTx:null, sources:[], drain:0 };
   setWidget('listening');
+  if (S.voiceReady === false) setTrans('preparing voice models…');
   ws.onopen = async () => {
-    ws.send(JSON.stringify({type:'hello'}));
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,sampleRate:24000}});
+      const stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
+      if (!voice){ stream.getTracks().forEach(t=>t.stop()); return; }
       voice.stream = stream;
-      const src = ac.createMediaStreamSource(stream);
-      const node = ac.createScriptProcessor(4096,1,1); voice.node = node;
+      if (Math.abs(micCtx.sampleRate - VOICE_IN_RATE) > 1) console.warn('mic context rate', micCtx.sampleRate, '(wanted', VOICE_IN_RATE + ')');
+      const src = micCtx.createMediaStreamSource(stream); voice.src = src;
+      const node = micCtx.createScriptProcessor(2048,1,1); voice.node = node;
       node.onaudioprocess = e => {
+        if (!voice || ws.readyState!==1) return;
         const f = e.inputBuffer.getChannelData(0); const pcm = new Int16Array(f.length);
-        for(let i=0;i<f.length;i++){ const s=Math.max(-1,Math.min(1,f[i])); pcm[i]=s*0x7fff; }
-        if (ws.readyState===1) ws.send(pcm.buffer);
+        for(let i=0;i<f.length;i++){ const s=Math.max(-1,Math.min(1,f[i])); pcm[i]= s<0 ? s*0x8000 : s*0x7fff; }
+        ws.send(pcm.buffer);   // raw Int16-LE mono @16k, binary
       };
-      src.connect(node); node.connect(ac.destination);
-    } catch(err){ addAda().tx.textContent = 'Microphone unavailable: '+err; }
+      src.connect(node); node.connect(micCtx.destination);
+    } catch(err){ addAda().tx.textContent = 'Microphone unavailable: '+err; stopVoice(); }
   };
   ws.onmessage = ev => {
-    if (typeof ev.data === 'string'){
-      let m; try { m = JSON.parse(ev.data); } catch(_){ return; }
-      if (m.type==='session' && m.outputSampleRate) voice.rate = m.outputSampleRate;
-      else if (m.type==='transcription' && m.text){ voice.lastTrans = m.text; setTrans(m.text); }
-      else if (m.type==='text' && m.text){
-        if (S.widget!=='speaking'){ if(voice.lastTrans){ addUser(voice.lastTrans); voice.lastTrans=''; } setWidget('speaking'); voice.adaTx = addAda(); }
-        if (voice.adaTx){ voice.adaTx.tx.textContent = (voice.adaTx.tx.textContent||'')+m.text; scrollLog(); }
-      } else if (m.type==='interruption'){ voice.playAt = voice.ac.currentTime; }
-    } else {
-      const pcm = new Int16Array(ev.data);
-      const buf = ac.createBuffer(1, pcm.length, voice.rate);
-      const ch = buf.getChannelData(0);
-      for(let i=0;i<pcm.length;i++) ch[i]=pcm[i]/0x7fff;
-      const s = ac.createBufferSource(); s.buffer=buf; s.connect(ac.destination);
-      const t = Math.max(ac.currentTime, voice.playAt); s.start(t); voice.playAt = t + buf.duration;
-      if (S.widget!=='speaking') setWidget('speaking');
-      clearTimeout(voice.drain);
-      voice.drain = setTimeout(()=>{ if(voice){ if(voice.adaTx){voice.adaTx=null;} setWidget('listening'); } }, (voice.playAt-ac.currentTime)*1000 + 400);
-    }
+    if (!voice) return;
+    if (typeof ev.data === 'string'){ let m; try { m=JSON.parse(ev.data); } catch(_){ return; } onVoiceMsg(m); }
+    else playPcm(new Int16Array(ev.data));
   };
-  ws.onclose = stopVoice;
-  ws.onerror = () => { addAda().tx.textContent = 'Voice endpoint unavailable (is voice enabled?)'; stopVoice(); };
+  ws.onclose = () => stopVoice();
+  ws.onerror = () => { addAda().tx.textContent = 'Voice endpoint unavailable — open Settings → Voice to check the pipeline and download the speech models.'; stopVoice(); };
+}
+function onVoiceMsg(m){
+  switch(m.type){
+    case 'session': if (m.outputSampleRate) voice.outRate = m.outputSampleRate; break;
+    case 'transcription':
+      if (m.isFinal){ if (m.text) addUser(m.text); setTrans(''); if (S.widget==='listening') setWidget('thinking'); }
+      else setTrans(m.text||'');
+      break;
+    case 'text':
+      if (m.text){ if (!voice.adaTx){ setWidget('speaking'); voice.adaTx = addAda(); } voice.adaTx.tx.textContent += m.text; scrollLog(); }
+      break;
+    case 'speaking':
+      if (m.who==='user' && m.started){ if (S.widget!=='speaking') setWidget('listening'); }
+      else if (m.who==='bot' && !m.started){ voice.adaTx=null; scheduleListening(); }
+      break;
+    case 'interruption': flushPlayback(); voice.adaTx=null; break;
+    case 'error': addAda().tx.textContent = 'Voice error: '+(m.message||'unknown'); break;
+    case 'end': stopVoice(); break;
+  }
+}
+function playPcm(int16){
+  if (!voice || !int16.length || int16.byteLength % 2) return;
+  if (S.widget!=='speaking') setWidget('speaking');
+  const oc=voice.outCtx, f=new Float32Array(int16.length);
+  for(let i=0;i<int16.length;i++) f[i]=int16[i]/32768;
+  const buf=oc.createBuffer(1,f.length,voice.outRate); buf.copyToChannel(f,0);
+  const s=oc.createBufferSource(); s.buffer=buf; s.connect(oc.destination);
+  const t=Math.max(oc.currentTime, voice.nextPlay); s.start(t); voice.nextPlay=t+buf.duration;
+  voice.sources.push(s); s.onended=()=>{ if(voice) voice.sources=voice.sources.filter(x=>x!==s); };
+  scheduleListening();
+}
+function scheduleListening(){
+  if(!voice) return; clearTimeout(voice.drain);
+  const wait=Math.max(0,(voice.nextPlay-voice.outCtx.currentTime)*1000)+350;
+  voice.drain=setTimeout(()=>{ if(voice && S.widget==='speaking'){ voice.adaTx=null; setWidget('listening'); } }, wait);
+}
+function flushPlayback(){
+  if(!voice) return;
+  voice.sources.forEach(s=>{try{s.stop();}catch(_){}}); voice.sources=[];
+  voice.nextPlay=voice.outCtx.currentTime;
 }
 function stopVoice(){
-  if (!voice) return; const v=voice; voice=null;
-  try { v.stream && v.stream.getTracks().forEach(t=>t.stop()); } catch(_){}
-  try { v.node && v.node.disconnect(); } catch(_){}
-  try { v.ws.readyState<=1 && v.ws.close(); } catch(_){}
-  try { v.ac.close(); } catch(_){}
-  if (S.view==='main') setWidget('idle');
+  if(!voice) return; const v=voice; voice=null; clearTimeout(v.drain);
+  try{ v.stream && v.stream.getTracks().forEach(t=>t.stop()); }catch(_){}
+  try{ v.node && v.node.disconnect(); }catch(_){}
+  try{ v.src && v.src.disconnect(); }catch(_){}
+  try{ v.sources.forEach(s=>{try{s.stop();}catch(_){}}); }catch(_){}
+  try{ v.ws.readyState<=1 && v.ws.close(); }catch(_){}
+  try{ v.micCtx.close(); }catch(_){}
+  try{ v.outCtx.close(); }catch(_){}
+  if(S.view==='main') setWidget('idle');
 }
 window.adaToggleVoice = () => { voice ? stopVoice() : startVoice(); };
 window.adaShowView = (v) => { if (v === 'main' || v === 'settings' || v === 'wizard') setView(v); };
@@ -599,8 +631,8 @@ function refreshDl(){
 
 /* ---------- settings ---------- */
 const SET_GROUPS = [
-  { title:'Settings', items:[['appearance','Appearance'],['profile','Profile'],['model','Local model'],['cloud','Cloud providers'],['startup','Startup'],['hotkeys','Hotkeys']] },
-  { title:'Coming soon', items:[['voice','Voice & speech',1],['memory','Memory',1],['skills','Skills',1],['plugins','Plugins & MCP',1],['privacy','Privacy',1]] },
+  { title:'Settings', items:[['appearance','Appearance'],['profile','Profile'],['model','Local model'],['voice','Voice'],['cloud','Cloud providers'],['startup','Startup'],['hotkeys','Hotkeys']] },
+  { title:'Coming soon', items:[['memory','Memory',1],['skills','Skills',1],['plugins','Plugins & MCP',1],['privacy','Privacy',1]] },
 ];
 const SET_TITLES = {appearance:'Appearance',profile:'Profile',model:'Local model',cloud:'Cloud providers',startup:'Startup',hotkeys:'Hotkeys',voice:'Voice & speech',memory:'Memory',skills:'Skills',plugins:'Plugins & MCP',privacy:'Privacy & permissions'};
 const SOON_DESC = {voice:"Choose Ada's spoken voice, speaking rate, and on-device TTS engine.",memory:'Control what Ada remembers about you across conversations.',skills:'Enable the tools and actions Ada is allowed to perform.',plugins:'Connect third-party plugins and Model Context Protocol servers.',privacy:'Manage microphone, screen, files and location permissions.'};
@@ -636,6 +668,8 @@ function renderSettingsBody(){
     h='<div class="fadeUp" style="max-width:560px"><div class="srow"><div><div class="st">Launch Ada when Windows starts</div><div class="ss">Runs quietly in the background, ready for the hotkey</div></div><div class="sw'+(S.autostart?' on':'')+'" id="autoSw"><i></i></div></div></div>';
   } else if (sec==='hotkeys'){
     h='<div class="fadeUp" style="max-width:560px"><div class="srow"><div class="st">Summon Ada</div><div style="display:flex;gap:6px"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></div></div><div class="srow"><div class="st">Start voice</div><div style="display:flex;gap:6px"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>Space</kbd></div></div><div class="srow" style="border:none"><div class="st">Cancel / stop</div><div style="display:flex;gap:6px"><kbd>Esc</kbd></div></div></div>';
+  } else if (sec==='voice'){
+    h = voicePanelHTML();
   } else {
     const priv = sec==='privacy' ? '<div class="pill-note"><svg viewBox="0 0 24 24" fill="none" stroke="#055a60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><div><div style="font-size:14px;font-weight:600;color:var(--text)">Process audio on-device</div><div style="font-size:12.5px;color:var(--text-soft)">Your voice never leaves your machine.</div></div></div>' : '';
     h='<div class="fadeUp" style="max-width:520px">'+priv+'<div class="soonbox"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--text-mute)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:16px;font-weight:600;color:var(--text)">'+(SET_TITLES[sec]||'')+'</div><span class="soon" style="font-size:10px;padding:2px 8px">COMING SOON</span></div><div style="font-size:13.5px;line-height:1.55;color:var(--text-soft);max-width:340px">'+(SOON_DESC[sec]||'')+'</div></div></div>';
@@ -646,6 +680,63 @@ function renderSettingsBody(){
   if (sec==='model'){ b.querySelectorAll('[data-m]').forEach(c=>c.onclick=()=>{ S.model=c.dataset.m; S.dl={status:'idle',model:null,line:'',i:0,n:0}; renderSettingsBody(); }); const d=$('#dlBtn'); if(d) d.onclick=startDownload; }
   if (sec==='cloud'){ b.querySelectorAll('[data-prov]').forEach(c=>c.onclick=()=>{ S.cloudProvider=c.dataset.prov; renderSettingsBody(); }); const k=$('#setKey'); if(k) k.oninput=()=>{S.cloudKey=k.value;}; if(k) k.onchange=async()=>{ if(S.cloudProvider) try{ await fetch('/api/providers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:S.cloudProvider,key:k.value||null})}); }catch(_){} }; }
   if (sec==='startup'){ const sw=$('#autoSw'); if(sw) sw.onclick=async()=>{ S.autostart=!S.autostart; sw.classList.toggle('on',S.autostart); try{ await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({autostart:S.autostart})}); }catch(_){} }; }
+  if (sec==='voice') wireVoicePanel();
+}
+
+/* ---------- voice settings panel (status + on-device model warmup) ---------- */
+async function loadVoiceStatus(){
+  try { const r = await fetch('/api/voice'); if (!r.ok) throw 0; S.voiceInfo = await r.json(); }
+  catch(_){ S.voiceInfo = { enabled:false }; }
+  S.voiceReady = !!(S.voiceInfo && S.voiceInfo.ready);
+  if (S.view==='settings' && S.section==='voice') renderSettingsBody();
+}
+function voicePanelHTML(){
+  const v = S.voiceInfo;
+  if (!v) return '<div class="fadeUp muted">Checking voice…</div>';
+  if (v.enabled === false) return '<div class="fadeUp" style="max-width:520px"><div class="pill-note"><div><div style="font-size:14px;font-weight:600;color:var(--text)">Voice is off this session</div><div style="font-size:12.5px;color:var(--text-soft)">The local voice endpoint isn’t running.</div></div></div></div>';
+  const row = (k,val)=>'<div class="srow"><div class="st">'+k+'</div><div style="color:var(--text-soft);font-size:13.5px;font-weight:500">'+esc(val)+'</div></div>';
+  const models = (v.models||[]).map(m=>{
+    const badge = m.ready
+      ? '<span style="color:#3a9c3e;font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:5px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg>Ready</span>'
+      : '<span style="color:var(--text-mute);font-size:13px">Not downloaded</span>';
+    return '<div class="srow"><div><div class="st">'+esc(m.name)+'</div><div class="ss">'+esc(m.kind)+' · ~'+m.approxMb+' MB</div></div>'+badge+'</div>';
+  }).join('');
+  const remain = (v.models||[]).filter(m=>!m.ready).reduce((a,m)=>a+(m.approxMb||0),0);
+  const action = v.ready
+    ? '<div class="ready-ok" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><polyline points="20 6 9 17 4 12"/></svg>All voice models ready</div>'
+    : '<button class="dlbtn" id="voiceDl" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download voice models · ~'+remain+' MB</button>';
+  return '<div class="fadeUp" style="max-width:560px">'+
+    '<div class="pill-note"><svg viewBox="0 0 24 24" fill="none" stroke="#055a60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><div><div style="font-size:14px;font-weight:600;color:var(--text)">Processed on-device</div><div style="font-size:12.5px;color:var(--text-soft)">Speech-to-text and text-to-speech run locally — your voice never leaves your machine.</div></div></div>'+
+    '<div style="font-size:13px;font-weight:600;color:var(--text);margin:6px 0 0">Pipeline</div>'+
+    row('Speech-to-text', v.stt||'WhisperCpp') + row('Text-to-speech', v.tts||'Piper') +
+    row('Voice activity', (v.vad||'Silero')+' VAD') + row('Latency profile', v.profile||'LowLatency') +
+    row('Audio', (v.inputRate||16000)/1000+' kHz in · '+((v.outputRate||22050)/1000).toFixed(2)+' kHz out') +
+    '<div style="font-size:13px;font-weight:600;color:var(--text);margin:18px 0 0">Models</div>'+ models + action +
+    '<div class="status" id="voiceStatus" style="margin-top:10px"></div>'+
+    '<div class="muted" style="margin-top:14px">When ready, press the mic in the conversation, or <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>Space</kbd>.</div></div>';
+}
+function wireVoicePanel(){
+  if (!S.voiceInfo){ loadVoiceStatus(); return; }
+  const b=$('#voiceDl'); if (b) b.onclick=warmupVoice;
+}
+async function warmupVoice(){
+  const st=$('#voiceStatus'), b=$('#voiceDl'); if (b) b.disabled=true;
+  if (st) st.textContent='Starting… first run downloads the speech models.';
+  try {
+    const res=await fetch('/api/voice/warmup',{method:'POST'}); const rd=res.body.getReader(); const dec=new TextDecoder(); let buf='',ev='';
+    while(true){ const {value,done}=await rd.read(); if(done) break; buf+=dec.decode(value,{stream:true}); let i;
+      while((i=buf.indexOf('\n\n'))>=0){ const frame=buf.slice(0,i); buf=buf.slice(i+2);
+        for(const line of frame.split('\n')){
+          if(line.startsWith('event:')) ev=line.slice(6).trim();
+          else if(line.startsWith('data:')){ const d=JSON.parse(line.slice(5).trim()||'{}');
+            if(ev==='progress' && st) st.textContent = (typeof d==='string'?d:'working…');
+            else if(ev==='done'){ if(st) st.textContent='All voice models ready ✓'; await loadVoiceStatus(); }
+            else if(ev==='error'){ if(st) st.textContent='Download failed: '+d; if(b) b.disabled=false; }
+          }
+        }
+      }
+    }
+  } catch(e){ if(st) st.textContent='Download failed: '+e; if(b) b.disabled=false; }
 }
 
 /* ---------- global keys ---------- */
@@ -666,6 +757,7 @@ document.addEventListener('keydown', e => {
     if (typeof cfg.autostart === 'boolean') S.autostart = cfg.autostart;
     if (cfg.catalog) S.catalog = cfg.catalog;
     try { const mj = await (await fetch('/api/models')).json(); S.onnxModels = mj.models||[]; } catch(_){}
+    loadVoiceStatus();
     setView(cfg.setupComplete ? 'main' : 'wizard');
   } catch(_){ setView('main'); setWidget('idle'); }
 })();

@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Ada.Core;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
@@ -67,6 +69,43 @@ public static class AdaVoice
                 .UseMicrosoftAgent(agent)
                 .UseSentenceAggregator()
                 .UseTextToSpeech(() => PiperDescriptors.Tts.CreateProcessor(app.Services, app.Configuration.GetSection("Voxa")));
+        });
+
+        // Voice model status + on-device warmup for the Settings → Voice panel. Mapped only when voice
+        // is enabled, so the page treats a 404 here as "voice off".
+        app.MapGet("/api/voice", () =>
+        {
+            var models = VoiceModels.Status();
+            var ready = true;
+            foreach (var m in models) if (!m.Ready) { ready = false; break; }
+            return Results.Json(new
+            {
+                enabled = true,
+                profile = "LowLatency",
+                stt = "WhisperCpp · base.en",
+                tts = "Piper · en_US-lessac-medium",
+                vad = "Silero",
+                inputRate = 16000,
+                outputRate = 22050,
+                models,
+                ready,
+            });
+        });
+
+        app.MapPost("/api/voice/warmup", async (HttpContext http, CancellationToken ct) =>
+        {
+            http.Response.Headers.ContentType = "text/event-stream";
+            var progress = new Progress<string>(s =>
+                _ = http.Response.WriteAsync($"event: progress\ndata: {JsonSerializer.Serialize(s)}\n\n", ct));
+            try
+            {
+                await VoiceModels.WarmUpAsync(progress, ct);
+                await http.Response.WriteAsync("event: done\ndata: {}\n\n", ct);
+            }
+            catch (Exception ex)
+            {
+                await http.Response.WriteAsync($"event: error\ndata: {JsonSerializer.Serialize(ex.Message)}\n\n", ct);
+            }
         });
     }
 }
