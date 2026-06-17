@@ -462,6 +462,7 @@ function stopVoice(){
   if (S.view==='main') setWidget('idle');
 }
 window.adaToggleVoice = () => { voice ? stopVoice() : startVoice(); };
+window.adaShowView = (v) => { if (v === 'main' || v === 'settings' || v === 'wizard') setView(v); };
 
 /* ---------- data ---------- */
 const PROFILES = [

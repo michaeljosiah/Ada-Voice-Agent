@@ -11,6 +11,8 @@ internal sealed class MainForm : Form
 {
     private readonly string _url;
     private readonly WebView2 _web;
+    private readonly List<string> _pendingJs = new();
+    private bool _loaded;
 
     public event EventHandler? RequestHide;
 
@@ -52,14 +54,28 @@ internal sealed class MainForm : Form
             else if (msg is "hide" or "close") RequestHide?.Invoke(this, EventArgs.Empty);
         };
 
+        // Flush any tray-requested action (voice, settings) queued before the page finished loading.
+        core.NavigationCompleted += (_, _) =>
+        {
+            _loaded = true;
+            foreach (var js in _pendingJs) _ = _web.ExecuteScriptAsync(js);
+            _pendingJs.Clear();
+        };
+
         _web.Source = new Uri(_url);
     }
 
-    /// <summary>Toggle Voice Mode in the WebView2 page (driven by the global push-to-talk hotkey).</summary>
-    public void ToggleVoice()
+    /// <summary>Toggle Voice Mode in the WebView2 page (push-to-talk hotkey / tray "Voice mode").</summary>
+    public void ToggleVoice() => RunOrQueue("window.adaToggleVoice && window.adaToggleVoice();");
+
+    /// <summary>Open the Settings surface in the page (tray "Settings" item).</summary>
+    public void ShowSettings() => RunOrQueue("window.adaShowView && window.adaShowView('settings');");
+
+    /// <summary>Run script now if the page is loaded, else queue it until it is (first-summon race).</summary>
+    private void RunOrQueue(string js)
     {
-        if (_web.CoreWebView2 is not null)
-            _ = _web.ExecuteScriptAsync("window.adaToggleVoice && window.adaToggleVoice();");
+        if (_web.CoreWebView2 is not null && _loaded) _ = _web.ExecuteScriptAsync(js);
+        else _pendingJs.Add(js);
     }
 
     /// <summary>Centre the window on the primary screen — Ada is summoned to the middle, not the tray corner.</summary>

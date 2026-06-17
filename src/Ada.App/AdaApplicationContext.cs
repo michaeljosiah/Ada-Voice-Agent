@@ -40,6 +40,7 @@ internal sealed class AdaApplicationContext : ApplicationContext
         // Voice mode: summon Ada centred and start listening immediately. (Will move to a dedicated
         // compact voice-only HUD window once that surface is built; for now it drives the main window.)
         menu.Items.Add("Voice mode\tCtrl+Alt+Space", null, (_, _) => ToggleVoice());
+        menu.Items.Add("Settings", null, (_, _) => OpenSettings());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Quit Ada", null, (_, _) => ExitThread());
         return menu;
@@ -63,6 +64,12 @@ internal sealed class AdaApplicationContext : ApplicationContext
     {
         ShowWindow();
         _form?.ToggleVoice();
+    }
+
+    private void OpenSettings()
+    {
+        ShowWindow();           // creates + centres + shows the window
+        _form?.ShowSettings();  // then navigates the page to the Settings surface
     }
 
     private void ShowWindow()
