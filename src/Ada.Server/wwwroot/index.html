@@ -414,7 +414,7 @@ function startVoice(){
   ws.binaryType='arraybuffer';
   const micCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:VOICE_IN_RATE});
   const outCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:VOICE_OUT_RATE});
-  voice = { ws, micCtx, outCtx, outRate:VOICE_OUT_RATE, nextPlay:0, node:null, src:null, stream:null, adaTx:null, sources:[], drain:0 };
+  voice = { ws, micCtx, outCtx, outRate:VOICE_OUT_RATE, nextPlay:0, node:null, src:null, stream:null, adaTx:null, sources:[], drain:0, level:0, raf:0 };
   setWidget('listening');
   if (S.voiceReady === false) setTrans('preparing voice models…');
   ws.onopen = async () => {
@@ -427,11 +427,14 @@ function startVoice(){
       const node = micCtx.createScriptProcessor(2048,1,1); voice.node = node;
       node.onaudioprocess = e => {
         if (!voice || ws.readyState!==1) return;
-        const f = e.inputBuffer.getChannelData(0); const pcm = new Int16Array(f.length);
-        for(let i=0;i<f.length;i++){ const s=Math.max(-1,Math.min(1,f[i])); pcm[i]= s<0 ? s*0x8000 : s*0x7fff; }
+        const ds = downsampleTo16k(e.inputBuffer.getChannelData(0), micCtx.sampleRate);  // Whisper needs exactly 16 kHz
+        let sum=0; const pcm = new Int16Array(ds.length);
+        for(let i=0;i<ds.length;i++){ const s=Math.max(-1,Math.min(1,ds[i])); pcm[i]= s<0 ? s*0x8000 : s*0x7fff; sum+=s*s; }
+        voice.level = voice.level*0.8 + Math.sqrt(sum/Math.max(1,ds.length))*0.2;  // smoothed mic RMS → bars
         ws.send(pcm.buffer);   // raw Int16-LE mono @16k, binary
       };
       src.connect(node); node.connect(micCtx.destination);
+      micLoop();
     } catch(err){ addAda().tx.textContent = 'Microphone unavailable: '+err; stopVoice(); }
   };
   ws.onmessage = ev => {
@@ -483,7 +486,7 @@ function flushPlayback(){
   voice.nextPlay=voice.outCtx.currentTime;
 }
 function stopVoice(){
-  if(!voice) return; const v=voice; voice=null; clearTimeout(v.drain);
+  if(!voice) return; const v=voice; voice=null; clearTimeout(v.drain); try{ cancelAnimationFrame(v.raf); }catch(_){}
   try{ v.stream && v.stream.getTracks().forEach(t=>t.stop()); }catch(_){}
   try{ v.node && v.node.disconnect(); }catch(_){}
   try{ v.src && v.src.disconnect(); }catch(_){}
@@ -493,8 +496,25 @@ function stopVoice(){
   try{ v.outCtx.close(); }catch(_){}
   if(S.view==='main') setWidget('idle');
 }
+function downsampleTo16k(f, inRate){
+  if (!(inRate > 16000)) return f;
+  const ratio=inRate/16000, outLen=Math.floor(f.length/ratio), out=new Float32Array(outLen);
+  for (let i=0;i<outLen;i++){ const idx=i*ratio, i0=idx|0, i1=Math.min(i0+1,f.length-1), fr=idx-i0; out[i]=f[i0]*(1-fr)+f[i1]*fr; }
+  return out;
+}
+function micLoop(){
+  if(!voice) return;
+  const wrap=document.querySelector('.pill.listening .bars');
+  if (wrap && wrap.children.length){ const lvl=Math.min(1,(voice.level||0)*9), t=Date.now()/120;
+    for (let i=0;i<wrap.children.length;i++){ const b=wrap.children[i]; b.style.animation='none';
+      const base=5+Math.abs(Math.sin(i*1.3+1))*5; b.style.height=Math.min(38, base+lvl*30*(0.55+0.45*Math.sin(i+t))).toFixed(1)+'px'; } }
+  voice.raf=requestAnimationFrame(micLoop);
+}
 window.adaToggleVoice = () => { voice ? stopVoice() : startVoice(); };
-window.adaShowView = (v) => { if (v === 'main' || v === 'settings' || v === 'wizard') setView(v); };
+window.adaShowView = (v) => {
+  if (v === 'main' && S.config && S.config.setupComplete === false) { setView('wizard'); return; }
+  if (v === 'main' || v === 'settings' || v === 'wizard') setView(v);
+};
 
 /* ---------- data ---------- */
 const PROFILES = [

@@ -36,7 +36,7 @@ internal sealed class AdaApplicationContext : ApplicationContext
     private ContextMenuStrip BuildMenu()
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Open Ada\tCtrl+Alt+A", null, (_, _) => ShowWindow());
+        menu.Items.Add("Open Ada\tCtrl+Alt+A", null, (_, _) => OpenConversation());
         // Voice mode: summon Ada centred and start listening immediately. (Will move to a dedicated
         // compact voice-only HUD window once that surface is built; for now it drives the main window.)
         menu.Items.Add("Voice mode\tCtrl+Alt+Space", null, (_, _) => ToggleVoice());
@@ -57,12 +57,18 @@ internal sealed class AdaApplicationContext : ApplicationContext
         if (_form is { Visible: true })
             HideWindow();
         else
-            ShowWindow();
+            OpenConversation();
+    }
+
+    private void OpenConversation()
+    {
+        ShowWindow();               // creates + centres + shows the window
+        _form?.ShowConversation();  // land on the chat surface, not whatever view was last open
     }
 
     private void ToggleVoice()
     {
-        ShowWindow();
+        OpenConversation();         // the voice bar lives in the conversation view — switch to it first
         _form?.ToggleVoice();
     }
 

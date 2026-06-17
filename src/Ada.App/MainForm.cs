@@ -80,6 +80,7 @@ internal sealed class MainForm : Form
         core.Settings.AreDefaultContextMenusEnabled = false;
         core.Settings.IsZoomControlEnabled = false;
         core.Settings.AreDevToolsEnabled = false;
+        core.Settings.IsNonClientRegionSupportEnabled = true;   // enables CSS -webkit-app-region: drag (header drag)
 
         // The frameless chrome's window buttons post messages back to the host.
         core.WebMessageReceived += (_, e) =>
@@ -112,6 +113,9 @@ internal sealed class MainForm : Form
 
     /// <summary>Open the Settings surface in the page (tray "Settings" item).</summary>
     public void ShowSettings() => RunOrQueue("window.adaShowView && window.adaShowView('settings');");
+
+    /// <summary>Switch the page to the conversation surface (where the voice bar lives).</summary>
+    public void ShowConversation() => RunOrQueue("window.adaShowView && window.adaShowView('main');");
 
     /// <summary>Run script now if the page is loaded, else queue it until it is (first-summon race).</summary>
     private void RunOrQueue(string js)
