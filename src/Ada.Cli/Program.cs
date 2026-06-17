@@ -352,8 +352,8 @@ internal static class Program
         Report("ONNX downloader fetches a real model file from Hugging Face", onnxDownloaded);
 
         // ---- Ollama (managed local runtime — the default after setup) ----
-        Report("Ollama default targets gemma4:e4b on loopback",
-            new OllamaOptions() is { DefaultModel: "gemma4:e4b" } oo && oo.Endpoint.Contains("11434"));
+        Report("Ollama default targets gemma3:4b on loopback",
+            new OllamaOptions() is { DefaultModel: "gemma3:4b" } oo && oo.Endpoint.Contains("11434"));
         Report("Ollama reachability probe works (none running here)", !await OllamaRuntime.IsReachableAsync("http://127.0.0.1:1"));
 
         var ok = _failures == 0;

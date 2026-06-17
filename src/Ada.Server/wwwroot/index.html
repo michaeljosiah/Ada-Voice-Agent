@@ -272,7 +272,7 @@ const host = (m) => { try { window.chrome && window.chrome.webview && window.chr
 const S = {
   view:'main', theme:'light', themeMode:'light', widget:'idle',
   config:null, onnxModels:[], catalog:[],
-  profile:'Balanced', model:'ollama:gemma4:e4b', cloudProvider:'', cloudKey:'',
+  profile:'Balanced', model:'ollama:gemma3:4b', cloudProvider:'', cloudKey:'',
   section:'appearance', autostart:false,
   wizStep:0, dl:{status:'idle',model:null,line:'',i:0,n:0},
 };
@@ -333,10 +333,14 @@ async function sendText(text){
   text = (text||'').trim(); if (!text) return;
   addUser(text);
   const reply = addAda();
-  const caret=document.createElement('span'); caret.className='caret'; reply.tx.appendChild(caret);
+  reply.tx.innerHTML = '<span style="color:var(--text-mute)">thinking…</span>';
+  const caret=document.createElement('span'); caret.className='caret';
+  const ctrl = new AbortController();
+  let got=false, acc='';
+  const to = setTimeout(()=>{ if(!got) ctrl.abort('timeout'); }, 75000);  // a wedged/oversized model never streams
   try {
-    const res = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message:text }) });
-    const rd = res.body.getReader(); const dec=new TextDecoder(); let buf='', ev='message', acc='';
+    const res = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message:text }), signal:ctrl.signal });
+    const rd = res.body.getReader(); const dec=new TextDecoder(); let buf='', ev='message';
     while(true){
       const {value, done} = await rd.read(); if (done) break;
       buf += dec.decode(value,{stream:true}); let i;
@@ -346,14 +350,21 @@ async function sendText(text){
           if(line.startsWith('event:')) ev=line.slice(6).trim();
           else if(line.startsWith('data:')){
             const d=JSON.parse(line.slice(5).trim());
-            if(ev==='chunk' && d.text){ acc+=d.text; reply.tx.textContent=acc; reply.tx.appendChild(caret); scrollLog(); }
-            else if(ev==='done'){ reply.tx.removeChild(caret); routeBadge(reply.lbl, d.route); scrollLog(); }
+            if(ev==='chunk' && d.text){ if(!got){ got=true; clearTimeout(to); reply.tx.textContent=''; } acc+=d.text; reply.tx.textContent=acc; reply.tx.appendChild(caret); scrollLog(); }
+            else if(ev==='done'){ got=true; clearTimeout(to); if(caret.parentNode) caret.remove();
+              if(!acc) reply.tx.textContent='(No reply — the local model returned nothing. Try a different model in Settings → Local model.)';
+              routeBadge(reply.lbl, d.route); scrollLog(); }
           }
         }
       }
     }
-    if (caret.parentNode) caret.remove();
-  } catch(e){ reply.tx.textContent = acc || ('… ('+e+')'); }
+    clearTimeout(to); if (caret.parentNode) caret.remove();
+  } catch(e){
+    clearTimeout(to);
+    reply.tx.textContent = acc || (ctrl.signal.aborted
+      ? 'The local model didn’t respond — it may be too large for your GPU. Pick a smaller one in Settings → Local model.'
+      : 'Couldn’t reach the local model (' + e + ').');
+  }
 }
 
 /* ---------- approvals (SSE) ---------- */
@@ -525,8 +536,10 @@ const PROFILES = [
 const PROV_STYLE = { anthropic:'#d97757', openai:'#10a37f', google:'#2f6cf2', gemini:'#2f6cf2', mistral:'#eb5c37', azure:'#2b7cd3' };
 function modelList(){
   const out = [
-    {id:'ollama:gemma4:e4b', label:'Gemma 4 · via Ollama', meta:'recommended · ~9.6 GB', kind:'Ollama'},
-    {id:'ollama:gemma4:e2b', label:'Gemma 4 compact · via Ollama', meta:'~3.2 GB', kind:'Ollama'},
+    {id:'ollama:gemma3:4b', label:'Gemma 3 · 4B', meta:'recommended · ~3.3 GB · fits most GPUs', kind:'Ollama'},
+    {id:'ollama:qwen2.5:7b', label:'Qwen 2.5 · 7B', meta:'~4.7 GB · best on a discrete GPU', kind:'Ollama'},
+    {id:'ollama:qwen2.5:1.5b', label:'Qwen 2.5 · 1.5B', meta:'~1 GB · fast, low-resource', kind:'Ollama'},
+    {id:'ollama:llama3.2:3b', label:'Llama 3.2 · 3B', meta:'~2 GB · balanced', kind:'Ollama'},
   ];
   for (const m of S.onnxModels) out.push({ id:'onnx:'+m.id, label:m.label+' · ONNX', meta:(m.approxMb?('~'+(m.approxMb/1024).toFixed(1)+' GB'):'in-process')+(m.downloaded?' · installed':''), kind:'ONNX' });
   return out;

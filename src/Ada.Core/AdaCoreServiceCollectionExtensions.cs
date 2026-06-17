@@ -23,7 +23,7 @@ public static class AdaCoreServiceCollectionExtensions
             var cfg = new ConfigStore().Load();
             if (cfg.LocalRuntime == "ollama")
             {
-                options = new AdaModelOptions { Provider = "openai-compatible", Endpoint = "http://127.0.0.1:11434/v1", ModelId = cfg.OllamaModel ?? "gemma4:e4b" };
+                options = new AdaModelOptions { Provider = "openai-compatible", Endpoint = "http://127.0.0.1:11434/v1", ModelId = cfg.OllamaModel ?? "gemma3:4b" };
             }
             else
             {

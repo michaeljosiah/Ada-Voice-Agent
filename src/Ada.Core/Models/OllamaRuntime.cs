@@ -10,7 +10,7 @@ public sealed record OllamaOptions(
     string Endpoint = "http://127.0.0.1:11434",
     string? RuntimeDir = null,
     string DownloadUrl = "https://github.com/ollama/ollama/releases/latest/download/ollama-windows-amd64.zip",
-    string DefaultModel = "gemma4:e4b");
+    string DefaultModel = "gemma3:4b");
 
 /// <summary>
 /// Manages Ollama as a loopback subprocess so a local model is "automatically available" with zero
