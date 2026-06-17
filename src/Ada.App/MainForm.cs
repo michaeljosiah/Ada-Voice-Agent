@@ -33,7 +33,7 @@ internal sealed class MainForm : Form
         Load += async (_, _) => await InitWebViewAsync();
         KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) RequestHide?.Invoke(this, EventArgs.Empty); };
 
-        PositionNearTray();
+        CenterOnScreen();
     }
 
     private async Task InitWebViewAsync()
@@ -62,10 +62,11 @@ internal sealed class MainForm : Form
             _ = _web.ExecuteScriptAsync("window.adaToggleVoice && window.adaToggleVoice();");
     }
 
-    private void PositionNearTray()
+    /// <summary>Centre the window on the primary screen — Ada is summoned to the middle, not the tray corner.</summary>
+    public void CenterOnScreen()
     {
         var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 720);
-        Location = new Point(area.Right - Width - 16, area.Bottom - Height - 16);
+        Location = new Point(area.X + (area.Width - Width) / 2, area.Y + (area.Height - Height) / 2);
     }
 
     /// <summary>Hide instead of closing, so the tray companion persists across summons.</summary>

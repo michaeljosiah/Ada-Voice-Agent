@@ -37,6 +37,9 @@ internal sealed class AdaApplicationContext : ApplicationContext
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open Ada\tCtrl+Alt+A", null, (_, _) => ShowWindow());
+        // Voice mode: summon Ada centred and start listening immediately. (Will move to a dedicated
+        // compact voice-only HUD window once that surface is built; for now it drives the main window.)
+        menu.Items.Add("Voice mode\tCtrl+Alt+Space", null, (_, _) => ToggleVoice());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Quit Ada", null, (_, _) => ExitThread());
         return menu;
@@ -65,6 +68,7 @@ internal sealed class AdaApplicationContext : ApplicationContext
     private void ShowWindow()
     {
         _form ??= CreateForm();
+        _form.CenterOnScreen();   // summon to the middle of the screen, every time
         _form.Show();
         _form.Activate();
     }
