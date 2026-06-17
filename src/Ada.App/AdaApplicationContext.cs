@@ -75,6 +75,7 @@ internal sealed class AdaApplicationContext : ApplicationContext
     private void ShowWindow()
     {
         _form ??= CreateForm();
+        if (_form.WindowState == FormWindowState.Minimized) _form.WindowState = FormWindowState.Normal;
         _form.CenterOnScreen();   // summon to the middle of the screen, every time
         _form.Show();
         _form.Activate();

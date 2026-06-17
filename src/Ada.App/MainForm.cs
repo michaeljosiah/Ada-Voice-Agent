@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.Web.WebView2.WinForms;
 
 namespace Ada.App;
@@ -22,8 +23,9 @@ internal sealed class MainForm : Form
 
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
-        Size = new Size(920, 640);
-        MinimumSize = new Size(560, 560);
+        var wa = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 720);
+        Size = new Size(Math.Min(1120, wa.Width - 80), Math.Min(760, wa.Height - 80));
+        MinimumSize = new Size(720, 560);
         ShowInTaskbar = false;
         TopMost = true;
         BackColor = Color.FromArgb(0xFB, 0xF7, 0xEF);
@@ -37,6 +39,38 @@ internal sealed class MainForm : Form
 
         CenterOnScreen();
     }
+
+    // Borderless but resizable: add the native sizing frame so Windows handles edge/corner resize.
+    // The WebView2 fills the client area inside the thin frame, so the grab zone stays hittable.
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            const int WS_THICKFRAME = 0x00040000;   // sizing border
+            const int WS_MINIMIZEBOX = 0x00020000;  // allow minimise (taskbar/snap animations)
+            var cp = base.CreateParams;
+            cp.Style |= WS_THICKFRAME | WS_MINIMIZEBOX;
+            return cp;
+        }
+    }
+
+    // Round the window corners on Windows 11 so the frameless window matches the design's card.
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        try
+        {
+            int round = DWMWCP_ROUND;
+            DwmSetWindowAttribute(Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
+        }
+        catch { /* pre-Win11: corners stay square, no harm */ }
+    }
+
+    private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    private const int DWMWCP_ROUND = 2;
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     private async Task InitWebViewAsync()
     {
