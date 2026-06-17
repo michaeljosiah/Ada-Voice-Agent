@@ -42,7 +42,11 @@ public static class AdaServer
 
         // Loopback only — 127.0.0.1. Ada never binds a public interface (egress contract, spec §14).
         builder.WebHost.UseUrls($"http://127.0.0.1:{options.Port}");
-        builder.Logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Warning);
+        // Quiet by default; set ADA_LOG=Information|Debug to surface the Voxa voice pipeline for diagnostics.
+        var logLevel = Environment.GetEnvironmentVariable("ADA_LOG") is { Length: > 0 } lv
+            && Enum.TryParse<Microsoft.Extensions.Logging.LogLevel>(lv, true, out var parsed)
+            ? parsed : Microsoft.Extensions.Logging.LogLevel.Warning;
+        builder.Logging.SetMinimumLevel(logLevel);
 
         // The GUI uses interactive approval cards; register it before AddAda so the harness keeps it.
         builder.Services.AddSingleton<InteractiveApprovalHandler>();

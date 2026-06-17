@@ -76,6 +76,7 @@ internal static class Program
     private static async Task<int> Serve(string[] args)
     {
         var port = 0;
+        var voice = Array.IndexOf(args, "--voice") >= 0;
         for (var i = 0; i < args.Length - 1; i++)
             if (args[i] is "--port" or "-p" && int.TryParse(args[i + 1], out var p)) port = p;
 
@@ -84,8 +85,8 @@ internal static class Program
         try
         {
             await AdaServer.RunAsync(
-                new AdaServerOptions(Port: port),
-                onStarted: url => Console.WriteLine($"Ada loopback server listening on {url}  (Ctrl+C to stop)"),
+                new AdaServerOptions(Port: port, Voice: voice),
+                onStarted: url => Console.WriteLine($"Ada loopback server listening on {url}  (Ctrl+C to stop){(voice ? "  [voice enabled]" : "")}"),
                 ct: cts.Token);
         }
         catch (OperationCanceledException) { }
