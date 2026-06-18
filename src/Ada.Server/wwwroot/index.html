@@ -503,7 +503,7 @@ let voice = null;
 function startVoice(){
   if (voice) return;
   const proto = location.protocol==='https:'?'wss':'ws';
-  let ws; try { ws = new WebSocket(proto+'://'+location.host+'/voice'); } catch(e){ return; }
+  let ws; try { const tq = S.threadId ? ('?thread='+encodeURIComponent(S.threadId)) : ''; ws = new WebSocket(proto+'://'+location.host+'/voice'+tq); } catch(e){ return; }
   ws.binaryType='arraybuffer';
   const micCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:VOICE_IN_RATE});
   const outRate = (S.voiceInfo && S.voiceInfo.outputRate) || VOICE_OUT_RATE;   // matches the selected TTS voice

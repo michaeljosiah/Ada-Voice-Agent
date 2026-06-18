@@ -3,6 +3,7 @@ using Ada.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
@@ -62,18 +63,47 @@ public static class AdaVoice
         app.MapVoxaVoice("/voice").Use((context, pipeline) =>
         {
             var agent = context.RequestServices.GetRequiredService<AIAgent>();
+            var convos = context.RequestServices.GetService<IConversationStore>();
             var cfg = new ConfigStore().Load();                 // current selection, per connection
             var voxaCfg = BuildVoxaSection(cfg);
             var sp = context.RequestServices;
             var tts = string.Equals(cfg.TtsProvider, "Kokoro", StringComparison.OrdinalIgnoreCase)
                 ? KokoroDescriptors.Tts : PiperDescriptors.Tts;
 
+            // Persist the voice conversation into a thread so Ada remembers within the session and the
+            // history shows alongside text. The in-chat mic passes ?thread=<id> to continue the active
+            // text thread; otherwise voice gets its own thread, created lazily on the first turn.
+            var threadId = context.Request.Query["thread"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(threadId) || convos?.Load(threadId) is null) threadId = null;
+
             pipeline
                 .UseSilenceGate()
                 .UseSpeechToText(() => WhisperCppDescriptors.Stt.CreateProcessor(sp, voxaCfg))
                 .UseTranscriptionFilter()
                 .UseProcessor(() => new BlankTranscriptionFilter())   // drop [BLANK_AUDIO] etc. before the agent
-                .UseMicrosoftAgent(agent)
+                .UseMicrosoftAgent(agent, convos is null ? null : opts =>
+                {
+                    // Feed the thread's recent turns back so a spoken follow-up has context in the session.
+                    opts.BuildMessages = (ctx, _) =>
+                    {
+                        var msgs = new List<ChatMessage>();
+                        if (threadId is not null && convos!.Load(threadId) is { } convo)
+                            msgs.AddRange(VoiceContextTail(convo.Messages));
+                        msgs.Add(new ChatMessage(ChatRole.User, ctx.UserText));
+                        return ValueTask.FromResult<IReadOnlyList<ChatMessage>>(msgs);
+                    };
+                    // Append the finished turn — Voxa hands us the assembled assistant text in the summary.
+                    opts.OnTurnCompleted = (ctx, summary, _) =>
+                    {
+                        var convo = (threadId is not null ? convos!.Load(threadId) : null) ?? convos!.Create(VoiceTitle(ctx.UserText));
+                        threadId = convo.Id;
+                        var ts = DateTimeOffset.UtcNow.ToString("o");
+                        convo.Messages.Add(new ConversationMessage { Role = "user", Text = ctx.UserText, Ts = ts });
+                        convo.Messages.Add(new ConversationMessage { Role = "assistant", Text = summary.AssistantText, Route = "voice", Ts = ts });
+                        convos!.Save(convo);
+                        return ValueTask.CompletedTask;
+                    };
+                })
                 .UseSentenceAggregator()
                 .UseTextToSpeech(() => tts.CreateProcessor(sp, voxaCfg));
         });
@@ -144,5 +174,23 @@ public static class AdaVoice
             ["Voxa:Vad:Engine"] = "Silero",
         };
         return new ConfigurationBuilder().AddInMemoryCollection(kv).Build().GetSection("Voxa");
+    }
+
+    /// <summary>The last few turns of a thread as model messages — bounded so a long thread stays
+    /// low-latency for voice, and never starting on an assistant turn.</summary>
+    private static IEnumerable<ChatMessage> VoiceContextTail(IReadOnlyList<ConversationMessage> messages)
+    {
+        const int max = 40;
+        var tail = messages.Count > max ? messages.Skip(messages.Count - max).ToList() : messages.ToList();
+        while (tail.Count > 0 && tail[0].Role == "assistant") tail.RemoveAt(0);
+        foreach (var m in tail)
+            yield return new ChatMessage(m.Role == "assistant" ? ChatRole.Assistant : ChatRole.User, m.Text);
+    }
+
+    private static string VoiceTitle(string userText)
+    {
+        var t = (userText ?? string.Empty).Trim().ReplaceLineEndings(" ");
+        if (t.Length == 0) return "Voice chat";
+        return t.Length > 60 ? t[..60].TrimEnd() + "…" : t;
     }
 }
