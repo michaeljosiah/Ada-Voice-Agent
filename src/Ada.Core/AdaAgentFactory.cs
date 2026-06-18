@@ -34,7 +34,11 @@ public static class AdaAgentFactory
             _ => new StubChatClient(),
         };
 
-        var tools = composed.Tools.ToList();
+        // AIO-first: when the sandbox is up, swap the host fs/shell tools for its own (briefly waiting
+        // for the background bring-up to settle so the voice agent starts with the right tools).
+        var sandbox = sp.GetService<SandboxSession>();
+        sandbox?.WaitUntilReady(TimeSpan.FromSeconds(20));
+        var tools = (sandbox?.ApplyTo(composed.Tools) ?? composed.Tools).ToList();
         return new ChatClientAgent(client, instructions: composed.Instructions, name: "Ada",
             tools: tools.Count > 0 ? tools : null);
     }

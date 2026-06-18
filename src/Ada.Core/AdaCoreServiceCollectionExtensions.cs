@@ -45,6 +45,7 @@ public static class AdaCoreServiceCollectionExtensions
         services.TryAddSingleton(_ => new UserModel());
         services.TryAddSingleton<ITurnContext>(sp => new MemoryContextProvider(sp.GetRequiredService<IMemoryStore>(), sp.GetRequiredService<UserModel>()));
         services.TryAddSingleton(BuildCompaction);
+        services.TryAddSingleton<SandboxSession>(); // the live work environment (AIO sandbox or host fallback)
 
         services.AddSingleton<IAdaEngine>(sp => BuildEngine(sp, options));
         services.TryAddSingleton<AIAgent>(AdaAgentFactory.Create); // the agent the voice plane drives
@@ -79,7 +80,12 @@ public static class AdaCoreServiceCollectionExtensions
         var skillRegistry = sp.GetService<SkillRegistry>();
         var composed = SkillComposer.Compose(sp.GetRequiredService<Persona>(), sp.GetServices<AITool>(), skillRegistry?.Enabled ?? []);
         var persona = new Persona(composed.Instructions);
-        var tools = composed.Tools;
+
+        // AIO-first: when the sandbox is up, swap the host fs/shell tools for its own. Wait briefly for
+        // the background bring-up to settle so the first turn already has the right tools.
+        var sandbox = sp.GetService<SandboxSession>();
+        sandbox?.WaitUntilReady(TimeSpan.FromSeconds(20));
+        var tools = sandbox?.ApplyTo(composed.Tools) ?? composed.Tools;
 
         var local = registry.CreateForRole(ModelRole.Default) ?? ModelClientFactory.Create(options);
         var cloud = registry.CreateForRole(ModelRole.Escalation);

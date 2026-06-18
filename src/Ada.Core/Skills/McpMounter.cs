@@ -14,15 +14,25 @@ public sealed class McpMounter(IApprovalHandler approval, IAuditLog audit) : IAs
 
     public async Task<IReadOnlyList<AITool>> MountAsync(McpMount mount, CancellationToken ct = default)
     {
-        if (mount.Transport != McpTransport.Stdio || string.IsNullOrWhiteSpace(mount.Command))
-            throw new NotSupportedException("Only stdio MCP mounts are supported in this build.");
-
-        var transport = new StdioClientTransport(new StdioClientTransportOptions
+        IClientTransport transport = mount.Transport switch
         {
-            Name = mount.Name,
-            Command = mount.Command,
-            Arguments = mount.Args?.ToArray(),
-        });
+            // A local server Ada launches as a child process (stdio framing).
+            McpTransport.Stdio when !string.IsNullOrWhiteSpace(mount.Command) => new StdioClientTransport(new StdioClientTransportOptions
+            {
+                Name = mount.Name,
+                Command = mount.Command!,
+                Arguments = mount.Args?.ToArray(),
+            }),
+            // An already-running server reached over HTTP — e.g. the AIO sandbox's /mcp on loopback.
+            // AutoDetect tries Streamable HTTP first, then falls back to SSE.
+            McpTransport.Http when !string.IsNullOrWhiteSpace(mount.Url) => new HttpClientTransport(new HttpClientTransportOptions
+            {
+                Name = mount.Name,
+                Endpoint = new Uri(mount.Url!),
+            }),
+            _ => throw new NotSupportedException(
+                $"MCP mount '{mount.Name}': {mount.Transport} transport needs a {(mount.Transport == McpTransport.Stdio ? "command" : "url")}."),
+        };
 
         var client = await McpClient.CreateAsync(transport, cancellationToken: ct).ConfigureAwait(false);
         _clients.Add(client);

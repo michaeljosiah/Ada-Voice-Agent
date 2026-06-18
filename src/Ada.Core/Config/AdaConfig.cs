@@ -37,6 +37,10 @@ public sealed class AdaConfig
     /// <summary>The downloaded ONNX model Ada uses as her local brain (e.g. "gemma-3-1b"), if any.</summary>
     public string? LocalModelId { get; set; }
 
+    /// <summary>Use the AIO sandbox (Docker) as Ada's work environment when available — the agent's own
+    /// browser, shell, code-exec and filesystem. Default on; falls back to host tools when it can't start.</summary>
+    public bool SandboxEnabled { get; set; } = true;
+
     // ---- Voice pipeline (Settings → Voice). All local; verified against the Voxa catalogs. ----
 
     /// <summary>WhisperCpp STT model, e.g. "base.en" / "tiny.en" / "small.en" (+ "-q5_1" quantised).</summary>

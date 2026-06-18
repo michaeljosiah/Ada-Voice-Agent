@@ -17,6 +17,9 @@ public sealed record UpdateConfigDto(string? Profile = null, bool? SetupComplete
 /// <summary>Body for <c>POST /api/providers</c> — connect a provider from the setup wizard.</summary>
 public sealed record AddProviderDto(string Id, string? Key = null, string? Endpoint = null, string? Model = null);
 
+/// <summary>Body for <c>POST /api/sandbox</c> — turn the AIO sandbox preference on/off.</summary>
+public sealed record SandboxToggleDto(bool? Enabled = null);
+
 /// <summary>
 /// Maps Ada's loopback HTTP surface: the chat UI at <c>/</c>, a health probe, the streaming
 /// <c>/api/chat</c> endpoint, and the approval channel (<c>/api/approvals/stream</c> +
@@ -121,6 +124,61 @@ public static class AdaApi
 
         app.MapGet("/api/jobs", (JobStore store) =>
             Results.Json(store.Load().Select(j => new { j.Name, j.Cron, delivery = j.Delivery.ToString(), j.Enabled })));
+
+        // The work environment: whether the AIO sandbox is up (and the agent is using its tools) or on
+        // the host fallback. Drives Settings → Workspace & sandbox.
+        app.MapGet("/api/sandbox", (SandboxSession session, ConfigStore config) => Results.Json(new
+        {
+            enabled = config.Load().SandboxEnabled,
+            active = session.Active,
+            mode = session.Mode,
+            endpoint = session.Endpoint,
+            workspace = session.Workspace,
+            toolCount = session.Tools.Count,
+        }));
+
+        // Turn the sandbox preference on/off. Persisted; the running agent's tools are fixed once it has
+        // started replying, so a change applies fully on Ada's next launch.
+        app.MapPost("/api/sandbox", (SandboxToggleDto dto, ConfigStore config) =>
+        {
+            var c = config.Load();
+            if (dto.Enabled is { } e) c.SandboxEnabled = e;
+            config.Save(c);
+            return Results.Json(new { enabled = c.SandboxEnabled });
+        });
+
+        // Set up the sandbox from Settings: pull the image (first run is large) + start the container with
+        // the workspace mounted, then mount its /mcp tools — streamed as SSE progress, mirroring Ollama setup.
+        app.MapPost("/api/sandbox/setup", async (HttpContext http, SandboxSession session, McpMounter mounter, CancellationToken ct) =>
+        {
+            http.Response.Headers.ContentType = "text/event-stream";
+            IProgress<string> progress = new Progress<string>(s =>
+                _ = http.Response.WriteAsync($"event: progress\ndata: {JsonSerializer.Serialize(s)}\n\n", ct));
+            try
+            {
+                if (session.Active) { await http.Response.WriteAsync("event: done\ndata: {}\n\n", ct); return; } // already up
+
+                var runtime = await AioSandboxRuntime.StartAsync(new AioSandboxOptions(), allowPull: true, progress, ct);
+                if (runtime is null)
+                {
+                    await http.Response.WriteAsync("event: error\ndata: \"Couldn't start the sandbox. Is Docker Desktop installed and running?\"\n\n", ct);
+                    return;
+                }
+
+                progress.Report("Connecting Ada's tools…");
+                var mount = new McpMount("sandbox", McpTransport.Http, Url: runtime.McpUrl, IsEgress: false, GateMutatingTools: false);
+                var tools = await mounter.MountAsync(mount, ct);
+                session.Activate(runtime.Endpoint, tools);
+
+                var store = new ConfigStore();
+                var c = store.Load(); c.SandboxEnabled = true; store.Save(c);
+                await http.Response.WriteAsync("event: done\ndata: {}\n\n", ct);
+            }
+            catch (Exception ex)
+            {
+                await http.Response.WriteAsync($"event: error\ndata: {JsonSerializer.Serialize(ex.Message)}\n\n", ct);
+            }
+        });
 
         // Set up the managed Ollama runtime from the wizard: detect-or-download, pull the model, and
         // make it the local runtime — streamed as SSE progress. Ollama is left running for the session.

@@ -273,7 +273,7 @@ const S = {
   view:'main', theme:'light', themeMode:'light', widget:'idle',
   config:null, onnxModels:[], catalog:[],
   profile:'Balanced', model:'ollama:gemma3:4b', cloudProvider:'', cloudKey:'',
-  section:'appearance', autostart:false,
+  section:'appearance', autostart:false, sandbox:null,
   wizStep:0, dl:{status:'idle',model:null,line:'',i:0,n:0},
 };
 
@@ -666,10 +666,10 @@ function refreshDl(){
 
 /* ---------- settings ---------- */
 const SET_GROUPS = [
-  { title:'Settings', items:[['appearance','Appearance'],['profile','Profile'],['model','Local model'],['voice','Voice'],['cloud','Cloud providers'],['startup','Startup'],['hotkeys','Hotkeys']] },
+  { title:'Settings', items:[['appearance','Appearance'],['profile','Profile'],['model','Local model'],['workspace','Workspace & sandbox'],['voice','Voice'],['cloud','Cloud providers'],['startup','Startup'],['hotkeys','Hotkeys']] },
   { title:'Coming soon', items:[['memory','Memory',1],['skills','Skills',1],['plugins','Plugins & MCP',1],['privacy','Privacy',1]] },
 ];
-const SET_TITLES = {appearance:'Appearance',profile:'Profile',model:'Local model',cloud:'Cloud providers',startup:'Startup',hotkeys:'Hotkeys',voice:'Voice & speech',memory:'Memory',skills:'Skills',plugins:'Plugins & MCP',privacy:'Privacy & permissions'};
+const SET_TITLES = {appearance:'Appearance',profile:'Profile',model:'Local model',workspace:'Workspace & sandbox',cloud:'Cloud providers',startup:'Startup',hotkeys:'Hotkeys',voice:'Voice & speech',memory:'Memory',skills:'Skills',plugins:'Plugins & MCP',privacy:'Privacy & permissions'};
 const SOON_DESC = {voice:"Choose Ada's spoken voice, speaking rate, and on-device TTS engine.",memory:'Control what Ada remembers about you across conversations.',skills:'Enable the tools and actions Ada is allowed to perform.',plugins:'Connect third-party plugins and Model Context Protocol servers.',privacy:'Manage microphone, screen, files and location permissions.'};
 function renderSettings(){
   const nav=$('#setnav'); nav.innerHTML='';
@@ -705,6 +705,8 @@ function renderSettingsBody(){
     h='<div class="fadeUp" style="max-width:560px"><div class="srow"><div class="st">Summon Ada</div><div style="display:flex;gap:6px"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>A</kbd></div></div><div class="srow"><div class="st">Start voice</div><div style="display:flex;gap:6px"><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>Space</kbd></div></div><div class="srow" style="border:none"><div class="st">Cancel / stop</div><div style="display:flex;gap:6px"><kbd>Esc</kbd></div></div></div>';
   } else if (sec==='voice'){
     h = voicePanelHTML();
+  } else if (sec==='workspace'){
+    h = sandboxPanelHTML();
   } else {
     const priv = sec==='privacy' ? '<div class="pill-note"><svg viewBox="0 0 24 24" fill="none" stroke="#055a60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><div><div style="font-size:14px;font-weight:600;color:var(--text)">Process audio on-device</div><div style="font-size:12.5px;color:var(--text-soft)">Your voice never leaves your machine.</div></div></div>' : '';
     h='<div class="fadeUp" style="max-width:520px">'+priv+'<div class="soonbox"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--text-mute)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:16px;font-weight:600;color:var(--text)">'+(SET_TITLES[sec]||'')+'</div><span class="soon" style="font-size:10px;padding:2px 8px">COMING SOON</span></div><div style="font-size:13.5px;line-height:1.55;color:var(--text-soft);max-width:340px">'+(SOON_DESC[sec]||'')+'</div></div></div>';
@@ -716,6 +718,7 @@ function renderSettingsBody(){
   if (sec==='cloud'){ b.querySelectorAll('[data-prov]').forEach(c=>c.onclick=()=>{ S.cloudProvider=c.dataset.prov; renderSettingsBody(); }); const k=$('#setKey'); if(k) k.oninput=()=>{S.cloudKey=k.value;}; if(k) k.onchange=async()=>{ if(S.cloudProvider) try{ await fetch('/api/providers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:S.cloudProvider,key:k.value||null})}); }catch(_){} }; }
   if (sec==='startup'){ const sw=$('#autoSw'); if(sw) sw.onclick=async()=>{ S.autostart=!S.autostart; sw.classList.toggle('on',S.autostart); try{ await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({autostart:S.autostart})}); }catch(_){} }; }
   if (sec==='voice') wireVoicePanel();
+  if (sec==='workspace') wireSandboxPanel();
 }
 
 /* ---------- voice settings panel (status + on-device model warmup) ---------- */
@@ -787,6 +790,61 @@ async function warmupVoice(){
   } catch(e){ if(st) st.textContent='Download failed: '+e; if(b) b.disabled=false; }
 }
 
+/* ---------- workspace & sandbox (AIO-first, host fallback) ---------- */
+async function loadSandboxStatus(){
+  try { const r = await fetch('/api/sandbox'); if(!r.ok) throw 0; S.sandbox = await r.json(); }
+  catch(_){ S.sandbox = { enabled:false, active:false, mode:'host', workspace:'' }; }
+  if (S.view==='settings' && S.section==='workspace') renderSettingsBody();
+}
+function sandboxPanelHTML(){
+  const s = S.sandbox;
+  if (!s) return '<div class="fadeUp muted">Checking workspace…</div>';
+  const dot = (c)=>'<span style="width:8px;height:8px;border-radius:50%;background:'+c+';display:inline-block"></span>';
+  const badge = s.active
+    ? '<span style="color:#3a9c3e;font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px">'+dot('#3a9c3e')+'Sandbox active'+(s.toolCount?' · '+s.toolCount+' tools':'')+'</span>'
+    : '<span style="color:var(--text-mute);font-size:13px;display:inline-flex;align-items:center;gap:6px">'+dot('var(--text-mute)')+'On your machine (host)</span>';
+  const folder = '<svg viewBox="0 0 24 24" fill="none" stroke="#055a60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+  const toggle = '<div class="srow"><div><div class="st">Prefer the AIO sandbox</div><div class="ss">Give Ada her own isolated browser, shell and code runtime. Falls back to your machine when it can\'t start.</div></div><div class="sw'+(s.enabled?' on':'')+'" id="sbxSw"><i></i></div></div>';
+  const setup = (!s.active && s.enabled)
+    ? '<button class="dlbtn" id="sbxSetup" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.3 7 12 12 20.7 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>Set up the sandbox · needs Docker</button>'
+    : '';
+  return '<div class="fadeUp" style="max-width:560px">'+
+    '<div class="pill-note">'+folder+'<div><div style="font-size:14px;font-weight:600;color:var(--text)">Your workspace</div><div style="font-size:12.5px;color:var(--text-soft);word-break:break-all">'+esc(s.workspace||'')+'</div></div></div>'+
+    '<div class="srow"><div class="st">Environment</div>'+badge+'</div>'+
+    toggle + setup +
+    '<div class="status" id="sbxStatus" style="margin-top:10px"></div>'+
+    '<div class="muted" style="margin-top:14px">When the sandbox is on, Ada works inside it and anything she saves lands in your workspace folder above. Her own settings, memory and secrets stay on your machine — never inside the sandbox. New tools take effect on Ada’s next launch.</div></div>';
+}
+function wireSandboxPanel(){
+  if (!S.sandbox){ loadSandboxStatus(); return; }
+  const sw=$('#sbxSw'); if(sw) sw.onclick=async()=>{
+    const en=!S.sandbox.enabled; sw.classList.toggle('on',en);
+    try { const r=await fetch('/api/sandbox',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:en})}); S.sandbox.enabled=(await r.json()).enabled; }
+    catch(_){ S.sandbox.enabled=en; }
+    renderSettingsBody();
+  };
+  const b=$('#sbxSetup'); if(b) b.onclick=setupSandbox;
+}
+async function setupSandbox(){
+  const st=$('#sbxStatus'), b=$('#sbxSetup'); if(b) b.disabled=true;
+  if(st) st.textContent='Starting… first run pulls the sandbox image (this is large).';
+  try {
+    const res=await fetch('/api/sandbox/setup',{method:'POST'}); const rd=res.body.getReader(); const dec=new TextDecoder(); let buf='',ev='';
+    while(true){ const {value,done}=await rd.read(); if(done) break; buf+=dec.decode(value,{stream:true}); let i;
+      while((i=buf.indexOf('\n\n'))>=0){ const frame=buf.slice(0,i); buf=buf.slice(i+2);
+        for(const line of frame.split('\n')){
+          if(line.startsWith('event:')) ev=line.slice(6).trim();
+          else if(line.startsWith('data:')){ const d=JSON.parse(line.slice(5).trim()||'{}');
+            if(ev==='progress' && st) st.textContent=(typeof d==='string'?d:'working…');
+            else if(ev==='done'){ if(st) st.textContent='Sandbox ready ✓'; await loadSandboxStatus(); }
+            else if(ev==='error'){ if(st) st.textContent='Setup failed: '+d; if(b) b.disabled=false; }
+          }
+        }
+      }
+    }
+  } catch(e){ if(st) st.textContent='Setup failed: '+e; if(b) b.disabled=false; }
+}
+
 /* ---------- global keys ---------- */
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape'){
@@ -806,6 +864,7 @@ document.addEventListener('keydown', e => {
     if (cfg.catalog) S.catalog = cfg.catalog;
     try { const mj = await (await fetch('/api/models')).json(); S.onnxModels = mj.models||[]; } catch(_){}
     loadVoiceStatus();
+    loadSandboxStatus();
     setView(cfg.setupComplete ? 'main' : 'wizard');
   } catch(_){ setView('main'); setWidget('idle'); }
 })();

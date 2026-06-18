@@ -39,13 +39,15 @@ public sealed class ScopePolicy : IScopePolicy
     public IReadOnlyList<string> AllowedRoots => _allowed;
 
     /// <summary>The shippable default: write only inside the Ada workspace and Downloads; never write
-    /// to Windows or Program Files; never read or write Ada's own secrets vault.</summary>
+    /// to Windows or Program Files; never read or write Ada's own secrets vault. The workspace is
+    /// <c>%APPDATA%\Ada\workspace</c> — the same folder bind-mounted into the AIO sandbox — created
+    /// here so the allowed root always exists.</summary>
     public static ScopePolicy Default()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var allowed = new[]
         {
-            Path.Combine(home, "Projects", "Ada"),
+            AdaPaths.EnsureWorkspaceDir(),
             Path.Combine(home, "Downloads"),
         };
         var writeDenied = new[]

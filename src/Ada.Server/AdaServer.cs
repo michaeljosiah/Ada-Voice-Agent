@@ -53,6 +53,9 @@ public static class AdaServer
         builder.Services.AddSingleton<IApprovalHandler>(sp => sp.GetRequiredService<InteractiveApprovalHandler>());
         builder.Services.AddAda();
 
+        // Bring the AIO sandbox up in the background and mount its /mcp tools (host fallback if absent).
+        builder.Services.AddHostedService<SandboxHostedService>();
+
         var voiceReady = false;
         if (options.Voice)
         {
