@@ -523,6 +523,7 @@ function micLoop(){
   voice.raf=requestAnimationFrame(micLoop);
 }
 window.adaToggleVoice = () => { voice ? stopVoice() : startVoice(); };
+window.adaStopVoice = () => { if (voice) stopVoice(); };   // host calls this when Voice mode takes over
 window.adaShowView = (v) => {
   if (v === 'main' && S.config && S.config.setupComplete === false) { setView('wizard'); return; }
   if (v === 'main' || v === 'settings' || v === 'wizard') setView(v);

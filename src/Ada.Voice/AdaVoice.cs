@@ -72,6 +72,7 @@ public static class AdaVoice
                 .UseSilenceGate()
                 .UseSpeechToText(() => WhisperCppDescriptors.Stt.CreateProcessor(sp, voxaCfg))
                 .UseTranscriptionFilter()
+                .UseProcessor(() => new BlankTranscriptionFilter())   // drop [BLANK_AUDIO] etc. before the agent
                 .UseMicrosoftAgent(agent)
                 .UseSentenceAggregator()
                 .UseTextToSpeech(() => tts.CreateProcessor(sp, voxaCfg));

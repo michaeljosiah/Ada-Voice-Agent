@@ -111,6 +111,9 @@ internal sealed class MainForm : Form
     /// <summary>Toggle Voice Mode in the WebView2 page (push-to-talk hotkey / tray "Voice mode").</summary>
     public void ToggleVoice() => RunOrQueue("window.adaToggleVoice && window.adaToggleVoice();");
 
+    /// <summary>Stop the in-chat mic (the compact Voice mode window takes over voice).</summary>
+    public void StopVoice() => RunOrQueue("window.adaStopVoice && window.adaStopVoice();");
+
     /// <summary>Open the Settings surface in the page (tray "Settings" item).</summary>
     public void ShowSettings() => RunOrQueue("window.adaShowView && window.adaShowView('settings');");
 

@@ -76,6 +76,10 @@ internal sealed class AdaApplicationContext : ApplicationContext
 
     private void ShowVoice()
     {
+        // Voice mode owns the mic — silence and hide the main chat so two assistants can't both reply.
+        _form?.StopVoice();
+        _form?.Hide();
+
         var fresh = _voice is null;
         _voice ??= CreateVoiceForm();
         if (_voice.WindowState == FormWindowState.Minimized) _voice.WindowState = FormWindowState.Normal;
