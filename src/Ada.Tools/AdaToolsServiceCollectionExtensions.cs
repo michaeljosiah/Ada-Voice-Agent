@@ -31,6 +31,7 @@ public static class AdaToolsServiceCollectionExtensions
         services.TryAddSingleton<ImageProvisioner>(); // downloads/keeps run_code's Docker runtime images
         services.TryAddSingleton<ContainerCodeSandbox>(); // the container zone (Docker) backing run_code
         services.TryAddSingleton<CodeTools>();
+        services.TryAddSingleton<SkillTools>(); // gated install of a workspace-authored skill into the skills dir
 
         // Skills (spec §7.3) and the MCP mounter (§7.4).
         services.AddSingleton<ISkill, ResearchSkill>();
@@ -50,6 +51,7 @@ public static class AdaToolsServiceCollectionExtensions
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<ScheduleTools>().ScheduleJob, "schedule_job"));
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<ScheduleTools>().ListJobs, "list_jobs"));
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<CodeTools>().RunCode, "run_code"));
+        services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<SkillTools>().InstallSkill, "install_skill"));
 
         return services;
     }

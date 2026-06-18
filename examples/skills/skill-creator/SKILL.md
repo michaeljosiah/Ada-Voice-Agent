@@ -3,6 +3,8 @@ name: skill-creator
 description: Create new skills, modify and improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, edit, or optimize an existing skill, run evals to test a skill, benchmark skill performance with variance analysis, or optimize a skill's description for better triggering accuracy.
 ---
 
+> **Running under Ada.** Author the skill folder inside Ada's **workspace** (her writable area) — `%APPDATA%\Ada\workspace\<skill-name>\`, not the skills folder, which is read-only to her by design. When the skill is ready, **offer to install it with the `install_skill` tool**: pass it the workspace folder path; Ada will ask the user to approve, validate the skill, and copy it into the skills folder so it's available on the next launch. (The eval/benchmark scripts here assume a `claude` CLI and won't run as-is under Ada — focus on authoring, packaging, and installing, and treat the evaluation loop as optional guidance.)
+
 # Skill Creator
 
 A skill for creating new skills and iteratively improving them.
