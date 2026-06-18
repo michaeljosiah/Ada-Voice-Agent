@@ -3,6 +3,8 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- MAAI001: Microsoft Agent Framework's Agent Skills API is marked [Experimental]. We opt in deliberately. -->
+    <NoWarn>$(NoWarn);MAAI001</NoWarn>
     <Authors>Michael Josiah</Authors>
     <Product>Ada</Product>
     <Copyright>Copyright (c) 2026 Michael Josiah</Copyright>

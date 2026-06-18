@@ -8,7 +8,8 @@ public sealed record AioSandboxOptions(
     string Image = "ghcr.io/agent-infra/sandbox:latest",
     string ContainerName = "ada-sandbox",
     int Port = 8080,
-    string ContainerWorkspace = "/home/gem/workspace");
+    string ContainerWorkspace = "/home/gem/workspace",
+    string ContainerSkillsDir = "/home/gem/skills");
 
 /// <summary>
 /// Manages the AIO Sandbox (<c>agent-infra/sandbox</c>) as Ada's preferred work environment: a Docker
@@ -90,8 +91,10 @@ public sealed class AioSandboxRuntime : IAsyncDisposable
 
             progress?.Report("Starting the sandbox…");
             // Bind-mount the host workspace into the container and tell the sandbox to treat it as the
-            // workspace root. Forward slashes keep Docker Desktop happy with the Windows source path.
+            // workspace root. Skills are mounted read-only so a skill's bundled scripts can run inside the
+            // sandbox without being writable. Forward slashes keep Docker Desktop happy with Windows paths.
             var host = AdaPaths.EnsureWorkspaceDir().Replace('\\', '/');
+            var skills = AdaPaths.EnsureSkillsDir().Replace('\\', '/');
             string[] run =
             [
                 "run", "-d",
@@ -100,6 +103,7 @@ public sealed class AioSandboxRuntime : IAsyncDisposable
                 "-p", $"{options.Port}:8080",
                 "-e", $"WORKSPACE={options.ContainerWorkspace}",
                 "-v", $"{host}:{options.ContainerWorkspace}",
+                "-v", $"{skills}:{options.ContainerSkillsDir}:ro",
                 options.Image,
             ];
             if (!await RunDockerSucceedsAsync(run, ct, TimeSpan.FromMinutes(2))) return null;

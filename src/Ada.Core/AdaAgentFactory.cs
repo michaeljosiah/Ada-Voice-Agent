@@ -38,8 +38,11 @@ public static class AdaAgentFactory
         // for the background bring-up to settle so the voice agent starts with the right tools).
         var sandbox = sp.GetService<SandboxSession>();
         sandbox?.WaitUntilReady(TimeSpan.FromSeconds(20));
-        var tools = (sandbox?.ApplyTo(composed.Tools) ?? composed.Tools).ToList();
-        return new ChatClientAgent(client, instructions: composed.Instructions, name: "Ada",
-            tools: tools.Count > 0 ? tools : null);
+        var tools = sandbox?.ApplyTo(composed.Tools) ?? composed.Tools;
+
+        // File-based skills (MAF), with their bundled scripts run in the sandbox. Attached only when
+        // at least one skill exists, so the skill tools stay off the surface otherwise.
+        var skillsProvider = sandbox is not null ? AdaSkills.BuildProvider(sandbox) : null;
+        return AdaAgentBuilder.Build(client, composed.Instructions, tools, skillsProvider);
     }
 }

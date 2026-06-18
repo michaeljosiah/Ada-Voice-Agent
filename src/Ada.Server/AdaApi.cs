@@ -125,6 +125,22 @@ public static class AdaApi
         app.MapGet("/api/jobs", (JobStore store) =>
             Results.Json(store.Load().Select(j => new { j.Name, j.Cron, delivery = j.Delivery.ToString(), j.Enabled })));
 
+        // File-based skills (MAF) discovered under %APPDATA%\Ada\skills. Drives Settings → Skills.
+        app.MapGet("/api/skills", (SandboxSession session) => Results.Json(new
+        {
+            dir = AdaPaths.SkillsDir,
+            sandboxActive = session.Active,   // bundled scripts run only inside the sandbox
+            skills = AdaSkills.List().Select(s => new { s.Name, s.Description, s.Compatibility, s.HasScripts }),
+        }));
+
+        // Open the skills folder in Explorer so the user can drop a skill in. Local + same machine.
+        app.MapPost("/api/skills/open", () =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AdaPaths.EnsureSkillsDir()) { UseShellExecute = true }); }
+            catch { /* best effort */ }
+            return Results.Ok();
+        });
+
         // The work environment: whether the AIO sandbox is up (and the agent is using its tools) or on
         // the host fallback. Drives Settings → Workspace & sandbox.
         app.MapGet("/api/sandbox", (SandboxSession session, ConfigStore config) => Results.Json(new

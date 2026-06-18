@@ -31,6 +31,20 @@ public static class AdaPaths
         return WorkspaceDir;
     }
 
+    /// <summary>
+    /// Where file-based skills live — one folder per skill (a <c>SKILL.md</c> plus optional
+    /// <c>scripts/</c>, <c>references/</c>, <c>assets/</c>), per the agentskills.io spec. Mounted
+    /// read-only into the AIO sandbox so a skill's bundled scripts can run there.
+    /// </summary>
+    public static string SkillsDir { get; } = Path.Combine(DataDir, "skills");
+
+    /// <summary>Ensures the skills folder exists and returns it.</summary>
+    public static string EnsureSkillsDir()
+    {
+        Directory.CreateDirectory(SkillsDir);
+        return SkillsDir;
+    }
+
     /// <summary>The editable persona / system-prompt file.</summary>
     public static string PersonaFile => Path.Combine(DataDir, "ADA.md");
 }

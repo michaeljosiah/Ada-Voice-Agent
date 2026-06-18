@@ -26,7 +26,8 @@ public sealed class AgentEngine : IAdaEngine
         string route = "local",
         IEnumerable<AITool>? tools = null,
         ITurnContext? memory = null,
-        ICompactionStrategy? compaction = null)
+        ICompactionStrategy? compaction = null,
+        AgentSkillsProvider? skills = null)
     {
         ArgumentNullException.ThrowIfNull(chatClient);
         ArgumentNullException.ThrowIfNull(persona);
@@ -36,9 +37,7 @@ public sealed class AgentEngine : IAdaEngine
         _memory = memory;
         _compaction = compaction ?? new NoCompaction();
 
-        var toolList = tools?.ToList();
-        _agent = new ChatClientAgent(chatClient, instructions: persona.Instructions, name: "Ada",
-            tools: toolList is { Count: > 0 } ? toolList : null);
+        _agent = AdaAgentBuilder.Build(chatClient, persona.Instructions, tools?.ToList() ?? [], skills);
     }
 
     /// <summary>The running history length — exposed so compaction behaviour is observable in tests.</summary>

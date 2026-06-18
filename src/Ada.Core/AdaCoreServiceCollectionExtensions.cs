@@ -87,6 +87,9 @@ public static class AdaCoreServiceCollectionExtensions
         sandbox?.WaitUntilReady(TimeSpan.FromSeconds(20));
         var tools = sandbox?.ApplyTo(composed.Tools) ?? composed.Tools;
 
+        // File-based skills (MAF), bundled scripts run in the sandbox; null when no skills exist yet.
+        var skills = sandbox is not null ? AdaSkills.BuildProvider(sandbox) : null;
+
         var local = registry.CreateForRole(ModelRole.Default) ?? ModelClientFactory.Create(options);
         var cloud = registry.CreateForRole(ModelRole.Escalation);
 
@@ -99,11 +102,11 @@ public static class AdaCoreServiceCollectionExtensions
             var escalationId = registry.ForRole(ModelRole.Escalation)!.Id;
             var policy = new RoutingPolicy(hasEscalation: true, stayLocal, localLabel: "local", escalationLabel: escalationId);
             var hybrid = new HybridChatClient(local, cloud, policy, audit);
-            return new AgentEngine(hybrid, persona, tools: tools, memory: memory, compaction: compaction);
+            return new AgentEngine(hybrid, persona, tools: tools, memory: memory, compaction: compaction, skills: skills);
         }
 
         var single = local ?? cloud!;
         var route = local is not null ? "local" : registry.ForRole(ModelRole.Escalation)!.Id;
-        return new AgentEngine(single, persona, route, tools, memory, compaction);
+        return new AgentEngine(single, persona, route, tools, memory, compaction, skills);
     }
 }

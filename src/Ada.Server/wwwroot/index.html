@@ -273,7 +273,7 @@ const S = {
   view:'main', theme:'light', themeMode:'light', widget:'idle',
   config:null, onnxModels:[], catalog:[],
   profile:'Balanced', model:'ollama:gemma3:4b', cloudProvider:'', cloudKey:'',
-  section:'appearance', autostart:false, sandbox:null,
+  section:'appearance', autostart:false, sandbox:null, skills:null,
   wizStep:0, dl:{status:'idle',model:null,line:'',i:0,n:0},
 };
 
@@ -666,8 +666,8 @@ function refreshDl(){
 
 /* ---------- settings ---------- */
 const SET_GROUPS = [
-  { title:'Settings', items:[['appearance','Appearance'],['profile','Profile'],['model','Local model'],['workspace','Workspace & sandbox'],['voice','Voice'],['cloud','Cloud providers'],['startup','Startup'],['hotkeys','Hotkeys']] },
-  { title:'Coming soon', items:[['memory','Memory',1],['skills','Skills',1],['plugins','Plugins & MCP',1],['privacy','Privacy',1]] },
+  { title:'Settings', items:[['appearance','Appearance'],['profile','Profile'],['model','Local model'],['workspace','Workspace & sandbox'],['skills','Skills'],['voice','Voice'],['cloud','Cloud providers'],['startup','Startup'],['hotkeys','Hotkeys']] },
+  { title:'Coming soon', items:[['memory','Memory',1],['plugins','Plugins & MCP',1],['privacy','Privacy',1]] },
 ];
 const SET_TITLES = {appearance:'Appearance',profile:'Profile',model:'Local model',workspace:'Workspace & sandbox',cloud:'Cloud providers',startup:'Startup',hotkeys:'Hotkeys',voice:'Voice & speech',memory:'Memory',skills:'Skills',plugins:'Plugins & MCP',privacy:'Privacy & permissions'};
 const SOON_DESC = {voice:"Choose Ada's spoken voice, speaking rate, and on-device TTS engine.",memory:'Control what Ada remembers about you across conversations.',skills:'Enable the tools and actions Ada is allowed to perform.',plugins:'Connect third-party plugins and Model Context Protocol servers.',privacy:'Manage microphone, screen, files and location permissions.'};
@@ -707,6 +707,8 @@ function renderSettingsBody(){
     h = voicePanelHTML();
   } else if (sec==='workspace'){
     h = sandboxPanelHTML();
+  } else if (sec==='skills'){
+    h = skillsPanelHTML();
   } else {
     const priv = sec==='privacy' ? '<div class="pill-note"><svg viewBox="0 0 24 24" fill="none" stroke="#055a60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><div><div style="font-size:14px;font-weight:600;color:var(--text)">Process audio on-device</div><div style="font-size:12.5px;color:var(--text-soft)">Your voice never leaves your machine.</div></div></div>' : '';
     h='<div class="fadeUp" style="max-width:520px">'+priv+'<div class="soonbox"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--text-mute)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="font-size:16px;font-weight:600;color:var(--text)">'+(SET_TITLES[sec]||'')+'</div><span class="soon" style="font-size:10px;padding:2px 8px">COMING SOON</span></div><div style="font-size:13.5px;line-height:1.55;color:var(--text-soft);max-width:340px">'+(SOON_DESC[sec]||'')+'</div></div></div>';
@@ -719,6 +721,7 @@ function renderSettingsBody(){
   if (sec==='startup'){ const sw=$('#autoSw'); if(sw) sw.onclick=async()=>{ S.autostart=!S.autostart; sw.classList.toggle('on',S.autostart); try{ await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({autostart:S.autostart})}); }catch(_){} }; }
   if (sec==='voice') wireVoicePanel();
   if (sec==='workspace') wireSandboxPanel();
+  if (sec==='skills') wireSkillsPanel();
 }
 
 /* ---------- voice settings panel (status + on-device model warmup) ---------- */
@@ -845,6 +848,37 @@ async function setupSandbox(){
   } catch(e){ if(st) st.textContent='Setup failed: '+e; if(b) b.disabled=false; }
 }
 
+/* ---------- skills (file-based, MAF) ---------- */
+async function loadSkills(){
+  try { const r=await fetch('/api/skills'); if(!r.ok) throw 0; S.skills=await r.json(); }
+  catch(_){ S.skills={dir:'',sandboxActive:false,skills:[]}; }
+  if (S.view==='settings' && S.section==='skills') renderSettingsBody();
+}
+function skillsPanelHTML(){
+  const s=S.skills;
+  if(!s) return '<div class="fadeUp muted">Checking skills…</div>';
+  const book='<svg viewBox="0 0 24 24" fill="none" stroke="#055a60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>';
+  const chip=(t)=>'<span style="font-size:11px;font-weight:600;color:var(--text-soft);background:var(--surface-2,rgba(0,0,0,.05));border-radius:6px;padding:2px 8px;white-space:nowrap">'+esc(t)+'</span>';
+  const list=(s.skills||[]).map(k=>{
+    const badges=[]; if(k.hasScripts) badges.push(chip('scripts')); if(k.compatibility) badges.push(chip(k.compatibility));
+    return '<div class="srow"><div style="flex:1"><div class="st">'+esc(k.name)+'</div><div class="ss">'+esc(k.description||'')+'</div></div><div style="display:flex;gap:6px;align-items:center">'+badges.join('')+'</div></div>';
+  }).join('');
+  const empty='<div class="muted" style="margin:14px 0">No skills yet. Drop a skill folder — a <b>SKILL.md</b> plus optional <b>scripts/</b> — into the folder below, then relaunch Ada.</div>';
+  const runner=s.sandboxActive
+    ? '<span style="color:#3a9c3e;font-weight:600;font-size:13px">Runs in the sandbox</span>'
+    : '<span style="color:var(--text-mute);font-size:13px">Needs the sandbox — turn it on in Workspace &amp; sandbox</span>';
+  return '<div class="fadeUp" style="max-width:560px">'+
+    '<div class="pill-note">'+book+'<div><div style="font-size:14px;font-weight:600;color:var(--text)">Skills folder</div><div style="font-size:12.5px;color:var(--text-soft);word-break:break-all">'+esc(s.dir||'')+'</div></div></div>'+
+    '<div class="srow"><div class="st">Bundled scripts</div>'+runner+'</div>'+
+    ((s.skills&&s.skills.length)?list:empty)+
+    '<button class="dlbtn" id="skillsOpen" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Open skills folder</button>'+
+    '<div class="muted" style="margin-top:14px">A skill is a portable folder: a <b>SKILL.md</b> (instructions Ada loads on demand) plus optional <b>scripts/</b> (Python, executed in the sandbox), <b>references/</b> and <b>assets/</b>. Built-in skills (research, desktop) are always on.</div></div>';
+}
+function wireSkillsPanel(){
+  if(!S.skills){ loadSkills(); return; }
+  const b=$('#skillsOpen'); if(b) b.onclick=async()=>{ try{ await fetch('/api/skills/open',{method:'POST'}); }catch(_){} };
+}
+
 /* ---------- global keys ---------- */
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape'){
@@ -865,6 +899,7 @@ document.addEventListener('keydown', e => {
     try { const mj = await (await fetch('/api/models')).json(); S.onnxModels = mj.models||[]; } catch(_){}
     loadVoiceStatus();
     loadSandboxStatus();
+    loadSkills();
     setView(cfg.setupComplete ? 'main' : 'wizard');
   } catch(_){ setView('main'); setWidget('idle'); }
 })();
