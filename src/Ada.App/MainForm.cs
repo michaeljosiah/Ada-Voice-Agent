@@ -25,8 +25,8 @@ internal sealed class MainForm : Form
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
         var wa = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 720);
-        Size = new Size(Math.Min(1120, wa.Width - 80), Math.Min(760, wa.Height - 80));
-        MinimumSize = new Size(720, 560);
+        Size = new Size(Math.Min(1320, wa.Width - 80), Math.Min(880, wa.Height - 80));
+        MinimumSize = new Size(960, 620);
         ShowInTaskbar = false;
         TopMost = true;
         BackColor = Color.FromArgb(0xFB, 0xF7, 0xEF);

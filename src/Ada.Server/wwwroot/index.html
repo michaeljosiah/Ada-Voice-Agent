@@ -59,7 +59,7 @@
   #body{flex:1;min-height:0;display:flex;flex-direction:column;position:relative;}
   .view{flex:1;min-height:0;display:none;flex-direction:column;}
   .view.on{display:flex;}
-  .wizrow,.setrow{flex-direction:row;}
+  .wizrow,.setrow,.mainrow{flex-direction:row;}
 
   /* main — transcript */
   #log{flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;padding:26px 28px 8px;display:flex;flex-direction:column;gap:18px;}
@@ -84,6 +84,13 @@
   .appr button{height:38px;padding:0 16px;border-radius:9px;font-size:13.5px;font-weight:600;border:1.5px solid var(--border);background:var(--surface);color:var(--text-soft);}
   .appr .ok{border:none;background:var(--teal);color:#fff;}
   .appr .no{border-color:#f0c8bb;color:#cc2e2e;}
+  .appr.low{border-color:var(--border);}
+  .appr.high{border-color:#d98b78;border-width:2px;box-shadow:0 0 0 3px rgba(204,46,46,.07),var(--shadow-card);}
+  .appr.high .top svg{stroke:#cc2e2e;}
+  .appr .tier.low{background:rgba(5,90,96,.12);color:#055a60;}
+  .appr .tier.high{background:#cc2e2e;color:#fff;}
+  .appr.high .ok{background:#cc2e2e;}
+  .appr .warn{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:#cc2e2e;margin:-3px 0 11px;}
 
   /* command bar */
   .cbar-wrap{flex:0 0 auto;padding:14px 28px 24px;}
@@ -222,11 +229,17 @@
 
   <div id="body">
     <!-- MAIN -->
-    <div class="view" id="view-main">
-      <div id="log"></div>
-      <div class="cbar-wrap">
-        <div class="cbar-center" id="cbar"></div>
-        <div class="hint">Press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>Space</kbd> for voice · <kbd>Esc</kbd> to stop · Ada asks before she acts</div>
+    <div class="view mainrow" id="view-main">
+      <aside class="chat-side" id="chatSide">
+        <div class="cs-top"><button class="cs-new" id="csNew"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 5v14M5 12h14"/></svg>New chat</button></div>
+        <div class="cs-list" id="csList"></div>
+      </aside>
+      <div class="chat-col">
+        <div id="log"></div>
+        <div class="cbar-wrap">
+          <div class="cbar-center" id="cbar"></div>
+          <div class="hint">Press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>Space</kbd> for voice · <kbd>Esc</kbd> to stop · Ada asks before she acts</div>
+        </div>
       </div>
     </div>
 
@@ -264,25 +277,29 @@
       </div>
     </div>
   </div>
-  <div id="threadsDrawer" class="threads-drawer" style="display:none"></div>
 </div>
 
 <style>
-.threads-drawer{position:fixed;top:56px;right:16px;width:330px;max-height:72vh;overflow-y:auto;background:var(--surface,#fff);color:var(--text,#1a1a1a);border:1px solid var(--line,rgba(0,0,0,.12));border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.22);z-index:60}
-[data-theme="dark"] .threads-drawer{background:var(--surface,#1c1f24);border-color:rgba(255,255,255,.12)}
-.thread-head{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line,rgba(0,0,0,.08));position:sticky;top:0;background:inherit;font-weight:600;font-size:13px;border-radius:14px 14px 0 0}
-.thread-head button{font:inherit;font-weight:600;border:none;background:none;color:#0a7c84;cursor:pointer}
-.thread-list{padding:6px}
-.thread-row{display:flex;align-items:center;gap:6px;padding:9px 10px;border-radius:9px;cursor:pointer}
-.thread-row:hover{background:rgba(127,127,127,.12)}
-.thread-row.on{background:rgba(10,124,132,.14)}
-.thread-main{flex:1;min-width:0}
-.thread-title{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.thread-meta{font-size:11.5px;color:var(--text-mute,#8a8a8a);margin-top:1px}
-.thread-del{border:none;background:none;color:var(--text-mute,#9a9a9a);cursor:pointer;font-size:18px;line-height:1;padding:0 4px;opacity:0}
-.thread-row:hover .thread-del{opacity:.8}
-.thread-del:hover{opacity:1;color:#c0392b}
-.thread-empty{padding:22px;color:var(--text-mute,#8a8a8a);text-align:center;font-size:13px}
+/* chat history sidebar (full chat) */
+.chat-side{width:264px;flex:0 0 264px;display:flex;flex-direction:column;background:var(--surface-2);border-right:1px solid var(--border-soft);transition:flex-basis .18s ease;overflow:hidden;}
+.chat-side.collapsed{flex-basis:0;width:0;border-right:none;}
+.chat-col{flex:1;min-width:0;display:flex;flex-direction:column;}
+.cs-top{padding:12px 12px 8px;flex:0 0 auto;}
+.cs-new{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;border:1px solid var(--field-border);background:var(--field);color:var(--text);border-radius:10px;font-size:13.5px;font-weight:600;white-space:nowrap;}
+.cs-new:hover{background:var(--surface-3);}
+.cs-hd{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--text-mute);padding:4px 14px 6px;}
+.cs-list{flex:1;min-height:0;overflow-y:auto;padding:0 8px 12px;}
+.cs-row{display:flex;align-items:center;gap:6px;padding:9px 10px;border-radius:9px;cursor:pointer;}
+.cs-row:hover{background:rgba(127,127,127,.10);}
+.cs-row.on{background:rgba(5,90,96,.14);}
+[data-theme="dark"] .cs-row.on{background:rgba(10,124,132,.22);}
+.cs-main{flex:1;min-width:0;}
+.cs-title{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);}
+.cs-meta{font-size:11px;color:var(--text-mute);margin-top:1px;}
+.cs-del{border:none;background:none;color:var(--text-mute);cursor:pointer;font-size:17px;line-height:1;padding:0 5px;opacity:0;border-radius:6px;}
+.cs-row:hover .cs-del{opacity:.7;}
+.cs-del:hover{opacity:1;color:#c0392b;background:rgba(192,57,43,.1);}
+.cs-empty{padding:22px 14px;color:var(--text-mute);text-align:center;font-size:12.5px;}
 </style>
 <script>
 const $ = (s, r=document) => r.querySelector(s);
@@ -320,7 +337,6 @@ function setView(v){
   const onMain = v==='main';
   $('#newChatBtn').style.display = onMain ? '' : 'none';
   $('#histBtn').style.display = onMain ? '' : 'none';
-  if (!onMain) toggleThreads(false);
   if (v==='main' && !$('#cbar').firstChild) setWidget('idle');
   if (v==='wizard') renderWizard();
   if (v==='settings') renderSettings();
@@ -408,21 +424,20 @@ async function loadThreads(){
   renderThreads();
 }
 function renderThreads(){
-  const d=$('#threadsDrawer'); if(!d) return;
+  const d=$('#csList'); if(!d) return;
   const items=(S.threads||[]).map(t=>{
     const on=t.id===S.threadId?' on':'', n=t.messageCount;
-    return '<div class="thread-row'+on+'"><div class="thread-main" data-open="'+t.id+'"><div class="thread-title">'+esc(t.title||'New chat')+'</div><div class="thread-meta">'+esc(relTime(t.updatedAt))+' · '+n+' msg'+(n===1?'':'s')+'</div></div><button class="thread-del" data-del="'+t.id+'" title="Delete">×</button></div>';
-  }).join('') || '<div class="thread-empty">No conversations yet.</div>';
-  d.innerHTML='<div class="thread-head"><span>History</span><button id="threadsNew">+ New chat</button></div><div class="thread-list">'+items+'</div>';
-  $('#threadsNew').onclick=()=>{ newChat(); toggleThreads(false); };
-  d.querySelectorAll('[data-open]').forEach(e=>e.onclick=()=>{ openThread(e.dataset.open); toggleThreads(false); });
+    return '<div class="cs-row'+on+'"><div class="cs-main" data-open="'+t.id+'"><div class="cs-title">'+esc(t.title||'New chat')+'</div><div class="cs-meta">'+esc(relTime(t.updatedAt))+' · '+n+' msg'+(n===1?'':'s')+'</div></div><button class="cs-del" data-del="'+t.id+'" title="Delete chat">×</button></div>';
+  }).join('') || '<div class="cs-empty">No conversations yet.</div>';
+  d.innerHTML='<div class="cs-hd">Recent chats</div>'+items;
+  d.querySelectorAll('[data-open]').forEach(e=>e.onclick=()=>openThread(e.dataset.open));
   d.querySelectorAll('[data-del]').forEach(e=>e.onclick=async(ev)=>{ ev.stopPropagation(); await deleteThread(e.dataset.del); });
 }
 function toggleThreads(show){
-  const d=$('#threadsDrawer'); if(!d) return;
-  const open = show===undefined ? d.style.display==='none' : show;
-  if(open) renderThreads();
-  d.style.display = open ? 'block' : 'none';
+  const s=$('#chatSide'); if(!s) return;
+  const collapse = show===undefined ? !s.classList.contains('collapsed') : !show;
+  s.classList.toggle('collapsed', collapse);
+  try{ localStorage.setItem('adaSideCollapsed', collapse?'1':'0'); }catch(_){}
 }
 function newChat(){ S.threadId=null; emptyState(); renderThreads(); }
 async function openThread(id){
@@ -443,24 +458,33 @@ async function deleteThread(id){
   await loadThreads();
 }
 $('#newChatBtn').onclick=()=>newChat();
+$('#csNew').onclick=()=>newChat();
 $('#histBtn').onclick=()=>toggleThreads();
-document.addEventListener('click', e=>{
-  const d=$('#threadsDrawer'); if(!d || d.style.display==='none') return;
-  if(!d.contains(e.target) && !(e.target.closest && e.target.closest('#histBtn'))) toggleThreads(false);
-});
+try{ if(localStorage.getItem('adaSideCollapsed')==='1') $('#chatSide').classList.add('collapsed'); }catch(_){}
 
 /* ---------- approvals (SSE) ---------- */
 function approvalCard(a){
+  if(S.view!=='main') setView('main');   // an approval blocks the agent — always surface it
   clearEmpty();
-  const c=document.createElement('div'); c.className='appr fadeUp';
+  const tier=(a.tier||'').toLowerCase();
+  const cls = tier==='high'?'high' : tier==='low'?'low' : 'med';
+  const label = tier==='high'?'High risk' : tier==='medium'?'Medium risk' : tier==='low'?'Low risk' : esc(a.tier);
+  // High-risk actions are never auto-approved, so don't offer a session grant for them.
+  const sessionBtn = cls==='high' ? '' : '<button>Approve for session</button>';
+  const warn = cls==='high'
+    ? '<div class="warn"><svg viewBox="0 0 24 24" fill="none" stroke="#cc2e2e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>High-risk action — read the details before approving.</div>'
+    : '';
+  const c=document.createElement('div'); c.className='appr '+cls+' fadeUp';
   c.innerHTML =
     '<div class="top"><svg viewBox="0 0 24 24" fill="none" stroke="#eb5c37" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>'+
-    '<span class="sm">'+esc(a.summary)+'</span><span class="tier">'+esc(a.tier)+'</span></div>'+
+    '<span class="sm">'+esc(a.summary)+'</span><span class="tier '+cls+'">'+label+'</span></div>'+
+    warn +
     '<div class="det">'+esc(a.detail)+'</div>'+
-    '<div class="row"><button class="ok">Approve</button><button>Approve for session</button><button class="no">Deny</button></div>';
-  const [ok,sess,no]=c.querySelectorAll('button');
+    '<div class="row"><button class="ok">Approve</button>'+sessionBtn+'<button class="no">Deny</button></div>';
+  const btns=c.querySelectorAll('button');
+  const ok=btns[0], no=btns[btns.length-1], sess=btns.length===3?btns[1]:null;
   const decide=(approved,session)=>{ fetch('/api/approvals/'+a.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approved,session})}); c.remove(); };
-  ok.onclick=()=>decide(true,false); sess.onclick=()=>decide(true,true); no.onclick=()=>decide(false,false);
+  ok.onclick=()=>decide(true,false); if(sess) sess.onclick=()=>decide(true,true); no.onclick=()=>decide(false,false);
   log.appendChild(c); scrollLog();
 }
 try { const es=new EventSource('/api/approvals/stream'); es.addEventListener('approval', e=>approvalCard(JSON.parse(e.data))); } catch(_){}
