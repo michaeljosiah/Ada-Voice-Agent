@@ -46,6 +46,7 @@ public static class AdaCoreServiceCollectionExtensions
         services.TryAddSingleton<ITurnContext>(sp => new MemoryContextProvider(sp.GetRequiredService<IMemoryStore>(), sp.GetRequiredService<UserModel>()));
         services.TryAddSingleton(BuildCompaction);
         services.TryAddSingleton<SandboxSession>(); // the live work environment (AIO sandbox or host fallback)
+        services.TryAddSingleton<ImageProvisioner>(); // downloads/keeps the sandbox + run_code Docker images
         services.TryAddSingleton<IConversationStore>(_ => new FileConversationStore()); // durable per-thread history
 
         services.AddSingleton<IAdaEngine>(sp => BuildEngine(sp, options));

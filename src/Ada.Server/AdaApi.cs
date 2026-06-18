@@ -18,8 +18,8 @@ public sealed record UpdateConfigDto(string? Profile = null, bool? SetupComplete
 /// <summary>Body for <c>POST /api/providers</c> — connect a provider from the setup wizard.</summary>
 public sealed record AddProviderDto(string Id, string? Key = null, string? Endpoint = null, string? Model = null);
 
-/// <summary>Body for <c>POST /api/sandbox</c> — turn the AIO sandbox preference on/off.</summary>
-public sealed record SandboxToggleDto(bool? Enabled = null);
+/// <summary>Body for <c>POST /api/sandbox</c> — the AIO sandbox preference and the image-prefetch toggle.</summary>
+public sealed record SandboxToggleDto(bool? Enabled = null, bool? Prefetch = null);
 
 /// <summary>
 /// Maps Ada's loopback HTTP surface: the chat UI at <c>/</c>, a health probe, the streaming
@@ -180,29 +180,35 @@ public static class AdaApi
 
         // The work environment: whether the AIO sandbox is up (and the agent is using its tools) or on
         // the host fallback. Drives Settings → Workspace & sandbox.
-        app.MapGet("/api/sandbox", (SandboxSession session, ConfigStore config) => Results.Json(new
+        app.MapGet("/api/sandbox", (SandboxSession session, ConfigStore config) =>
         {
-            enabled = config.Load().SandboxEnabled,
-            active = session.Active,
-            mode = session.Mode,
-            endpoint = session.Endpoint,
-            workspace = session.Workspace,
-            toolCount = session.Tools.Count,
-        }));
+            var c = config.Load();
+            return Results.Json(new
+            {
+                enabled = c.SandboxEnabled,
+                prefetch = c.PrefetchImages,
+                active = session.Active,
+                mode = session.Mode,
+                endpoint = session.Endpoint,
+                workspace = session.Workspace,
+                toolCount = session.Tools.Count,
+            });
+        });
 
-        // Turn the sandbox preference on/off. Persisted; the running agent's tools are fixed once it has
-        // started replying, so a change applies fully on Ada's next launch.
+        // Turn the sandbox preference (and image prefetch) on/off. Persisted; the running agent's tools are
+        // fixed once it has started replying, so a change applies fully on Ada's next launch.
         app.MapPost("/api/sandbox", (SandboxToggleDto dto, ConfigStore config) =>
         {
             var c = config.Load();
             if (dto.Enabled is { } e) c.SandboxEnabled = e;
+            if (dto.Prefetch is { } p) c.PrefetchImages = p;
             config.Save(c);
-            return Results.Json(new { enabled = c.SandboxEnabled });
+            return Results.Json(new { enabled = c.SandboxEnabled, prefetch = c.PrefetchImages });
         });
 
         // Set up the sandbox from Settings: pull the image (first run is large) + start the container with
         // the workspace mounted, then mount its /mcp tools — streamed as SSE progress, mirroring Ollama setup.
-        app.MapPost("/api/sandbox/setup", async (HttpContext http, SandboxSession session, McpMounter mounter, CancellationToken ct) =>
+        app.MapPost("/api/sandbox/setup", async (HttpContext http, SandboxSession session, McpMounter mounter, ImageProvisioner prov, CancellationToken ct) =>
         {
             http.Response.Headers.ContentType = "text/event-stream";
             IProgress<string> progress = new Progress<string>(s =>
@@ -225,6 +231,54 @@ public static class AdaApi
 
                 var store = new ConfigStore();
                 var c = store.Load(); c.SandboxEnabled = true; store.Save(c);
+
+                // While we're online and the user has just opted in, pre-pull the run_code runtimes too so the
+                // first code run is instant. Best-effort — the sandbox is already usable without them.
+                progress.Report("Getting the code runtimes ready…");
+                await prov.PrefetchMissingAsync(progress, includeCore: false, ct);
+
+                await http.Response.WriteAsync("event: done\ndata: {}\n\n", ct);
+            }
+            catch (Exception ex)
+            {
+                await http.Response.WriteAsync($"event: error\ndata: {JsonSerializer.Serialize(ex.Message)}\n\n", ct);
+            }
+        });
+
+        // The Docker images Ada manages (the sandbox + the run_code runtimes): what's on disk and how big.
+        // Drives the image list in Settings → Workspace & sandbox.
+        app.MapGet("/api/images", async (ImageProvisioner prov, CancellationToken ct) =>
+        {
+            var s = await prov.StatusAsync(ct);
+            return Results.Json(new
+            {
+                dockerAvailable = s.DockerAvailable,
+                images = s.Images.Select(i => new { i.Key, i.Title, i.Purpose, i.Reference, i.Core, i.Present, sizeText = i.SizeText }),
+            });
+        });
+
+        // Download Ada's images with streamed progress so the user never has to run `docker pull`. ?key=<id>
+        // pulls one; ?key=all includes the big AIO image; no key tops up the missing run_code runtimes.
+        app.MapPost("/api/images/pull", async (HttpContext http, ImageProvisioner prov, CancellationToken ct) =>
+        {
+            http.Response.Headers.ContentType = "text/event-stream";
+            IProgress<string> progress = new Progress<string>(s =>
+                _ = http.Response.WriteAsync($"event: progress\ndata: {JsonSerializer.Serialize(s)}\n\n", ct));
+            try
+            {
+                if (!await prov.DockerAvailableAsync(ct))
+                {
+                    await http.Response.WriteAsync("event: error\ndata: \"Docker isn't available. Install or start Docker Desktop, then try again.\"\n\n", ct);
+                    return;
+                }
+
+                var key = http.Request.Query["key"].FirstOrDefault();
+                if (string.IsNullOrEmpty(key) || key == "all")
+                    await prov.PrefetchMissingAsync(progress, includeCore: key == "all", ct);
+                else if (ImageProvisioner.Find(key) is { } img)
+                    await prov.PullAsync(img, progress, ct);
+                else { await http.Response.WriteAsync("event: error\ndata: \"Unknown image.\"\n\n", ct); return; }
+
                 await http.Response.WriteAsync("event: done\ndata: {}\n\n", ct);
             }
             catch (Exception ex)

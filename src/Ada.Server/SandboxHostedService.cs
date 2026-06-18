@@ -11,7 +11,7 @@ namespace Ada.Server;
 /// startup never blocks; the agent (built lazily on first request) waits briefly on the
 /// <see cref="SandboxSession"/> so it always composes against the settled environment.
 /// </summary>
-internal sealed class SandboxHostedService(SandboxSession session, McpMounter mounter, ILogger<SandboxHostedService> log) : IHostedService
+internal sealed class SandboxHostedService(SandboxSession session, McpMounter mounter, ImageProvisioner images, ILogger<SandboxHostedService> log) : IHostedService
 {
     private AioSandboxRuntime? _runtime;
 
@@ -53,6 +53,32 @@ internal sealed class SandboxHostedService(SandboxSession session, McpMounter mo
             log.LogWarning(ex, "[sandbox] bring-up failed — using host tools.");
             session.Deactivate();
         }
+        finally
+        {
+            await MaybePrefetchRuntimesAsync(ct);
+        }
+    }
+
+    // Once the sandbox itself is set up (its image is on disk), quietly top up any missing run_code runtime
+    // images in the background so the first code run is instant. It never starts the big AIO pull — that's
+    // only ever the explicit "Set up the sandbox" action — so a launch can't surprise the user with a
+    // multi-GB download they didn't ask for.
+    private async Task MaybePrefetchRuntimesAsync(CancellationToken ct)
+    {
+        try
+        {
+            var cfg = new ConfigStore().Load();
+            if (!cfg.SandboxEnabled || !cfg.PrefetchImages) return;
+            if (!await images.DockerAvailableAsync(ct)) return;
+
+            var core = ImageProvisioner.Find("aio")!;
+            if (!await images.ImageExistsAsync(core.Reference, ct)) return; // wait for explicit setup before any pull
+
+            var present = await images.PrefetchMissingAsync(progress: null, includeCore: false, ct);
+            log.LogInformation("[images] runtime prefetch settled — {Present}/{Total} runtime image(s) present.",
+                present, ImageProvisioner.Catalog.Count(i => !i.Core));
+        }
+        catch (Exception ex) { log.LogDebug(ex, "[images] runtime prefetch skipped."); }
     }
 
     // Leave the container running so the next launch adopts it instantly (warm). An explicit stop lives

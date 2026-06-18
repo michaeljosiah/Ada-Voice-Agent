@@ -27,6 +27,8 @@ public sealed class CodeTools(ContainerCodeSandbox sandbox)
         var result = await sandbox.RunAsync(new SandboxRequest(language ?? "python", code), ct);
         if (result.Ok)
             return string.IsNullOrEmpty(result.Output) ? "(the program produced no output)" : result.Output;
+        if (result.Reason is "downloading" or "unavailable")
+            return result.Error ?? "The code sandbox isn't ready yet — try again in a moment."; // a plain note, not a program failure
         return $"The program failed ({result.Reason}).{(string.IsNullOrEmpty(result.Error) ? string.Empty : "\n" + result.Error)}";
     }
 }

@@ -1,6 +1,10 @@
 # Build results
 [Bb]in/
 [Oo]bj/
+
+# Python bytecode (skills' bundled scripts)
+__pycache__/
+*.pyc
 [Dd]ebug/
 [Rr]elease/
 [Xx]64/

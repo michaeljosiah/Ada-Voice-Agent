@@ -293,7 +293,7 @@ const S = {
   view:'main', theme:'light', themeMode:'light', widget:'idle',
   config:null, onnxModels:[], catalog:[],
   profile:'Balanced', model:'ollama:gemma3:4b', cloudProvider:'', cloudKey:'',
-  section:'appearance', autostart:false, sandbox:null, skills:null, threadId:null, threads:[],
+  section:'appearance', autostart:false, sandbox:null, images:null, skills:null, threadId:null, threads:[],
   wizStep:0, dl:{status:'idle',model:null,line:'',i:0,n:0},
 };
 
@@ -898,6 +898,7 @@ function sandboxPanelHTML(){
     '<div class="srow"><div class="st">Environment</div>'+badge+'</div>'+
     toggle + setup +
     '<div class="status" id="sbxStatus" style="margin-top:10px"></div>'+
+    imagesSectionHTML()+
     '<div class="muted" style="margin-top:14px">When the sandbox is on, Ada works inside it and anything she saves lands in your workspace folder above. Her own settings, memory and secrets stay on your machine — never inside the sandbox. New tools take effect on Ada’s next launch.</div></div>';
 }
 function wireSandboxPanel(){
@@ -909,6 +910,57 @@ function wireSandboxPanel(){
     renderSettingsBody();
   };
   const b=$('#sbxSetup'); if(b) b.onclick=setupSandbox;
+  if (!S.images) loadImages();
+  const ip=$('#imgPull'); if(ip) ip.onclick=()=>pullImages();
+  const pf=$('#pfSw'); if(pf) pf.onclick=async()=>{
+    const en=!(S.sandbox&&S.sandbox.prefetch); pf.classList.toggle('on',en);
+    try { const r=await fetch('/api/sandbox',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prefetch:en})}); if(S.sandbox) S.sandbox.prefetch=(await r.json()).prefetch; }
+    catch(_){ if(S.sandbox) S.sandbox.prefetch=en; }
+    renderSettingsBody();
+  };
+}
+async function loadImages(){
+  try { const r=await fetch('/api/images'); if(!r.ok) throw 0; S.images=await r.json(); }
+  catch(_){ S.images={dockerAvailable:false,images:[]}; }
+  if (S.view==='settings' && S.section==='workspace') renderSettingsBody();
+}
+function imagesSectionHTML(){
+  const s=S.images;
+  if(!s) return '<div class="muted" style="margin-top:18px">Checking images…</div>';
+  if(!s.dockerAvailable) return '<div class="muted" style="margin-top:18px">Docker isn’t available, so Ada can’t download her sandbox or code runtimes yet. Install Docker Desktop and reopen this page — nothing is bundled into the app, so the images download here on first use.</div>';
+  const rows=(s.images||[]).map(i=>{
+    const state=i.present?(i.sizeText||'Downloaded'):'Not downloaded';
+    const col=i.present?'#3a9c3e':'var(--text-mute)';
+    const tag=i.core?' <span style="font-size:11px;color:var(--text-mute);font-weight:500">· work environment</span>':'';
+    return '<div class="srow"><div><div class="st">'+esc(i.title)+tag+'</div><div class="ss">'+esc(i.purpose)+'</div></div><div style="font-size:12.5px;color:'+col+';white-space:nowrap;padding-left:12px">'+state+'</div></div>';
+  }).join('');
+  const runtimesMissing=(s.images||[]).some(i=>!i.core&&!i.present);
+  const btn=runtimesMissing?'<button class="dlbtn" id="imgPull" style="margin-top:12px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download missing runtimes</button>':'';
+  const pf=S.sandbox?('<div class="srow" style="margin-top:10px"><div><div class="st">Keep runtimes ready</div><div class="ss">Quietly download missing code runtimes in the background after setup.</div></div><div class="sw'+(S.sandbox.prefetch?' on':'')+'" id="pfSw"><i></i></div></div>'):'';
+  return '<div style="margin-top:22px"><div class="st" style="margin-bottom:2px">Runtimes &amp; images</div>'+
+    '<div class="muted" style="margin:0 0 10px">Downloaded on demand from their registries — never bundled into Ada.</div>'+
+    rows + pf + btn +
+    '<div class="status" id="imgStatus" style="margin-top:10px"></div></div>';
+}
+async function pullImages(key){
+  const st=$('#imgStatus'), b=$('#imgPull'); if(b) b.disabled=true;
+  if(st) st.textContent='Starting download…';
+  try {
+    const res=await fetch('/api/images/pull'+(key?('?key='+encodeURIComponent(key)):''),{method:'POST'});
+    const rd=res.body.getReader(); const dec=new TextDecoder(); let buf='',ev='';
+    while(true){ const {value,done}=await rd.read(); if(done) break; buf+=dec.decode(value,{stream:true}); let i;
+      while((i=buf.indexOf('\n\n'))>=0){ const frame=buf.slice(0,i); buf=buf.slice(i+2);
+        for(const line of frame.split('\n')){
+          if(line.startsWith('event:')) ev=line.slice(6).trim();
+          else if(line.startsWith('data:')){ const d=JSON.parse(line.slice(5).trim()||'{}');
+            if(ev==='progress' && st) st.textContent=(typeof d==='string'?d:'working…');
+            else if(ev==='done'){ if(st) st.textContent='All set ✓'; await loadImages(); }
+            else if(ev==='error'){ if(st) st.textContent='Download failed: '+d; if(b) b.disabled=false; }
+          }
+        }
+      }
+    }
+  } catch(e){ if(st) st.textContent='Download failed: '+e; if(b) b.disabled=false; }
 }
 async function setupSandbox(){
   const st=$('#sbxStatus'), b=$('#sbxSetup'); if(b) b.disabled=true;

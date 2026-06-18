@@ -41,6 +41,11 @@ public sealed class AdaConfig
     /// browser, shell, code-exec and filesystem. Default on; falls back to host tools when it can't start.</summary>
     public bool SandboxEnabled { get; set; } = true;
 
+    /// <summary>Once the sandbox is set up, quietly top up any missing <c>run_code</c> runtime images in the
+    /// background on launch so capabilities are warm before the agent needs them. Never starts the big AIO
+    /// download itself — that's only ever the explicit "Set up the sandbox" action.</summary>
+    public bool PrefetchImages { get; set; } = true;
+
     // ---- Voice pipeline (Settings → Voice). All local; verified against the Voxa catalogs. ----
 
     /// <summary>WhisperCpp STT model, e.g. "base.en" / "tiny.en" / "small.en" (+ "-q5_1" quantised).</summary>

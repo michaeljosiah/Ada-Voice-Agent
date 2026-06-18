@@ -265,7 +265,7 @@ internal static class Program
         Report("M5 a write-capable MCP tool is gated (deny blocks it)",
             (await gatedDeny.InvokeAsync(new AIFunctionArguments { ["x"] = "y" }))?.ToString()?.Contains("Denied") == true);
 
-        var container = new ContainerCodeSandbox();
+        var container = new ContainerCodeSandbox(new ImageProvisioner());
         Report("M5 container zone rejects work it can't run cleanly", await container.RunAsync(new SandboxRequest("ruby", "puts 1")) is { Ok: false });
         Console.WriteLine($"       Zone 2 (Docker container) available: {container.Available}");
         if (container.Available)
@@ -653,7 +653,7 @@ internal static class Program
         Console.WriteLine($"  providers          : {(providers.Count == 0 ? "none (local/echo only)" : string.Join(", ", providers.Select(p => p.Id)))}");
         Console.WriteLine($"  local runtime      : {cfg.LocalRuntime ?? "(not set up)"}");
         Console.WriteLine($"  ollama             : reachable={await OllamaRuntime.IsReachableAsync(new OllamaOptions().Endpoint)}, installed={OllamaRuntime.FindExecutable(null) is not null}");
-        Console.WriteLine($"  container sandbox  : {(new ContainerCodeSandbox().Available ? "Docker present (Zone 2 ready)" : "Docker absent (Zone 1 only)")}");
+        Console.WriteLine($"  container sandbox  : {(new ContainerCodeSandbox(new ImageProvisioner()).Available ? "Docker present (Zone 2 ready)" : "Docker absent (Zone 1 only)")}");
         Console.WriteLine($"  scheduled jobs     : {new JobStore().Load().Count} (paused: {new KillSwitch().Paused})");
         Console.WriteLine($"  windows autostart  : {Autostart.IsEnabled()}");
         Console.WriteLine($"  setup complete     : {cfg.SetupComplete}");

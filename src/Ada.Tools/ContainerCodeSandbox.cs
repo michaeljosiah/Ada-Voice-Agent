@@ -11,6 +11,9 @@ namespace Ada.Tools;
 public sealed class ContainerCodeSandbox : ICodeSandbox
 {
     private readonly Lazy<bool> _dockerPresent = new(ProbeDocker);
+    private readonly ImageProvisioner _images;
+
+    public ContainerCodeSandbox(ImageProvisioner images) => _images = images;
 
     // C# runs as a .NET 10 file-based app, which needs a one-time NuGet restore. We warm a shared cache
     // volume once (with network), so every real run executes offline (--network none) against it.
@@ -28,23 +31,48 @@ public sealed class ContainerCodeSandbox : ICodeSandbox
             return SandboxResult.Failed("unavailable", "Docker is not available; use the in-process Wasm zone.");
 
         var lang = request.Language.ToLowerInvariant();
-        if (lang is "csharp" or "cs" or "c#" or "dotnet")
-            return await RunCSharpAsync(request, ct);
-
-        var (image, exec) = lang switch
-        {
-            "python" or "py" => ("python:3-alpine", new[] { "python", "-c", request.Code }),
-            "javascript" or "js" or "node" => ("node:alpine", new[] { "node", "-e", request.Code }),
-            _ => (null, (string[]?)null),
-        };
+        var image = ImageFor(lang);
         if (image is null)
             return SandboxResult.Failed("unsupported", $"No container image configured for '{request.Language}'.");
 
+        // Lazy-provisioning safety net: if the runtime image isn't on disk yet (prefetch hasn't run, or was
+        // turned off), start a background pull and return promptly — far better than `docker run` blocking
+        // for minutes on a silent first-time download. With prefetch on, we normally never reach this.
+        if (!await _images.ImageExistsAsync(image, ct))
+        {
+            _images.PullInBackground(image);
+            return SandboxResult.Failed("downloading",
+                $"Ada is downloading the {Friendly(lang)} runtime in the background (first use only). Ask me to run this again in a moment.");
+        }
+
+        if (lang is "csharp" or "cs" or "c#" or "dotnet")
+            return await RunCSharpAsync(request, ct);
+
+        var exec = lang is "python" or "py"
+            ? new[] { "python", "-c", request.Code }
+            : new[] { "node", "-e", request.Code }; // javascript/js/node — the only other case ImageFor allows
         var memMb = Math.Max(64, request.MemoryBytes / (1024 * 1024));
         var args = new List<string> { "run", "--rm", "--network", "none", "--memory", $"{memMb}m", "--cpus", "1", image };
-        args.AddRange(exec!);
+        args.AddRange(exec);
         return await RunDocker(args, ct);
     }
+
+    // The Docker image that backs each supported language (null ⇒ unsupported). Kept in step with
+    // ImageProvisioner.Catalog so a prefetch warms exactly what run_code will reach for.
+    private static string? ImageFor(string lang) => lang switch
+    {
+        "csharp" or "cs" or "c#" or "dotnet" => DotnetImage,
+        "python" or "py" => "python:3-alpine",
+        "javascript" or "js" or "node" => "node:alpine",
+        _ => null,
+    };
+
+    private static string Friendly(string lang) => lang switch
+    {
+        "csharp" or "cs" or "c#" or "dotnet" => "C#",
+        "python" or "py" => "Python",
+        _ => "JavaScript",
+    };
 
     // C# runs as a .NET 10 file-based app inside the SDK image — like the other languages, but a .NET
     // build needs a NuGet restore and more memory/CPU/time than an interpreter. We warm a shared cache

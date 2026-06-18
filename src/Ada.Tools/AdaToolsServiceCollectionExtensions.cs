@@ -28,6 +28,7 @@ public static class AdaToolsServiceCollectionExtensions
         services.TryAddSingleton<WebTools>();
         services.TryAddSingleton(_ => new JobStore());
         services.TryAddSingleton<ScheduleTools>();
+        services.TryAddSingleton<ImageProvisioner>(); // downloads/keeps run_code's Docker runtime images
         services.TryAddSingleton<ContainerCodeSandbox>(); // the container zone (Docker) backing run_code
         services.TryAddSingleton<CodeTools>();
 
