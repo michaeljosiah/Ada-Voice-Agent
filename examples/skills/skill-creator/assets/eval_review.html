@@ -1,0 +1,69 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<title>Trigger evals — __SKILL_NAME_PLACEHOLDER__</title>
+<style>
+:root{--b:#dcdcdc;--fg:#1a1a1a;--mut:#666;--yes:#2a8a2e;--no:#c0392b}
+*{box-sizing:border-box}body{font:14px/1.55 system-ui,sans-serif;margin:0;color:var(--fg);background:#fafafa}
+main{max-width:54rem;margin:0 auto;padding:1.5rem}
+h1{font-size:18px;margin:0 0 .3rem}
+.desc{color:var(--mut);background:#fff;border:1px solid var(--b);border-radius:8px;padding:.7rem 1rem;margin:.5rem 0 1rem;white-space:pre-wrap}
+.row{display:flex;gap:.6rem;align-items:flex-start;background:#fff;border:1px solid var(--b);border-radius:8px;padding:.6rem;margin-bottom:.6rem}
+.row textarea{flex:1;min-height:3rem;font:inherit;padding:.4rem;border:1px solid var(--b);border-radius:6px;resize:vertical}
+.toggle{border:1px solid var(--b);border-radius:6px;padding:.4rem .6rem;cursor:pointer;white-space:nowrap;font-weight:600;min-width:8.5rem;text-align:center}
+.toggle.yes{background:#eaffea;color:var(--yes);border-color:#b6e4b6}
+.toggle.no{background:#ffecec;color:var(--no);border-color:#f0c0c0}
+.del{border:none;background:none;color:var(--mut);cursor:pointer;font-size:18px;line-height:1}
+button{font:inherit;padding:.5rem .9rem;border:1px solid var(--b);border-radius:6px;background:#fff;cursor:pointer}
+.primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.bar{display:flex;gap:.6rem;margin-top:1rem}
+.count{color:var(--mut);margin-left:auto;align-self:center}
+</style></head><body><main>
+<h1>Trigger eval review — __SKILL_NAME_PLACEHOLDER__</h1>
+<div class="desc">__SKILL_DESCRIPTION_PLACEHOLDER__</div>
+<p>For each query, set whether this skill <b>should</b> trigger. Edit the text, flip the toggle, add or
+remove rows, then export. Aim for realistic, specific queries — and tricky near-misses for the
+should-not-trigger cases.</p>
+<div id="list"></div>
+<div class="bar">
+  <button id="add">+ Add query</button>
+  <button id="export" class="primary">Export Eval Set</button>
+  <span class="count" id="count"></span>
+</div>
+<script>
+let DATA = __EVAL_DATA_PLACEHOLDER__;
+const esc = s => (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function render(){
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  DATA.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML =
+      `<textarea data-i="${i}">${esc(item.query)}</textarea>` +
+      `<div class="toggle ${item.should_trigger?'yes':'no'}" data-t="${i}">${item.should_trigger?'should trigger':'should NOT trigger'}</div>` +
+      `<button class="del" data-d="${i}" title="Remove">&times;</button>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('textarea').forEach(t => t.oninput = e => { DATA[+e.target.dataset.i].query = e.target.value; });
+  list.querySelectorAll('[data-t]').forEach(b => b.onclick = e => {
+    const i = +e.target.dataset.t; DATA[i].should_trigger = !DATA[i].should_trigger; render();
+  });
+  list.querySelectorAll('[data-d]').forEach(b => b.onclick = e => {
+    DATA.splice(+e.target.dataset.d, 1); render();
+  });
+  const t = DATA.filter(d => d.should_trigger).length;
+  document.getElementById('count').textContent = `${DATA.length} queries · ${t} should-trigger · ${DATA.length-t} should-not`;
+}
+
+document.getElementById('add').onclick = () => { DATA.push({query:'', should_trigger:true}); render(); };
+document.getElementById('export').onclick = () => {
+  const clean = DATA.filter(d => (d.query||'').trim()).map(d => ({query:d.query.trim(), should_trigger:!!d.should_trigger}));
+  const blob = new Blob([JSON.stringify(clean, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'eval_set.json';
+  a.click();
+};
+render();
+</script></main></body></html>
