@@ -424,8 +424,9 @@ function startVoice(){
   let ws; try { ws = new WebSocket(proto+'://'+location.host+'/voice'); } catch(e){ return; }
   ws.binaryType='arraybuffer';
   const micCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:VOICE_IN_RATE});
-  const outCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:VOICE_OUT_RATE});
-  voice = { ws, micCtx, outCtx, outRate:VOICE_OUT_RATE, nextPlay:0, node:null, src:null, stream:null, adaTx:null, sources:[], drain:0, level:0, raf:0 };
+  const outRate = (S.voiceInfo && S.voiceInfo.outputRate) || VOICE_OUT_RATE;   // matches the selected TTS voice
+  const outCtx = new (window.AudioContext||window.webkitAudioContext)({sampleRate:outRate});
+  voice = { ws, micCtx, outCtx, outRate, nextPlay:0, node:null, src:null, stream:null, adaTx:null, sources:[], drain:0, level:0, raf:0 };
   setWidget('listening');
   if (S.voiceReady === false) setTrans('preparing voice models…');
   ws.onopen = async () => {
@@ -727,7 +728,10 @@ function voicePanelHTML(){
   const v = S.voiceInfo;
   if (!v) return '<div class="fadeUp muted">Checking voice…</div>';
   if (v.enabled === false) return '<div class="fadeUp" style="max-width:520px"><div class="pill-note"><div><div style="font-size:14px;font-weight:600;color:var(--text)">Voice is off this session</div><div style="font-size:12.5px;color:var(--text-soft)">The local voice endpoint isn’t running.</div></div></div></div>';
-  const row = (k,val)=>'<div class="srow"><div class="st">'+k+'</div><div style="color:var(--text-soft);font-size:13.5px;font-weight:500">'+esc(val)+'</div></div>';
+  const opt = (o,sel)=>'<option value="'+esc(o.id)+'"'+(o.id===sel?' selected':'')+'>'+esc(o.label)+'</option>';
+  const sttOpts = (v.stt.options||[]).map(o=>opt(o, v.stt.model)).join('');
+  const provOpts = (v.tts.providers||['Piper','Kokoro']).map(p=>'<option value="'+p+'"'+(p===v.tts.provider?' selected':'')+'>'+p+'</option>').join('');
+  const voiceOpts = (v.tts.voices||[]).filter(o=>o.provider===v.tts.provider).map(o=>opt(o, v.tts.voice)).join('');
   const models = (v.models||[]).map(m=>{
     const badge = m.ready
       ? '<span style="color:#3a9c3e;font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:5px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg>Ready</span>'
@@ -736,21 +740,31 @@ function voicePanelHTML(){
   }).join('');
   const remain = (v.models||[]).filter(m=>!m.ready).reduce((a,m)=>a+(m.approxMb||0),0);
   const action = v.ready
-    ? '<div class="ready-ok" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><polyline points="20 6 9 17 4 12"/></svg>All voice models ready</div>'
-    : '<button class="dlbtn" id="voiceDl" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download voice models · ~'+remain+' MB</button>';
+    ? '<div class="ready-ok" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><polyline points="20 6 9 17 4 12"/></svg>Selected models ready</div>'
+    : '<button class="dlbtn" id="voiceDl" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download selected models · ~'+remain+' MB</button>';
   return '<div class="fadeUp" style="max-width:560px">'+
     '<div class="pill-note"><svg viewBox="0 0 24 24" fill="none" stroke="#055a60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><div><div style="font-size:14px;font-weight:600;color:var(--text)">Processed on-device</div><div style="font-size:12.5px;color:var(--text-soft)">Speech-to-text and text-to-speech run locally — your voice never leaves your machine.</div></div></div>'+
-    '<div style="font-size:13px;font-weight:600;color:var(--text);margin:6px 0 0">Pipeline</div>'+
-    row('Speech-to-text', v.stt||'WhisperCpp') + row('Text-to-speech', v.tts||'Piper') +
-    row('Voice activity', (v.vad||'Silero')+' VAD') + row('Latency profile', v.profile||'LowLatency') +
-    row('Audio', (v.inputRate||16000)/1000+' kHz in · '+((v.outputRate||22050)/1000).toFixed(2)+' kHz out') +
-    '<div style="font-size:13px;font-weight:600;color:var(--text);margin:18px 0 0">Models</div>'+ models + action +
+    '<label class="lab" style="margin-top:6px">Speech-to-text model (Whisper)</label><select class="key" id="vSttModel">'+sttOpts+'</select>'+
+    '<label class="lab" style="margin-top:13px">Text-to-speech engine</label><select class="key" id="vTtsProvider">'+provOpts+'</select>'+
+    '<label class="lab" style="margin-top:13px">Voice</label><select class="key" id="vTtsVoice">'+voiceOpts+'</select>'+
+    '<div class="muted" style="margin-top:8px">Output '+(((v.outputRate||22050)/1000).toFixed(2))+' kHz · changes apply to your next voice session.</div>'+
+    '<div style="font-size:13px;font-weight:600;color:var(--text);margin:18px 0 0">Models for this selection</div>'+ models + action +
     '<div class="status" id="voiceStatus" style="margin-top:10px"></div>'+
     '<div class="muted" style="margin-top:14px">When ready, press the mic in the conversation, or <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>Space</kbd>.</div></div>';
 }
 function wireVoicePanel(){
   if (!S.voiceInfo){ loadVoiceStatus(); return; }
-  const b=$('#voiceDl'); if (b) b.onclick=warmupVoice;
+  const dl=$('#voiceDl'); if (dl) dl.onclick=warmupVoice;
+  const stt=$('#vSttModel'); if(stt) stt.onchange=()=>saveVoice({sttModel:stt.value});
+  const prov=$('#vTtsProvider'); if(prov) prov.onchange=()=>{
+    const p=prov.value, first=(S.voiceInfo.tts.voices||[]).find(o=>o.provider===p);
+    saveVoice({ttsProvider:p, ttsVoice:first?first.id:undefined});
+  };
+  const voice=$('#vTtsVoice'); if(voice) voice.onchange=()=>saveVoice({ttsVoice:voice.value});
+}
+async function saveVoice(patch){
+  try { await fetch('/api/voice',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch)}); } catch(_){}
+  await loadVoiceStatus();   // re-fetch selection + readiness + output rate, then re-render
 }
 async function warmupVoice(){
   const st=$('#voiceStatus'), b=$('#voiceDl'); if (b) b.disabled=true;

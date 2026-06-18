@@ -36,6 +36,20 @@ public sealed class AdaConfig
 
     /// <summary>The downloaded ONNX model Ada uses as her local brain (e.g. "gemma-3-1b"), if any.</summary>
     public string? LocalModelId { get; set; }
+
+    // ---- Voice pipeline (Settings → Voice). All local; verified against the Voxa catalogs. ----
+
+    /// <summary>WhisperCpp STT model, e.g. "base.en" / "tiny.en" / "small.en" (+ "-q5_1" quantised).</summary>
+    public string SttModel { get; set; } = "base.en";
+
+    /// <summary>STT language ("en", or "auto" to detect).</summary>
+    public string SttLanguage { get; set; } = "en";
+
+    /// <summary>Local TTS engine: "Piper" or "Kokoro".</summary>
+    public string TtsProvider { get; set; } = "Piper";
+
+    /// <summary>The TTS voice id for <see cref="TtsProvider"/> (e.g. "en_US-lessac-medium" / "af_heart").</summary>
+    public string TtsVoice { get; set; } = "en_US-lessac-medium";
 }
 
 public sealed class ConfigStore

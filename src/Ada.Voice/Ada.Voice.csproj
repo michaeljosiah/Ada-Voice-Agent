@@ -10,6 +10,7 @@
     <PackageReference Include="Voxa.Services.MicrosoftAgents" />
     <PackageReference Include="Voxa.Speech.WhisperCpp" />
     <PackageReference Include="Voxa.Speech.Piper" />
+    <PackageReference Include="Voxa.Speech.Kokoro" />
     <PackageReference Include="Voxa.Audio.SileroVad" />
     <!-- Native whisper.cpp binaries for WhisperCpp STT (Voxa ships only the managed Whisper.net). -->
     <PackageReference Include="Whisper.net.Runtime" />

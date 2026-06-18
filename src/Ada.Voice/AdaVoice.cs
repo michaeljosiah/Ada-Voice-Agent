@@ -8,49 +8,49 @@ using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Voxa.AspNetCore;
 using Voxa.Audio.SileroVad;
+using Voxa.Speech.Kokoro;
 using Voxa.Speech.Piper;
 using Voxa.Speech.WhisperCpp;
 
 namespace Ada.Voice;
 
+/// <summary>Body for <c>POST /api/voice</c> — change the audio pipeline from Settings → Voice (all optional).</summary>
+public sealed record VoiceSettingsDto(string? SttModel = null, string? SttLanguage = null, string? TtsProvider = null, string? TtsVoice = null);
+
 /// <summary>
-/// Ada's voice plane (M6): hosts the Voxa pipeline in-process on the loopback server. The default
-/// path is fully local — Silero VAD, WhisperCpp STT, Piper TTS — and the agent is the same Ada
-/// (persona + skills + tools) the text surface uses. Barge-in/interruption is handled by Voxa.
+/// Ada's voice plane (M6): hosts the Voxa pipeline in-process on the loopback server, fully local —
+/// Silero VAD, WhisperCpp STT, and a choice of Piper or Kokoro TTS. The STT model, TTS engine and voice
+/// are read from <see cref="AdaConfig"/> per connection, so the user can reconfigure them live in
+/// Settings → Voice. The agent is the same Ada the text surface uses; barge-in is handled by Voxa.
 /// </summary>
 public static class AdaVoice
 {
-    /// <summary>
-    /// Ada's local voice defaults, pinned so the pipeline works out of the box with no appsettings.json
-    /// and so the first push-to-talk doesn't stall on a model download. All keys are verified against
-    /// Voxa 0.5.0-alpha: each provider also has built-in defaults, but we choose intentionally here —
-    /// the low-latency profile for snappy push-to-talk, English WhisperCpp + Piper, embedded Silero VAD,
-    /// and eager warmup so the speech models download + load at server start, not on the first press.
-    /// Inserted as the lowest-priority source, so a user's appsettings.json / env vars still override.
-    /// </summary>
-    private static readonly Dictionary<string, string?> VoiceDefaults = new()
-    {
-        ["Voxa:Profile"] = "LowLatency",
-        ["Voxa:Stt"] = "WhisperCpp",
-        ["Voxa:Tts"] = "Piper",
-        ["Voxa:WhisperCpp:Model"] = "base.en",   // tiny(.en)|base(.en)|small(.en); base.en = good size/accuracy, English
-        ["Voxa:WhisperCpp:Language"] = "en",
-        ["Voxa:Piper:Voice"] = "en_US-lessac-medium",
-        ["Voxa:Vad:Engine"] = "Silero",
-        ["Voxa:Models:EagerWarmup"] = "true",    // pre-download + load at startup; first caller pays nothing
-        ["Voxa:Agent:Provider"] = "Echo",        // Ada supplies her own agent in the pipeline; keep Voxa's keyless so AddVoxa never demands a cloud key
-    };
-
-    /// <summary>Registers Voxa with Ada's local speech stack. Models auto-download on first use.</summary>
+    /// <summary>Registers Voxa with Ada's local speech stack (both TTS engines). Models download on use.</summary>
     public static void AddAdaVoice(WebApplicationBuilder builder)
     {
-        // Lowest-priority defaults: real config (appsettings.json, Voxa__* env vars) still wins.
-        builder.Configuration.Sources.Insert(0, new MemoryConfigurationSource { InitialData = VoiceDefaults });
+        var cfg = new ConfigStore().Load();
+        // Lowest-priority defaults seeded from the user's saved choice; real config/env still wins. The
+        // per-connection pipeline (below) is what actually selects the model/voice at request time.
+        var defaults = new Dictionary<string, string?>
+        {
+            ["Voxa:Profile"] = "LowLatency",
+            ["Voxa:Stt"] = "WhisperCpp",
+            ["Voxa:Tts"] = cfg.TtsProvider,
+            ["Voxa:WhisperCpp:Model"] = cfg.SttModel,
+            ["Voxa:WhisperCpp:Language"] = cfg.SttLanguage,
+            ["Voxa:Piper:Voice"] = cfg.TtsProvider == "Kokoro" ? "en_US-lessac-medium" : cfg.TtsVoice,
+            ["Voxa:Kokoro:Voice"] = cfg.TtsProvider == "Kokoro" ? cfg.TtsVoice : "af_heart",
+            ["Voxa:Vad:Engine"] = "Silero",
+            ["Voxa:Models:EagerWarmup"] = "false", // we warm explicitly via Settings → Voice
+            ["Voxa:Agent:Provider"] = "Echo",      // Ada supplies her own agent; keep Voxa's keyless
+        };
+        builder.Configuration.Sources.Insert(0, new MemoryConfigurationSource { InitialData = defaults });
 
         builder.Services.AddVoxa(builder.Configuration, voxa =>
         {
             voxa.AddProvider(WhisperCppDescriptors.Stt);
             voxa.AddProvider(PiperDescriptors.Tts);
+            voxa.AddProvider(KokoroDescriptors.Tts);
             voxa.AddProvider(SileroVadDescriptors.Vad);
         });
     }
@@ -62,44 +62,64 @@ public static class AdaVoice
         app.MapVoxaVoice("/voice").Use((context, pipeline) =>
         {
             var agent = context.RequestServices.GetRequiredService<AIAgent>();
+            var cfg = new ConfigStore().Load();                 // current selection, per connection
+            var voxaCfg = BuildVoxaSection(cfg);
+            var sp = context.RequestServices;
+            var tts = string.Equals(cfg.TtsProvider, "Kokoro", StringComparison.OrdinalIgnoreCase)
+                ? KokoroDescriptors.Tts : PiperDescriptors.Tts;
+
             pipeline
                 .UseSilenceGate()
-                .UseSpeechToText(() => WhisperCppDescriptors.Stt.CreateProcessor(app.Services, app.Configuration.GetSection("Voxa")))
+                .UseSpeechToText(() => WhisperCppDescriptors.Stt.CreateProcessor(sp, voxaCfg))
                 .UseTranscriptionFilter()
                 .UseMicrosoftAgent(agent)
                 .UseSentenceAggregator()
-                .UseTextToSpeech(() => PiperDescriptors.Tts.CreateProcessor(app.Services, app.Configuration.GetSection("Voxa")));
+                .UseTextToSpeech(() => tts.CreateProcessor(sp, voxaCfg));
         });
 
-        // Voice model status + on-device warmup for the Settings → Voice panel. Mapped only when voice
-        // is enabled, so the page treats a 404 here as "voice off".
+        // Voice config + status for Settings → Voice. Mapped only when voice is enabled (404 ⇒ off).
         app.MapGet("/api/voice", () =>
         {
-            var models = VoiceModels.Status();
+            var cfg = new ConfigStore().Load();
+            var models = VoiceModels.Status(cfg.SttModel, cfg.TtsProvider, cfg.TtsVoice);
             var ready = true;
             foreach (var m in models) if (!m.Ready) { ready = false; break; }
             return Results.Json(new
             {
                 enabled = true,
                 profile = "LowLatency",
-                stt = "WhisperCpp · base.en",
-                tts = "Piper · en_US-lessac-medium",
                 vad = "Silero",
                 inputRate = 16000,
-                outputRate = 22050,
+                outputRate = VoiceModels.OutputRateFor(cfg.TtsProvider, cfg.TtsVoice),
+                stt = new { engine = "WhisperCpp", model = cfg.SttModel, language = cfg.SttLanguage, options = VoiceModels.SttModels() },
+                tts = new { provider = cfg.TtsProvider, voice = cfg.TtsVoice, providers = new[] { "Piper", "Kokoro" }, voices = VoiceModels.TtsVoices() },
                 models,
                 ready,
             });
         });
 
+        // Change the pipeline (STT model / TTS engine / voice). Takes effect on the next voice session.
+        app.MapPost("/api/voice", (VoiceSettingsDto dto) =>
+        {
+            var store = new ConfigStore();
+            var cfg = store.Load();
+            if (!string.IsNullOrWhiteSpace(dto.SttModel)) cfg.SttModel = dto.SttModel;
+            if (!string.IsNullOrWhiteSpace(dto.SttLanguage)) cfg.SttLanguage = dto.SttLanguage;
+            if (!string.IsNullOrWhiteSpace(dto.TtsProvider)) cfg.TtsProvider = dto.TtsProvider;
+            if (!string.IsNullOrWhiteSpace(dto.TtsVoice)) cfg.TtsVoice = dto.TtsVoice;
+            store.Save(cfg);
+            return Results.Json(new { outputRate = VoiceModels.OutputRateFor(cfg.TtsProvider, cfg.TtsVoice) });
+        });
+
         app.MapPost("/api/voice/warmup", async (HttpContext http, CancellationToken ct) =>
         {
+            var cfg = new ConfigStore().Load();
             http.Response.Headers.ContentType = "text/event-stream";
             var progress = new Progress<string>(s =>
                 _ = http.Response.WriteAsync($"event: progress\ndata: {JsonSerializer.Serialize(s)}\n\n", ct));
             try
             {
-                await VoiceModels.WarmUpAsync(progress, ct);
+                await VoiceModels.WarmUpAsync(cfg.SttModel, cfg.TtsProvider, cfg.TtsVoice, progress, ct);
                 await http.Response.WriteAsync("event: done\ndata: {}\n\n", ct);
             }
             catch (Exception ex)
@@ -107,5 +127,21 @@ public static class AdaVoice
                 await http.Response.WriteAsync($"event: error\ndata: {JsonSerializer.Serialize(ex.Message)}\n\n", ct);
             }
         });
+    }
+
+    /// <summary>Build a per-connection <c>"Voxa"</c> section carrying the user's STT model + TTS voice.</summary>
+    private static IConfigurationSection BuildVoxaSection(AdaConfig cfg)
+    {
+        var kokoro = string.Equals(cfg.TtsProvider, "Kokoro", StringComparison.OrdinalIgnoreCase);
+        var kv = new Dictionary<string, string?>
+        {
+            ["Voxa:Profile"] = "LowLatency",
+            ["Voxa:WhisperCpp:Model"] = cfg.SttModel,
+            ["Voxa:WhisperCpp:Language"] = cfg.SttLanguage,
+            ["Voxa:Piper:Voice"] = kokoro ? null : cfg.TtsVoice,
+            ["Voxa:Kokoro:Voice"] = kokoro ? cfg.TtsVoice : null,
+            ["Voxa:Vad:Engine"] = "Silero",
+        };
+        return new ConfigurationBuilder().AddInMemoryCollection(kv).Build().GetSection("Voxa");
     }
 }
