@@ -33,10 +33,21 @@ public static class AdaToolsServiceCollectionExtensions
         services.TryAddSingleton<CodeTools>();
         services.TryAddSingleton<SkillTools>(); // gated install of a workspace-authored skill into the skills dir
 
+        // Email (read-only triage across connected Gmail/Outlook accounts). Connectors are host-side — they
+        // need the vaulted OAuth tokens + network egress — so this is a code skill, not a sandbox script.
+        // Real providers register their IMailProvider; with none, the tools report "not set up".
+        services.TryAddSingleton<ICredentialVault>(_ => new DpapiCredentialVault());
+        services.TryAddSingleton<MailAccountStore>();
+        services.TryAddSingleton<MailService>();
+        services.TryAddSingleton<EmailTools>();
+        services.TryAddSingleton<OutlookAuth>();
+        services.AddSingleton<IMailProvider, OutlookProvider>(); // the real Outlook connector (Microsoft Graph)
+
         // Skills (spec §7.3) and the MCP mounter (§7.4).
         services.AddSingleton<ISkill, ResearchSkill>();
         services.AddSingleton<ISkill, DesktopSkill>();
         services.AddSingleton<ISkill, FinanceRecordsSkill>();
+        services.AddSingleton<ISkill, EmailSkill>();
         services.TryAddSingleton(sp => new SkillRegistry(sp.GetServices<ISkill>()));
         services.TryAddSingleton(sp => new McpMounter(sp.GetRequiredService<IApprovalHandler>(), sp.GetRequiredService<IAuditLog>()));
 

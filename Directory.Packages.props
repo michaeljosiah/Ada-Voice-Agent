@@ -14,6 +14,8 @@
     <!-- Providers / auth -->
     <PackageVersion Include="Azure.AI.OpenAI" Version="2.1.0" />
     <PackageVersion Include="Azure.Identity" Version="1.13.1" />
+    <!-- Email (Outlook via Microsoft Graph; auth reuses Azure.Identity) -->
+    <PackageVersion Include="Microsoft.Graph" Version="5.105.0" />
     <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
     <!-- Desktop shell -->
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4022.49" />

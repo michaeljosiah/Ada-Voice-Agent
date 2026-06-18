@@ -46,6 +46,10 @@ public sealed class AdaConfig
     /// download itself — that's only ever the explicit "Set up the sandbox" action.</summary>
     public bool PrefetchImages { get; set; } = true;
 
+    /// <summary>The Azure app (public client) id the email skill signs in to Microsoft/Outlook with. Ada can
+    /// ship its own (turnkey device-code sign-in) or the user can set their own registration. Empty until set.</summary>
+    public string? MailClientId { get; set; }
+
     // ---- Voice pipeline (Settings → Voice). All local; verified against the Voxa catalogs. ----
 
     /// <summary>WhisperCpp STT model, e.g. "base.en" / "tiny.en" / "small.en" (+ "-q5_1" quantised).</summary>

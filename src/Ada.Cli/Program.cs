@@ -40,8 +40,52 @@ internal static class Program
             "doctor" => await Doctor(),
             "model" => await Model(rest),
             "ollama" => await Ollama(rest),
+            "mail" => await Mail(rest),
             _ => Help(),
         };
+    }
+
+    /// <summary>Connect and manage mail accounts (Outlook today) for the email triage skill.</summary>
+    private static async Task<int> Mail(string[] args)
+    {
+        var sub = args.Length > 0 ? args[0].ToLowerInvariant() : "list";
+        var store = new MailAccountStore(new DpapiCredentialVault());
+
+        switch (sub)
+        {
+            case "clientid":
+                if (args.Length < 2) { Console.WriteLine("Usage: ada mail clientid <azure-app-client-id>"); return 1; }
+                var cfgStore = new ConfigStore();
+                var cfg = cfgStore.Load(); cfg.MailClientId = args[1]; cfgStore.Save(cfg);
+                Console.WriteLine("Saved the Microsoft (Azure) app client id."); return 0;
+
+            case "connect":
+                var which = args.Length > 1 ? args[1].ToLowerInvariant() : "outlook";
+                if (which != "outlook") { Console.WriteLine("Only 'outlook' is supported right now."); return 1; }
+                if (string.IsNullOrWhiteSpace(new ConfigStore().Load().MailClientId))
+                { Console.WriteLine("Set a Microsoft app client id first:  ada mail clientid <id>"); return 1; }
+                try
+                {
+                    var account = await new OutlookAuth(store).ConnectOutlookAsync(msg =>
+                    { Console.WriteLine(); Console.WriteLine(msg); Console.WriteLine(); return Task.CompletedTask; });
+                    Console.WriteLine($"Connected {account.Address}.");
+                    return 0;
+                }
+                catch (Exception ex) { Console.WriteLine($"Sign-in failed: {ex.Message}"); return 1; }
+
+            case "list":
+                var accounts = store.Load();
+                if (accounts.Count == 0) Console.WriteLine("No mail accounts connected. Try:  ada mail connect outlook");
+                else foreach (var a in accounts) Console.WriteLine($"  {a.Address}  [{a.Provider}]  id={a.Id}");
+                return 0;
+
+            case "remove":
+                if (args.Length < 2) { Console.WriteLine("Usage: ada mail remove <id>"); return 1; }
+                store.Remove(args[1]); Console.WriteLine("Removed."); return 0;
+
+            default:
+                Console.WriteLine("Usage: ada mail [clientid <id> | connect outlook | list | remove <id>]"); return 0;
+        }
     }
 
     /// <summary>Talk to Ada's configured engine (echo, or a real local model via ADA_* env vars).</summary>

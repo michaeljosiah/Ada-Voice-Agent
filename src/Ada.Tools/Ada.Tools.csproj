@@ -7,6 +7,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Wasmtime" />
+    <PackageReference Include="Microsoft.Graph" />
+    <PackageReference Include="Azure.Identity" />
   </ItemGroup>
 
   <ItemGroup>
