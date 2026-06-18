@@ -13,6 +13,7 @@ internal sealed class AdaApplicationContext : ApplicationContext
     private int _openHotkeyId;
     private int _voiceHotkeyId;
     private MainForm? _form;
+    private VoiceForm? _voice;
 
     public AdaApplicationContext(string url)
     {
@@ -37,9 +38,8 @@ internal sealed class AdaApplicationContext : ApplicationContext
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open Ada\tCtrl+Alt+A", null, (_, _) => OpenConversation());
-        // Voice mode: summon Ada centred and start listening immediately. (Will move to a dedicated
-        // compact voice-only HUD window once that surface is built; for now it drives the main window.)
-        menu.Items.Add("Voice mode\tCtrl+Alt+Space", null, (_, _) => ToggleVoice());
+        // Voice mode: the compact /voiceui widget (a small SuperWhisper-style bar that auto-listens).
+        menu.Items.Add("Voice mode\tCtrl+Alt+Space", null, (_, _) => ShowVoice());
         menu.Items.Add("Settings", null, (_, _) => OpenSettings());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Quit Ada", null, (_, _) => ExitThread());
@@ -49,7 +49,7 @@ internal sealed class AdaApplicationContext : ApplicationContext
     private void OnHotkey(int id)
     {
         if (id == _openHotkeyId) ToggleWindow();
-        else if (id == _voiceHotkeyId) ToggleVoice();
+        else if (id == _voiceHotkeyId) ToggleVoiceMode();
     }
 
     private void ToggleWindow()
@@ -66,10 +66,37 @@ internal sealed class AdaApplicationContext : ApplicationContext
         _form?.ShowConversation();  // land on the chat surface, not whatever view was last open
     }
 
-    private void ToggleVoice()
+    // ---- Voice mode: the compact /voiceui widget in its own small window ----
+
+    private void ToggleVoiceMode()
     {
-        OpenConversation();         // the voice bar lives in the conversation view — switch to it first
-        _form?.ToggleVoice();
+        if (_voice is { Visible: true }) HideVoice();
+        else ShowVoice();
+    }
+
+    private void ShowVoice()
+    {
+        var fresh = _voice is null;
+        _voice ??= CreateVoiceForm();
+        if (_voice.WindowState == FormWindowState.Minimized) _voice.WindowState = FormWindowState.Normal;
+        _voice.CenterOnScreen();
+        _voice.Show();
+        _voice.Activate();
+        if (!fresh) _voice.StartListening();   // first load auto-listens; re-arm on a later summon
+    }
+
+    private void HideVoice()
+    {
+        _voice?.StopListening();   // release the mic when dismissed
+        _voice?.Hide();
+    }
+
+    private VoiceForm CreateVoiceForm()
+    {
+        var v = new VoiceForm(_url);
+        v.RequestHide += (_, _) => HideVoice();
+        v.RequestExpand += (_, _) => { HideVoice(); OpenConversation(); };   // expand → full chat window
+        return v;
     }
 
     private void OpenSettings()
@@ -102,6 +129,7 @@ internal sealed class AdaApplicationContext : ApplicationContext
         _tray.Dispose();
         _hotkeys.Dispose();
         _form?.Dispose();
+        _voice?.Dispose();
         base.ExitThreadCore();
     }
 }

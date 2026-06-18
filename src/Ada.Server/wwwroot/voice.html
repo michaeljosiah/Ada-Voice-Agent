@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ada · Voice</title>
+<style>
+  :root{
+    --surface:#ffffff; --surface-2:#f6f7f9; --surface-3:#eef0f3;
+    --border:#e9eaee; --text:#23212b; --text-soft:#5b6270; --text-mute:#9aa1ad;
+    --field:#ffffff; --field-border:#e3e5ea;
+    --teal:#0a7c84; --teal-deep:#055a60; --coral:#eb5c37; --purple:#6f5cd0;
+    --aurora:linear-gradient(135deg,#0a7c84,#6f5cd0 55%,#eb5c37);
+    --bar:linear-gradient(180deg,#6f5cd0,#0a7c84);
+    --bar-rest:#c3c8d0;
+    --elev:0 20px 50px -16px rgba(17,24,39,.34),0 2px 8px rgba(17,24,39,.07);
+    --kbd:#ffffff; --kbd-border:#e3e5ea; --kbd-text:#5b6270;
+  }
+  html[data-theme="dark"]{
+    --surface:#1b2430; --surface-2:#222c3a; --surface-3:#141b26;
+    --border:#2a3340; --text:#f1f3f6; --text-soft:#9aa4b1; --text-mute:#69727f;
+    --field:#1b2430; --field-border:#2f3a48;
+    --bar-rest:#3a4452;
+    --elev:0 20px 54px -14px rgba(0,0,0,.66),0 2px 10px rgba(0,0,0,.45);
+    --kbd:#2a3340; --kbd-border:#39434f; --kbd-text:#b6bec8;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+    background:transparent; color:var(--text);
+    overflow:hidden; -webkit-font-smoothing:antialiased;
+    -webkit-user-select:none; user-select:none;
+  }
+
+  @keyframes breathe{ 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
+  @keyframes shimmer{ 0%{ background-position:-200% 0; } 100%{ background-position:200% 0; } }
+  @keyframes fadeUp{ from{ opacity:0; transform:translateY(5px); } to{ opacity:1; transform:translateY(0); } }
+  @keyframes blink{ 50%{ opacity:0; } }
+  @keyframes restPulse{ 0%,100%{ opacity:.5; } 50%{ opacity:.85; } }
+
+  .card{
+    position:fixed; inset:0;
+    display:flex; flex-direction:column;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:20px;
+    box-shadow:var(--elev);
+    overflow:hidden;
+    -webkit-app-region:drag;
+  }
+
+  /* ---- header ---- */
+  .top{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:13px 15px 0 18px; flex-shrink:0;
+  }
+  .chip{
+    display:flex; align-items:center; gap:7px;
+    font-size:11px; font-weight:600; color:var(--text-soft);
+  }
+  .chip .pdot{ width:6px; height:6px; border-radius:50%; background:var(--teal); box-shadow:0 0 0 3px rgba(10,124,132,.14); }
+  .ibtn{
+    -webkit-app-region:no-drag; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    border:none; background:transparent; color:var(--text-mute);
+    width:28px; height:28px; border-radius:8px; transition:background .15s ease,color .15s ease;
+  }
+  .ibtn:hover{ background:var(--surface-2); color:var(--text-soft); }
+
+  /* ---- waveform ---- */
+  .wave-wrap{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:11px; padding:6px 22px 2px; min-height:0;
+  }
+  .bars{ display:flex; align-items:center; justify-content:center; gap:3px; width:100%; height:46px; }
+  .bar{
+    flex:1; min-width:2px; max-width:3px; height:46px; border-radius:3px;
+    background:var(--bar-rest);
+    transform:scaleY(.045); transform-origin:center; will-change:transform;
+    transition:transform .07s linear, background .25s ease;
+  }
+  .card.active .bar{ background:var(--bar); }
+
+  .caption{
+    width:100%; max-width:540px; text-align:center; min-height:18px;
+    font-size:13.5px; line-height:1.35; color:var(--text);
+    display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
+    text-wrap:pretty;
+  }
+  .caption.placeholder{ color:var(--text-mute); }
+  .caption .caret{
+    display:inline-block; width:2px; height:1em; vertical-align:-2px;
+    margin-left:1px; background:var(--purple); animation:blink 1s step-end infinite;
+  }
+
+  /* ---- footer ---- */
+  .foot{
+    flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
+    padding:0 16px; height:46px;
+    border-top:1px solid var(--border); background:var(--surface-2);
+  }
+  .foot .grp{ display:flex; align-items:center; gap:8px; }
+  .src{ display:flex; align-items:center; gap:7px; font-size:12px; font-weight:600; }
+  .src svg{ flex-shrink:0; }
+  .src .dot{ width:7px; height:7px; border-radius:50%; }
+  .status-listening{ color:var(--coral); } .status-listening .dot{ background:var(--coral); animation:breathe 1.1s ease-in-out infinite; }
+  .status-ready{ color:var(--text-soft); } .status-ready .dot{ background:var(--text-mute); }
+  .status-speaking{ color:var(--purple); } .status-speaking .dot{ background:var(--purple); animation:breathe 1.1s ease-in-out infinite; }
+  .status-thinking{ color:var(--text-soft); } .status-thinking .dot{ background:var(--text-mute); animation:breathe .7s ease-in-out infinite; }
+
+  .cue{ display:flex; align-items:center; gap:6px; -webkit-app-region:no-drag; cursor:default; }
+  .cue .lbl{ font-size:12px; color:var(--text-mute); }
+  kbd{
+    font-family:inherit; font-size:10.5px; font-weight:600; line-height:1;
+    padding:3px 6px; border-radius:5px;
+    background:var(--kbd); border:1px solid var(--kbd-border); color:var(--kbd-text);
+    box-shadow:0 1px 0 var(--kbd-border);
+  }
+
+  /* ---- error note ---- */
+  .note{
+    position:absolute; left:12px; right:12px; bottom:54px; z-index:6;
+    display:none; align-items:flex-start; gap:9px;
+    padding:10px 12px; border-radius:12px;
+    background:var(--surface); border:1px solid var(--border);
+    box-shadow:var(--elev); -webkit-app-region:no-drag;
+  }
+  .note.show{ display:flex; animation:fadeUp .25s ease both; }
+  .note svg{ flex-shrink:0; color:var(--coral); margin-top:1px; }
+  .note .ntxt{ font-size:12px; line-height:1.4; color:var(--text-soft); }
+  .note .ntitle{ font-weight:600; color:var(--text); }
+  .note .retry{
+    -webkit-app-region:no-drag; cursor:pointer; margin-top:7px;
+    border:1px solid var(--field-border); background:var(--field); color:var(--teal-deep);
+    font-family:inherit; font-size:11.5px; font-weight:600; padding:5px 11px; border-radius:7px;
+  }
+  html[data-theme="dark"] .note .retry{ color:#54c2cb; }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="top">
+      <div class="chip"><span class="pdot"></span>On-device · private</div>
+      <button class="ibtn" id="expandBtn" title="Open full Ada">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+      </button>
+    </div>
+
+    <div class="wave-wrap">
+      <div class="bars" id="bars"></div>
+      <div class="caption placeholder" id="caption">Listening…</div>
+    </div>
+
+    <div class="foot">
+      <div class="grp">
+        <div class="src status-ready" id="src">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+          <span class="dot"></span><span id="statusText">Listening…</span>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="cue"><span class="lbl">Stop</span><kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>Space</kbd></div>
+        <div class="cue"><span class="lbl">Close</span><kbd>Esc</kbd></div>
+      </div>
+    </div>
+
+    <div class="note" id="note">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div>
+        <div class="ntxt"><span class="ntitle" id="noteTitle">Voice unavailable</span><br><span id="noteBody">Ada couldn't reach the voice service.</span></div>
+        <button class="retry" id="retry">Try again</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+  function applyTheme(){ document.documentElement.setAttribute('data-theme', (mq && mq.matches) ? 'dark' : 'light'); }
+  applyTheme();
+  if (mq && mq.addEventListener) mq.addEventListener('change', applyTheme);
+
+  function hostMsg(msg){
+    try { if (window.chrome && window.chrome.webview && window.chrome.webview.postMessage) window.chrome.webview.postMessage(msg); }
+    catch(e){}
+  }
+
+  var DEMO = /(?:[?&]demo=1)|(?:#demo)/.test(location.search + location.hash);
+
+  var $ = function(id){ return document.getElementById(id); };
+  var card=$('card'), barsEl=$('bars'), srcEl=$('src'), statusText=$('statusText'),
+      caption=$('caption'), note=$('note'), noteTitle=$('noteTitle'), noteBody=$('noteBody');
+
+  // ---------- bars ----------
+  var NBARS = 56, barNodes = [], barLevels = new Float32Array(NBARS);
+  for (var i=0;i<NBARS;i++){
+    var b=document.createElement('div'); b.className='bar';
+    barsEl.appendChild(b); barNodes.push(b);
+  }
+  var restRAF=null;
+  function barsRest(on){
+    if (on){
+      if (!restRAF) restLoop();
+    } else {
+      if (restRAF){ cancelAnimationFrame(restRAF); restRAF=null; }
+    }
+  }
+  function restLoop(){
+    restRAF = requestAnimationFrame(restLoop);
+    var t = performance.now()/1000;
+    for (var k=0;k<NBARS;k++){
+      // gentle idle shimmer so the rest line reads as a soft dotted row
+      var lv = 0.045 + Math.abs(Math.sin(t*1.2 + k*0.5)) * 0.02;
+      barLevels[k] += (lv - barLevels[k]) * 0.2;
+      barNodes[k].style.transform = 'scaleY('+barLevels[k].toFixed(3)+')';
+    }
+  }
+
+  // ---------- state ----------
+  var MODE = 'ready', userText='', adaText='', streaming=false, thinkTimer=null;
+
+  function setMode(m){
+    if (MODE===m) return;
+    MODE = m;
+    card.classList.toggle('active', m==='listening'||m==='speaking');
+    srcEl.className = 'src status-'+m;
+    barsRest(m==='ready'||m==='thinking');
+    render();
+  }
+
+  function render(){
+    if (MODE==='ready'){ statusText.textContent='Listening…'; }
+    else if (MODE==='listening'){ statusText.textContent='Listening'; }
+    else if (MODE==='thinking'){ statusText.textContent='Thinking…'; }
+    else if (MODE==='speaking'){ statusText.textContent='Speaking'; }
+
+    if (MODE==='speaking' || (MODE!=='listening' && MODE!=='ready' && adaText)){
+      caption.classList.remove('placeholder');
+      caption.innerHTML = escapeHTML(adaText) + (streaming ? '<span class="caret"></span>' : '');
+    } else if (MODE==='listening'){
+      if (userText){ caption.classList.remove('placeholder'); caption.textContent = userText; }
+      else { caption.classList.add('placeholder'); caption.textContent = 'Speak any time…'; }
+    } else if (MODE==='thinking'){
+      caption.classList.add('placeholder');
+      caption.textContent = userText ? '“'+userText+'”' : 'One moment…';
+    } else {
+      caption.classList.add('placeholder'); caption.textContent='Listening…';
+    }
+  }
+  function escapeHTML(s){ return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+
+  // ---------- audio ----------
+  var DEFAULT_RATE = 24000, sessionRate = DEFAULT_RATE;
+  var audioCtx=null, micStream=null, micSource=null, micAnalyser=null, processor=null, muteGain=null;
+  var ttsGain=null, ttsAnalyser=null, playHead=0, activeSources=new Set();
+  var freqBuf=null, rafId=null, running=false, demoTimer=null;
+
+  function floatToInt16(f32){
+    var out=new Int16Array(f32.length);
+    for (var i=0;i<f32.length;i++){ var s=f32[i]; s=s<-1?-1:s>1?1:s; out[i]= s<0 ? s*0x8000 : s*0x7FFF; }
+    return out;
+  }
+  function downsampleTo16k(f32, inRate){   // WhisperCpp STT requires exactly 16 kHz mono
+    if (!(inRate > 16000)) return f32;
+    var ratio=inRate/16000, outLen=Math.floor(f32.length/ratio), out=new Float32Array(outLen);
+    for (var i=0;i<outLen;i++){ var idx=i*ratio, i0=idx|0, i1=Math.min(i0+1,f32.length-1), fr=idx-i0; out[i]=f32[i0]*(1-fr)+f32[i1]*fr; }
+    return out;
+  }
+
+  async function startAudio(rate){
+    stopAudio();
+    sessionRate = rate || DEFAULT_RATE;
+    try { audioCtx = new (window.AudioContext||window.webkitAudioContext)({ sampleRate: sessionRate }); }
+    catch(e){ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); sessionRate = audioCtx.sampleRate; }
+    if (audioCtx.state==='suspended'){ try{ await audioCtx.resume(); }catch(e){} }
+
+    ttsGain = audioCtx.createGain(); ttsGain.gain.value = 1;
+    ttsAnalyser = audioCtx.createAnalyser(); ttsAnalyser.fftSize = 256; ttsAnalyser.smoothingTimeConstant = 0.7;
+    ttsGain.connect(ttsAnalyser); ttsAnalyser.connect(audioCtx.destination);
+    playHead = 0;
+
+    try { micStream = await navigator.mediaDevices.getUserMedia({ audio:{ channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true }, video:false }); }
+    catch(e){ showNote('Microphone unavailable', 'Ada needs microphone access to listen. Check Windows privacy settings, then try again.'); return false; }
+    micSource = audioCtx.createMediaStreamSource(micStream);
+    micAnalyser = audioCtx.createAnalyser(); micAnalyser.fftSize = 256; micAnalyser.smoothingTimeConstant = 0.6;
+    micSource.connect(micAnalyser);
+
+    processor = audioCtx.createScriptProcessor(2048, 1, 1);
+    processor.onaudioprocess = function(e){
+      if (!running) return;
+      var ch = downsampleTo16k(e.inputBuffer.getChannelData(0), audioCtx.sampleRate);  // send 16 kHz to Whisper
+      if (ws && ws.readyState===1){ try { ws.send(floatToInt16(ch).buffer); } catch(err){} }
+    };
+    muteGain = audioCtx.createGain(); muteGain.gain.value = 0;
+    micSource.connect(processor); processor.connect(muteGain); muteGain.connect(audioCtx.destination);
+
+    freqBuf = new Uint8Array(micAnalyser.frequencyBinCount);
+    if (!rafId) vizLoop();
+    if (MODE==='ready') setMode('listening');
+    return true;
+  }
+
+  function stopAudio(){
+    try{ if (processor){ processor.disconnect(); processor.onaudioprocess=null; } }catch(e){}
+    try{ if (micSource) micSource.disconnect(); }catch(e){}
+    try{ if (micAnalyser) micAnalyser.disconnect(); }catch(e){}
+    try{ if (muteGain) muteGain.disconnect(); }catch(e){}
+    flushTTS();
+    try{ if (ttsGain) ttsGain.disconnect(); }catch(e){}
+    try{ if (ttsAnalyser) ttsAnalyser.disconnect(); }catch(e){}
+    if (micStream){ micStream.getTracks().forEach(function(t){ t.stop(); }); micStream=null; }
+    if (audioCtx){ try{ audioCtx.close(); }catch(e){} audioCtx=null; }
+    processor=micSource=micAnalyser=muteGain=ttsGain=ttsAnalyser=null;
+  }
+
+  function enqueueTTS(int16){
+    if (!audioCtx) return;
+    var f32 = new Float32Array(int16.length);
+    for (var i=0;i<int16.length;i++) f32[i] = int16[i] / 32768;
+    var buf = audioCtx.createBuffer(1, f32.length, sessionRate);
+    buf.getChannelData(0).set(f32);
+    var s = audioCtx.createBufferSource(); s.buffer = buf; s.connect(ttsGain);
+    var now = audioCtx.currentTime;
+    if (playHead < now + 0.02) playHead = now + 0.02;
+    try { s.start(playHead); } catch(e){ return; }
+    playHead += buf.duration;
+    activeSources.add(s);
+    s.onended = function(){ activeSources.delete(s); if (activeSources.size===0) onPlaybackDrained(); };
+    if (MODE!=='speaking') setMode('speaking');
+  }
+  function flushTTS(){
+    activeSources.forEach(function(s){ try{ s.onended=null; s.stop(); }catch(e){} });
+    activeSources.clear();
+    if (audioCtx) playHead = audioCtx.currentTime;
+  }
+  function onPlaybackDrained(){
+    streaming = false;
+    if (MODE==='speaking' && running){ setMode('listening'); } else render();
+  }
+
+  function vizLoop(){
+    rafId = requestAnimationFrame(vizLoop);
+    if (MODE!=='listening' && MODE!=='speaking') return;
+    if (DEMO){
+      var tt=performance.now()/1000, amp=(MODE==='speaking')?0.7:0.5;
+      for (var d=0; d<NBARS; d++){
+        var lv = 0.05 + Math.abs(Math.sin(tt*7 + d*0.4)) * amp * (0.5+0.5*Math.sin(tt*2.1 + d*0.6));
+        lv = Math.min(1, Math.max(0.05, lv));
+        barLevels[d] += (lv - barLevels[d]) * 0.3;
+        barNodes[d].style.transform = 'scaleY('+barLevels[d].toFixed(3)+')';
+      }
+      return;
+    }
+    var an = (MODE==='speaking') ? ttsAnalyser : micAnalyser;
+    if (an && freqBuf){
+      an.getByteFrequencyData(freqBuf);
+      var usable = Math.floor(freqBuf.length*0.72);
+      for (var b=0;b<NBARS;b++){
+        var idx = Math.floor((b/NBARS)*usable);
+        var a = freqBuf[idx]/255;
+        var lv = 0.05 + a*1.05; if (lv>1) lv=1;
+        barLevels[b] += (lv - barLevels[b]) * 0.4;
+        barNodes[b].style.transform = 'scaleY('+barLevels[b].toFixed(3)+')';
+      }
+    }
+  }
+
+  // ---------- websocket ----------
+  var ws=null, manualStop=false;
+  function wsURL(){ return (location.protocol==='https:'?'wss:':'ws:')+'//'+(location.host||'localhost')+'/voice'; }
+  function connect(){
+    hideNote(); manualStop=false;
+    try { ws = new WebSocket(wsURL()); }
+    catch(e){ showNote('Voice unavailable', 'Ada couldn’t reach the voice service on this machine.'); return; }
+    ws.binaryType = 'arraybuffer';
+    ws.onopen = function(){ try { ws.send(JSON.stringify({ type:'hello' })); } catch(e){} };
+    ws.onmessage = function(ev){ if (typeof ev.data === 'string'){ handleJSON(ev.data); } else { handleBinary(ev.data); } };
+    ws.onerror = function(){};
+    ws.onclose = function(){ running=false; if (!manualStop){ showNote('Voice unavailable', 'The connection to Ada’s voice service was lost.'); } };
+  }
+  function handleJSON(str){
+    var msg; try { msg = JSON.parse(str); } catch(e){ return; }
+    if (!msg || !msg.type) return;
+    switch(msg.type){
+      case 'session':
+        var r = msg.sampleRate || msg.rate || (msg.audio && msg.audio.sampleRate);
+        if (r && Math.abs(r - sessionRate) > 1){ startAudio(r); }
+        break;
+      case 'transcription':
+        if (typeof msg.text === 'string'){
+          userText = msg.text;
+          if (MODE==='speaking'){ flushTTS(); adaText=''; streaming=false; }
+          if (MODE!=='listening') setMode('listening'); else render();
+          scheduleThinking();
+        }
+        break;
+      case 'text':
+        if (typeof msg.text === 'string'){
+          cancelThinking();
+          if (MODE==='listening' || MODE==='thinking' || MODE==='ready'){ adaText=''; }
+          adaText += msg.text; streaming = true;
+          if (MODE!=='speaking') setMode('speaking'); else render();
+        }
+        break;
+      case 'interruption':
+        flushTTS(); adaText=''; streaming=false; cancelThinking();
+        if (running) setMode('listening');
+        break;
+    }
+  }
+  function handleBinary(buf){ cancelThinking(); try { enqueueTTS(new Int16Array(buf)); } catch(e){} }
+  function scheduleThinking(){ cancelThinking(); thinkTimer = setTimeout(function(){ if (MODE==='listening' && running){ setMode('thinking'); } }, 650); }
+  function cancelThinking(){ if (thinkTimer){ clearTimeout(thinkTimer); thinkTimer=null; } }
+
+  // ---------- lifecycle ----------
+  async function start(){
+    if (running) return;
+    if (DEMO){ running=true; setMode('ready'); runDemo(); return; }
+    running = true; setMode('ready');
+    try { var r = await fetch('/api/voice'); if (r.ok){ var j = await r.json(); if (j && j.outputRate) sessionRate = j.outputRate; } } catch(e){}  // play TTS at the selected voice's rate
+    var ok = await startAudio(sessionRate);
+    if (ok === false){ running=false; return; }
+    connect();
+  }
+  function stop(){
+    manualStop=true; running=false; cancelThinking();
+    if (demoTimer){ clearTimeout(demoTimer); demoTimer=null; }
+    streaming=false; adaText=''; userText='';
+    if (ws){ try{ ws.close(); }catch(e){} ws=null; }
+    stopAudio();
+    if (rafId){ cancelAnimationFrame(rafId); rafId=null; }
+    MODE='ready'; srcEl.className='src status-ready'; statusText.textContent='Paused';
+    card.classList.remove('active');
+    caption.classList.add('placeholder'); caption.textContent='Voice paused';
+    barsRest(true);
+  }
+  window.adaToggleVoice = function(){ if (running) stop(); else start(); };
+  window.adaStartVoice = function(){ if (!running) start(); };
+  window.adaStopVoice = function(){ if (running) stop(); };
+
+  function runDemo(){
+    if (!rafId) vizLoop();
+    var script = [
+      { m:'listening', u:'', t:1300 },
+      { m:'listening', u:'What’s the latest on the Q3 report?', t:1900 },
+      { m:'thinking', t:1100 },
+      { m:'speaking', a:'The Q3 report is on track — finance signed off the figures this morning, so the deck’s ready whenever you’d like to review it.', t:5400 }
+    ];
+    var i=0;
+    (function step(){
+      var s = script[i % script.length];
+      if (s.m==='listening'){ userText=s.u||''; adaText=''; streaming=false; MODE='x'; setMode('listening'); }
+      else if (s.m==='thinking'){ setMode('thinking'); }
+      else if (s.m==='speaking'){ adaText=''; streaming=true; MODE='x'; setMode('speaking'); typeOut(s.a); }
+      i++; demoTimer = setTimeout(step, s.t);
+    })();
+  }
+  function typeOut(txt){
+    var n=0;
+    (function tk(){
+      if (!DEMO || MODE!=='speaking') return;
+      adaText = txt.slice(0,n); render(); n++;
+      if (n<=txt.length) setTimeout(tk,26); else { streaming=false; render(); }
+    })();
+  }
+
+  function showNote(title, body){ noteTitle.textContent=title; noteBody.textContent=body; note.classList.add('show'); }
+  function hideNote(){ note.classList.remove('show'); }
+
+  $('expandBtn').addEventListener('click', function(){ hostMsg('open-main'); });
+  $('retry').addEventListener('click', function(){ hideNote(); start(); });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape'){ e.preventDefault(); stop(); hostMsg('hide'); }
+  });
+  window.addEventListener('beforeunload', function(){ manualStop=true; running=false; if(ws){try{ws.close();}catch(_){}}; stopAudio(); });
+
+  barsRest(true);
+  start();
+})();
+</script>
+</body>
+</html>

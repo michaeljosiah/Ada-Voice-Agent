@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="wwwroot/index.html" />
+    <EmbeddedResource Include="wwwroot/voice.html" />
   </ItemGroup>
 
 </Project>

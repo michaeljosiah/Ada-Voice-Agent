@@ -25,11 +25,13 @@ public sealed record AddProviderDto(string Id, string? Key = null, string? Endpo
 /// </summary>
 public static class AdaApi
 {
-    private static readonly string IndexHtml = LoadIndexHtml();
+    private static readonly string IndexHtml = LoadHtml("index.html");
+    private static readonly string VoiceHtml = LoadHtml("voice.html");
 
     public static void Map(WebApplication app)
     {
         app.MapGet("/", () => Results.Content(IndexHtml, "text/html; charset=utf-8"));
+        app.MapGet("/voiceui", () => Results.Content(VoiceHtml, "text/html; charset=utf-8")); // the compact Voice Mode widget
         app.MapGet("/healthz", () => Results.Json(new { status = "ok", app = "ada", milestone = "M2" }));
 
         app.MapPost("/api/chat", async (ChatRequestDto dto, IAdaEngine engine, HttpContext http, CancellationToken ct) =>
@@ -197,11 +199,11 @@ public static class AdaApi
         await resp.Body.FlushAsync(ct);
     }
 
-    private static string LoadIndexHtml()
+    private static string LoadHtml(string suffix)
     {
         var asm = typeof(AdaApi).Assembly;
         var name = asm.GetManifestResourceNames()
-            .First(n => n.EndsWith("index.html", StringComparison.OrdinalIgnoreCase));
+            .First(n => n.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
         using var stream = asm.GetManifestResourceStream(name)!;
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
