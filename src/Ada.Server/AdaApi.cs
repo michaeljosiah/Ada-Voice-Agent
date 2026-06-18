@@ -5,8 +5,9 @@ using Ada.Core;
 
 namespace Ada.Server;
 
-/// <summary>Request body for <c>POST /api/chat</c>.</summary>
-public sealed record ChatRequestDto(string Message);
+/// <summary>Request body for <c>POST /api/chat</c>. <paramref name="ThreadId"/> appends to an existing
+/// conversation; when null/unknown, a new thread is created and its id is streamed back.</summary>
+public sealed record ChatRequestDto(string Message, string? ThreadId = null);
 
 /// <summary>Decision body for <c>POST /api/approvals/{id}</c>.</summary>
 public sealed record ApprovalDecisionDto(bool Approved, bool Session = false);
@@ -37,20 +38,37 @@ public static class AdaApi
         app.MapGet("/voiceui", () => Results.Content(VoiceHtml, "text/html; charset=utf-8")); // the compact Voice Mode widget
         app.MapGet("/healthz", () => Results.Json(new { status = "ok", app = "ada", milestone = "M2" }));
 
-        app.MapPost("/api/chat", async (ChatRequestDto dto, IAdaEngine engine, HttpContext http, CancellationToken ct) =>
+        app.MapPost("/api/chat", async (ChatRequestDto dto, IAdaEngine engine, IConversationStore convos, HttpContext http, CancellationToken ct) =>
         {
             var resp = http.Response;
             resp.Headers.ContentType = "text/event-stream";
             resp.Headers.CacheControl = "no-cache";
 
-            await foreach (var chunk in engine.RespondAsync(new AdaRequest(dto.Message ?? string.Empty), ct))
+            var message = dto.Message ?? string.Empty;
+            // Resolve (or create) the thread this turn belongs to, and tell the UI which one it is.
+            var threadId = dto.ThreadId;
+            if (string.IsNullOrEmpty(threadId) || convos.Load(threadId) is null)
+            {
+                var convo = convos.Create(message);
+                threadId = convo.Id;
+                await WriteSse(resp, "thread", JsonSerializer.Serialize(new { id = convo.Id, title = convo.Title }), ct);
+            }
+
+            await foreach (var chunk in engine.RespondAsync(new AdaRequest(message, threadId), ct))
             {
                 if (chunk.IsFinal)
-                    await WriteSse(resp, "done", JsonSerializer.Serialize(new { route = chunk.Route }), ct);
+                    await WriteSse(resp, "done", JsonSerializer.Serialize(new { route = chunk.Route, threadId }), ct);
                 else
                     await WriteSse(resp, "chunk", JsonSerializer.Serialize(new { text = chunk.Text }), ct);
             }
         });
+
+        // Conversation threads (durable history) — one JSON file each under %APPDATA%\Ada\conversations.
+        app.MapGet("/api/threads", (IConversationStore convos) => Results.Json(convos.List()));
+        app.MapGet("/api/threads/{id}", (string id, IConversationStore convos) =>
+            convos.Load(id) is { } c ? Results.Json(c) : Results.NotFound());
+        app.MapDelete("/api/threads/{id}", (string id, IConversationStore convos) =>
+            convos.Delete(id) ? Results.Ok() : Results.NotFound());
 
         // Approval cards: the agent's gated tools surface here; the UI renders a card and POSTs back.
         app.MapGet("/api/approvals/stream", async (IApprovalHandler approvals, HttpContext http, CancellationToken ct) =>

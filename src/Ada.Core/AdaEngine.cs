@@ -1,7 +1,8 @@
 namespace Ada.Core;
 
-/// <summary>A single turn request to Ada.</summary>
-public sealed record AdaRequest(string Message);
+/// <summary>A single turn request to Ada. <paramref name="ThreadId"/> names the conversation to append to
+/// and persist; when null, the engine uses its in-process history (CLI one-shots, voice, tests).</summary>
+public sealed record AdaRequest(string Message, string? ThreadId = null);
 
 /// <summary>
 /// One streamed piece of Ada's reply. <see cref="Route"/> names where the turn was served

@@ -46,6 +46,7 @@ public static class AdaCoreServiceCollectionExtensions
         services.TryAddSingleton<ITurnContext>(sp => new MemoryContextProvider(sp.GetRequiredService<IMemoryStore>(), sp.GetRequiredService<UserModel>()));
         services.TryAddSingleton(BuildCompaction);
         services.TryAddSingleton<SandboxSession>(); // the live work environment (AIO sandbox or host fallback)
+        services.TryAddSingleton<IConversationStore>(_ => new FileConversationStore()); // durable per-thread history
 
         services.AddSingleton<IAdaEngine>(sp => BuildEngine(sp, options));
         services.TryAddSingleton<AIAgent>(AdaAgentFactory.Create); // the agent the voice plane drives
@@ -89,6 +90,7 @@ public static class AdaCoreServiceCollectionExtensions
 
         // File-based skills (MAF), bundled scripts run in the sandbox; null when no skills exist yet.
         var skills = sandbox is not null ? AdaSkills.BuildProvider(sandbox) : null;
+        var conversations = sp.GetService<IConversationStore>(); // durable per-thread history
 
         var local = registry.CreateForRole(ModelRole.Default) ?? ModelClientFactory.Create(options);
         var cloud = registry.CreateForRole(ModelRole.Escalation);
@@ -102,11 +104,11 @@ public static class AdaCoreServiceCollectionExtensions
             var escalationId = registry.ForRole(ModelRole.Escalation)!.Id;
             var policy = new RoutingPolicy(hasEscalation: true, stayLocal, localLabel: "local", escalationLabel: escalationId);
             var hybrid = new HybridChatClient(local, cloud, policy, audit);
-            return new AgentEngine(hybrid, persona, tools: tools, memory: memory, compaction: compaction, skills: skills);
+            return new AgentEngine(hybrid, persona, tools: tools, memory: memory, compaction: compaction, skills: skills, conversations: conversations);
         }
 
         var single = local ?? cloud!;
         var route = local is not null ? "local" : registry.ForRole(ModelRole.Escalation)!.Id;
-        return new AgentEngine(single, persona, route, tools, memory, compaction, skills);
+        return new AgentEngine(single, persona, route, tools, memory, compaction, skills, conversations);
     }
 }

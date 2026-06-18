@@ -208,6 +208,8 @@
       </div>
     </div>
     <div class="hdr-actions">
+      <button class="ico" id="newChatBtn" aria-label="New chat" title="New chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="ico" id="histBtn" aria-label="History" title="Conversation history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M3 3v6h6"/><path d="M3.5 9a9 9 0 1 0 2.2-3.5L3 9"/><path d="M12 7.5V12l3 2"/></svg></button>
       <button class="ico" id="themeBtn" aria-label="Toggle theme" title="Toggle light/dark"></button>
       <button class="ico" id="settingsBtn" aria-label="Settings" title="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -262,8 +264,26 @@
       </div>
     </div>
   </div>
+  <div id="threadsDrawer" class="threads-drawer" style="display:none"></div>
 </div>
 
+<style>
+.threads-drawer{position:fixed;top:56px;right:16px;width:330px;max-height:72vh;overflow-y:auto;background:var(--surface,#fff);color:var(--text,#1a1a1a);border:1px solid var(--line,rgba(0,0,0,.12));border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.22);z-index:60}
+[data-theme="dark"] .threads-drawer{background:var(--surface,#1c1f24);border-color:rgba(255,255,255,.12)}
+.thread-head{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line,rgba(0,0,0,.08));position:sticky;top:0;background:inherit;font-weight:600;font-size:13px;border-radius:14px 14px 0 0}
+.thread-head button{font:inherit;font-weight:600;border:none;background:none;color:#0a7c84;cursor:pointer}
+.thread-list{padding:6px}
+.thread-row{display:flex;align-items:center;gap:6px;padding:9px 10px;border-radius:9px;cursor:pointer}
+.thread-row:hover{background:rgba(127,127,127,.12)}
+.thread-row.on{background:rgba(10,124,132,.14)}
+.thread-main{flex:1;min-width:0}
+.thread-title{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thread-meta{font-size:11.5px;color:var(--text-mute,#8a8a8a);margin-top:1px}
+.thread-del{border:none;background:none;color:var(--text-mute,#9a9a9a);cursor:pointer;font-size:18px;line-height:1;padding:0 4px;opacity:0}
+.thread-row:hover .thread-del{opacity:.8}
+.thread-del:hover{opacity:1;color:#c0392b}
+.thread-empty{padding:22px;color:var(--text-mute,#8a8a8a);text-align:center;font-size:13px}
+</style>
 <script>
 const $ = (s, r=document) => r.querySelector(s);
 const root = $('#root');
@@ -273,7 +293,7 @@ const S = {
   view:'main', theme:'light', themeMode:'light', widget:'idle',
   config:null, onnxModels:[], catalog:[],
   profile:'Balanced', model:'ollama:gemma3:4b', cloudProvider:'', cloudKey:'',
-  section:'appearance', autostart:false, sandbox:null, skills:null,
+  section:'appearance', autostart:false, sandbox:null, skills:null, threadId:null, threads:[],
   wizStep:0, dl:{status:'idle',model:null,line:'',i:0,n:0},
 };
 
@@ -297,6 +317,10 @@ function setView(v){
   for (const id of ['main','wizard','settings']) $('#view-'+id).classList.toggle('on', id===v);
   $('#headerSub').textContent = SUBS[v];
   $('#settingsBtn').style.display = v==='wizard' ? 'none' : '';
+  const onMain = v==='main';
+  $('#newChatBtn').style.display = onMain ? '' : 'none';
+  $('#histBtn').style.display = onMain ? '' : 'none';
+  if (!onMain) toggleThreads(false);
   if (v==='main' && !$('#cbar').firstChild) setWidget('idle');
   if (v==='wizard') renderWizard();
   if (v==='settings') renderSettings();
@@ -339,7 +363,7 @@ async function sendText(text){
   let got=false, acc='';
   const to = setTimeout(()=>{ if(!got) ctrl.abort('timeout'); }, 75000);  // a wedged/oversized model never streams
   try {
-    const res = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message:text }), signal:ctrl.signal });
+    const res = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message:text, threadId:S.threadId }), signal:ctrl.signal });
     const rd = res.body.getReader(); const dec=new TextDecoder(); let buf='', ev='message';
     while(true){
       const {value, done} = await rd.read(); if (done) break;
@@ -350,10 +374,11 @@ async function sendText(text){
           if(line.startsWith('event:')) ev=line.slice(6).trim();
           else if(line.startsWith('data:')){
             const d=JSON.parse(line.slice(5).trim());
-            if(ev==='chunk' && d.text){ if(!got){ got=true; clearTimeout(to); reply.tx.textContent=''; } acc+=d.text; reply.tx.textContent=acc; reply.tx.appendChild(caret); scrollLog(); }
+            if(ev==='thread'){ S.threadId=d.id; }
+            else if(ev==='chunk' && d.text){ if(!got){ got=true; clearTimeout(to); reply.tx.textContent=''; } acc+=d.text; reply.tx.textContent=acc; reply.tx.appendChild(caret); scrollLog(); }
             else if(ev==='done'){ got=true; clearTimeout(to); if(caret.parentNode) caret.remove();
               if(!acc) reply.tx.textContent='(No reply — the local model returned nothing. Try a different model in Settings → Local model.)';
-              routeBadge(reply.lbl, d.route); scrollLog(); }
+              routeBadge(reply.lbl, d.route); scrollLog(); loadThreads(); }
           }
         }
       }
@@ -366,6 +391,63 @@ async function sendText(text){
       : 'Couldn’t reach the local model (' + e + ').');
   }
 }
+
+/* ---------- threads / history ---------- */
+function relTime(iso){
+  if(!iso) return '';
+  try{ const d=new Date(iso), s=(Date.now()-d.getTime())/1000;
+    if(s<60) return 'just now';
+    if(s<3600) return Math.floor(s/60)+'m ago';
+    if(s<86400) return Math.floor(s/3600)+'h ago';
+    if(s<604800) return Math.floor(s/86400)+'d ago';
+    return d.toLocaleDateString();
+  }catch(_){ return ''; }
+}
+async function loadThreads(){
+  try{ S.threads = await (await fetch('/api/threads')).json(); }catch(_){ S.threads=[]; }
+  renderThreads();
+}
+function renderThreads(){
+  const d=$('#threadsDrawer'); if(!d) return;
+  const items=(S.threads||[]).map(t=>{
+    const on=t.id===S.threadId?' on':'', n=t.messageCount;
+    return '<div class="thread-row'+on+'"><div class="thread-main" data-open="'+t.id+'"><div class="thread-title">'+esc(t.title||'New chat')+'</div><div class="thread-meta">'+esc(relTime(t.updatedAt))+' · '+n+' msg'+(n===1?'':'s')+'</div></div><button class="thread-del" data-del="'+t.id+'" title="Delete">×</button></div>';
+  }).join('') || '<div class="thread-empty">No conversations yet.</div>';
+  d.innerHTML='<div class="thread-head"><span>History</span><button id="threadsNew">+ New chat</button></div><div class="thread-list">'+items+'</div>';
+  $('#threadsNew').onclick=()=>{ newChat(); toggleThreads(false); };
+  d.querySelectorAll('[data-open]').forEach(e=>e.onclick=()=>{ openThread(e.dataset.open); toggleThreads(false); });
+  d.querySelectorAll('[data-del]').forEach(e=>e.onclick=async(ev)=>{ ev.stopPropagation(); await deleteThread(e.dataset.del); });
+}
+function toggleThreads(show){
+  const d=$('#threadsDrawer'); if(!d) return;
+  const open = show===undefined ? d.style.display==='none' : show;
+  if(open) renderThreads();
+  d.style.display = open ? 'block' : 'none';
+}
+function newChat(){ S.threadId=null; emptyState(); renderThreads(); }
+async function openThread(id){
+  try{
+    const c=await (await fetch('/api/threads/'+id)).json();
+    log.innerHTML='';
+    for(const m of (c.messages||[])){
+      if(m.role==='user') addUser(m.text);
+      else if(m.role==='assistant'){ const a=addAda(); a.tx.textContent=m.text; if(m.route) routeBadge(a.lbl,m.route); }
+    }
+    if(!(c.messages||[]).length) emptyState();
+    S.threadId=c.id; renderThreads(); scrollLog();
+  }catch(_){}
+}
+async function deleteThread(id){
+  try{ await fetch('/api/threads/'+id,{method:'DELETE'}); }catch(_){}
+  if(id===S.threadId) newChat();
+  await loadThreads();
+}
+$('#newChatBtn').onclick=()=>newChat();
+$('#histBtn').onclick=()=>toggleThreads();
+document.addEventListener('click', e=>{
+  const d=$('#threadsDrawer'); if(!d || d.style.display==='none') return;
+  if(!d.contains(e.target) && !(e.target.closest && e.target.closest('#histBtn'))) toggleThreads(false);
+});
 
 /* ---------- approvals (SSE) ---------- */
 function approvalCard(a){
@@ -920,6 +1002,7 @@ document.addEventListener('keydown', e => {
     loadVoiceStatus();
     loadSandboxStatus();
     loadSkills();
+    loadThreads();
     setView(cfg.setupComplete ? 'main' : 'wizard');
   } catch(_){ setView('main'); setWidget('idle'); }
 })();
