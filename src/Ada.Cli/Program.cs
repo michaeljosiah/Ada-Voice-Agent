@@ -189,13 +189,27 @@ internal static class Program
             await Drain(hybrid.GetStreamingResponseAsync([new ChatMessage(ChatRole.User, "implement an algorithm")]));
             Report("M3 hybrid escalates and logs egress", hybrid.CurrentRoute.StartsWith("anthropic") && egressAudit.Recent().Any(e => e.Outcome == "escalated"));
 
-            using var degraded = new ServiceCollection()
-                .AddSingleton(new ProviderStore(provPath + ".empty"))
-                .AddSingleton<ICredentialVault>(new InMemoryCredentialVault())
-                .AddAdaCore(new AdaModelOptions { Provider = "echo" })
-                .BuildServiceProvider();
-            Report("M3 no cloud provider -> still runs locally (echo), never broken",
-                degraded.GetRequiredService<IAdaEngine>() is EchoEngine);
+            // Hermetic: point Ada's data dir at an empty temp folder so this check doesn't depend on the
+            // developer's real config (e.g. LocalRuntime=ollama) or downloaded ONNX models. With no
+            // configured local runtime, "echo" must fall through to the offline EchoEngine.
+            var isoData = Directory.CreateTempSubdirectory("ada_iso_").FullName;
+            var prevData = Environment.GetEnvironmentVariable("ADA_DATA_DIR");
+            Environment.SetEnvironmentVariable("ADA_DATA_DIR", isoData);
+            try
+            {
+                using var degraded = new ServiceCollection()
+                    .AddSingleton(new ProviderStore(provPath + ".empty"))
+                    .AddSingleton<ICredentialVault>(new InMemoryCredentialVault())
+                    .AddAdaCore(new AdaModelOptions { Provider = "echo" })
+                    .BuildServiceProvider();
+                Report("M3 no cloud provider -> still runs locally (echo), never broken",
+                    degraded.GetRequiredService<IAdaEngine>() is EchoEngine);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("ADA_DATA_DIR", prevData);
+                try { Directory.Delete(isoData, true); } catch { /* best effort */ }
+            }
         }
         finally { try { File.Delete(provPath); } catch { /* best effort */ } }
 
@@ -331,7 +345,7 @@ internal static class Program
 
         var apiConfig = await http.GetStringAsync("/api/config");
         Report("M8 settings endpoint serves config + provider catalog", apiConfig.Contains("setupComplete") && apiConfig.Contains("catalog"));
-        Report("M8 first-run setup wizard is served (no terminal needed)", (await http.GetStringAsync("/")).Contains("Welcome to Ada"));
+        Report("M8 first-run setup wizard is served (no terminal needed)", (await http.GetStringAsync("/")).Contains("view-wizard"));
 
         // ---- ONNX local model: in-process provider + first-run download ----
         Report("ONNX catalog includes a Gemma default", OnnxModelCatalog.Find(OnnxModelCatalog.DefaultModelId)?.Family == "gemma");

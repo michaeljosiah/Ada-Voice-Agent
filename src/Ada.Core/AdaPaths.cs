@@ -6,9 +6,13 @@ namespace Ada.Core;
 /// </summary>
 public static class AdaPaths
 {
-    /// <summary>The root data directory. Created on demand by <see cref="EnsureDataDir"/>.</summary>
-    public static string DataDir { get; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Ada");
+    /// <summary>The root data directory — <c>%APPDATA%\Ada</c>, or the path in the <c>ADA_DATA_DIR</c>
+    /// environment variable when set (for portable installs, and to isolate tests from the real config).
+    /// Created on demand by <see cref="EnsureDataDir"/>.</summary>
+    public static string DataDir =>
+        Environment.GetEnvironmentVariable("ADA_DATA_DIR") is { Length: > 0 } dir
+            ? dir
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Ada");
 
     public static string EnsureDataDir()
     {
@@ -22,7 +26,7 @@ public static class AdaPaths
     /// bind-mounted into the container at <c>/home/gem/workspace</c>, so the agent operates on one
     /// consistent workspace whether it runs in the sandbox or falls back to the host.
     /// </summary>
-    public static string WorkspaceDir { get; } = Path.Combine(DataDir, "workspace");
+    public static string WorkspaceDir => Path.Combine(DataDir, "workspace");
 
     /// <summary>Ensures the workspace folder exists and returns it.</summary>
     public static string EnsureWorkspaceDir()
@@ -36,7 +40,7 @@ public static class AdaPaths
     /// <c>scripts/</c>, <c>references/</c>, <c>assets/</c>), per the agentskills.io spec. Mounted
     /// read-only into the AIO sandbox so a skill's bundled scripts can run there.
     /// </summary>
-    public static string SkillsDir { get; } = Path.Combine(DataDir, "skills");
+    public static string SkillsDir => Path.Combine(DataDir, "skills");
 
     /// <summary>Ensures the skills folder exists and returns it.</summary>
     public static string EnsureSkillsDir()
