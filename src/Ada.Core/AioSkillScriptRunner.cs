@@ -30,7 +30,9 @@ public sealed class AioSkillScriptRunner(SandboxSession session, AioSandboxOptio
             return $"Refusing to run '{script.FullPath}': it is outside the skills folder.";
         var containerPath = $"{_options.ContainerSkillsDir}/{rel}";
 
-        var args = new List<string> { "exec", _options.ContainerName, "python3", containerPath };
+        // Pick the interpreter from the script's extension; the sandbox carries both Python and Node.
+        var interpreter = Path.GetExtension(script.FullPath).Equals(".js", StringComparison.OrdinalIgnoreCase) ? "node" : "python3";
+        var args = new List<string> { "exec", _options.ContainerName, interpreter, containerPath };
         args.AddRange(ToPositionalArgs(arguments));
 
         var (ok, stdout, stderr, code) = await DockerAsync(args, cancellationToken).ConfigureAwait(false);

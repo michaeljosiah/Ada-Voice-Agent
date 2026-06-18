@@ -6,8 +6,9 @@ namespace Ada.Core;
 /// Bridges Ada to Microsoft Agent Framework's file-based skills (the agentskills.io spec): a folder per
 /// skill under <see cref="AdaPaths.SkillsDir"/>, discovered by an <see cref="AgentSkillsProvider"/> that
 /// gives the agent <c>load_skill</c> / <c>read_skill_resource</c> / <c>run_skill_script</c> with
-/// progressive disclosure. Bundled <c>.py</c> scripts run in the AIO sandbox via
-/// <see cref="AioSkillScriptRunner"/>. Returns no provider when there are no skills yet, so those tools
+/// progressive disclosure. Bundled <c>.py</c>/<c>.js</c> scripts run in the AIO sandbox via
+/// <see cref="AioSkillScriptRunner"/> (python3 / node, by extension). Returns no provider when there are
+/// no skills yet, so those tools
 /// stay off the agent's surface until the user actually drops a skill in.
 /// </summary>
 public static class AdaSkills
@@ -37,7 +38,8 @@ public static class AdaSkills
 
             var (name, desc, compat) = ParseFrontmatter(md, Path.GetFileName(dir));
             var scripts = Path.Combine(dir, "scripts");
-            var hasScripts = Directory.Exists(scripts) && Directory.EnumerateFiles(scripts, "*.py").Any();
+            var hasScripts = Directory.Exists(scripts) &&
+                (Directory.EnumerateFiles(scripts, "*.py").Any() || Directory.EnumerateFiles(scripts, "*.js").Any());
             result.Add(new SkillInfo(name, desc, compat, hasScripts));
         }
         return result;
@@ -82,8 +84,8 @@ public static class AdaSkills
         if (!Any()) return null;
 
         var runner = new AioSkillScriptRunner(session);
-        // Python-only for now: the sandbox runner executes scripts with python3.
-        var fileOptions = new AgentFileSkillsSourceOptions { AllowedScriptExtensions = [".py"] };
+        // The sandbox runner picks the interpreter by extension: .py → python3, .js → node.
+        var fileOptions = new AgentFileSkillsSourceOptions { AllowedScriptExtensions = [".py", ".js"] };
         return new AgentSkillsProvider(AdaPaths.EnsureSkillsDir(), runner.RunAsync, fileOptions, options: null, loggerFactory: null);
     }
 }
