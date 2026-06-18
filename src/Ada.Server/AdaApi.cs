@@ -141,6 +141,25 @@ public static class AdaApi
             return Results.Ok();
         });
 
+        // Install a skill from an uploaded .zip / .skill archive — the request body is the raw bytes.
+        // Validated then extracted into the skills folder; scripts never run here, only files are written.
+        app.MapPost("/api/skills/upload", async (HttpContext http, CancellationToken ct) =>
+        {
+            try
+            {
+                using var ms = new MemoryStream();
+                await http.Request.Body.CopyToAsync(ms, ct);
+                if (ms.Length == 0) return Results.Json(new { ok = false, error = "No file was received." });
+                ms.Position = 0;
+                var result = SkillInstaller.InstallFromZip(ms);
+                return Results.Json(new { ok = result.Ok, name = result.Name, error = result.Error });
+            }
+            catch (Exception ex)
+            {
+                return Results.Json(new { ok = false, error = ex.Message });
+            }
+        });
+
         // The work environment: whether the AIO sandbox is up (and the agent is using its tools) or on
         // the host fallback. Drives Settings → Workspace & sandbox.
         app.MapGet("/api/sandbox", (SandboxSession session, ConfigStore config) => Results.Json(new
