@@ -12,6 +12,13 @@ public sealed class ContainerCodeSandbox : ICodeSandbox
 {
     private readonly Lazy<bool> _dockerPresent = new(ProbeDocker);
 
+    // C# runs as a .NET 10 file-based app, which needs a one-time NuGet restore. We warm a shared cache
+    // volume once (with network), so every real run executes offline (--network none) against it.
+    private const string DotnetImage = "mcr.microsoft.com/dotnet/sdk:10.0";
+    private const string DotnetCacheVolume = "ada-dotnet-cache";
+    private static volatile bool _csWarmed;
+    private static readonly SemaphoreSlim _csWarmLock = new(1, 1);
+
     public SandboxZone Zone => SandboxZone.LocalContainer;
     public bool Available => _dockerPresent.Value;
 
@@ -20,7 +27,11 @@ public sealed class ContainerCodeSandbox : ICodeSandbox
         if (!Available)
             return SandboxResult.Failed("unavailable", "Docker is not available; use the in-process Wasm zone.");
 
-        var (image, exec) = request.Language.ToLowerInvariant() switch
+        var lang = request.Language.ToLowerInvariant();
+        if (lang is "csharp" or "cs" or "c#" or "dotnet")
+            return await RunCSharpAsync(request, ct);
+
+        var (image, exec) = lang switch
         {
             "python" or "py" => ("python:3-alpine", new[] { "python", "-c", request.Code }),
             "javascript" or "js" or "node" => ("node:alpine", new[] { "node", "-e", request.Code }),
@@ -33,6 +44,61 @@ public sealed class ContainerCodeSandbox : ICodeSandbox
         var args = new List<string> { "run", "--rm", "--network", "none", "--memory", $"{memMb}m", "--cpus", "1", image };
         args.AddRange(exec!);
         return await RunDocker(args, ct);
+    }
+
+    // C# runs as a .NET 10 file-based app inside the SDK image — like the other languages, but a .NET
+    // build needs a NuGet restore and more memory/CPU/time than an interpreter. We warm a shared cache
+    // once (with network) and then run the snippet network-off against it.
+    private static async Task<SandboxResult> RunCSharpAsync(SandboxRequest request, CancellationToken ct)
+    {
+        var dir = Directory.CreateTempSubdirectory("ada_cs_").FullName;
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(dir, "script.cs"), request.Code, ct);
+            await EnsureDotnetCacheWarmAsync(ct);
+            var memMb = Math.Max(512, request.MemoryBytes / (1024 * 1024)); // a .NET build needs headroom
+            return await RunDocker(DotnetRunArgs(dir.Replace('\\', '/'), memMb, networkOff: true), ct);
+        }
+        finally
+        {
+            try { Directory.Delete(dir, recursive: true); } catch { /* best effort */ }
+        }
+    }
+
+    // Seed the shared NuGet cache volume once per process with a throwaway script (network on). User code
+    // never runs here — it only populates the cache so real runs can restore with the network cut off.
+    private static async Task EnsureDotnetCacheWarmAsync(CancellationToken ct)
+    {
+        if (_csWarmed) return;
+        await _csWarmLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (_csWarmed) return;
+            var dir = Directory.CreateTempSubdirectory("ada_csw_").FullName;
+            try
+            {
+                await File.WriteAllTextAsync(Path.Combine(dir, "script.cs"), "System.Console.WriteLine(\"warm\");", ct);
+                await RunDocker(DotnetRunArgs(dir.Replace('\\', '/'), 512, networkOff: false), ct);
+                _csWarmed = true;
+            }
+            finally { try { Directory.Delete(dir, recursive: true); } catch { /* best effort */ } }
+        }
+        finally { _csWarmLock.Release(); }
+    }
+
+    private static List<string> DotnetRunArgs(string mount, long memMb, bool networkOff)
+    {
+        var args = new List<string> { "run", "--rm" };
+        if (networkOff) { args.Add("--network"); args.Add("none"); }
+        args.AddRange(new[]
+        {
+            "--memory", $"{memMb}m", "--cpus", "2",
+            "-v", $"{DotnetCacheVolume}:/root/.nuget",
+            "-v", $"{mount}:/work", "-w", "/work",
+            "-e", "DOTNET_NOLOGO=1", "-e", "DOTNET_CLI_TELEMETRY_OPTOUT=1",
+            DotnetImage, "dotnet", "run", "script.cs",
+        });
+        return args;
     }
 
     private static async Task<SandboxResult> RunDocker(IReadOnlyList<string> args, CancellationToken ct)

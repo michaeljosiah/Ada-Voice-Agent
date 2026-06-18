@@ -28,6 +28,8 @@ public static class AdaToolsServiceCollectionExtensions
         services.TryAddSingleton<WebTools>();
         services.TryAddSingleton(_ => new JobStore());
         services.TryAddSingleton<ScheduleTools>();
+        services.TryAddSingleton<ContainerCodeSandbox>(); // the container zone (Docker) backing run_code
+        services.TryAddSingleton<CodeTools>();
 
         // Skills (spec §7.3) and the MCP mounter (§7.4).
         services.AddSingleton<ISkill, ResearchSkill>();
@@ -46,6 +48,7 @@ public static class AdaToolsServiceCollectionExtensions
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<MemoryTools>().Forget, "forget"));
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<ScheduleTools>().ScheduleJob, "schedule_job"));
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<ScheduleTools>().ListJobs, "list_jobs"));
+        services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<CodeTools>().RunCode, "run_code"));
 
         return services;
     }
