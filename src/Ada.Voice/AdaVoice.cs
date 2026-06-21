@@ -7,8 +7,10 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;   // IOptions<VoxaOptions>
 using Voxa.AspNetCore;
 using Voxa.Audio.SileroVad;
+using Voxa.Speech;                     // VoxaVadSettings, SentenceAggregator
 using Voxa.Speech.Kokoro;
 using Voxa.Speech.Piper;
 using Voxa.Speech.WhisperCpp;
@@ -26,6 +28,11 @@ public sealed record VoiceSettingsDto(string? SttModel = null, string? SttLangua
 /// </summary>
 public static class AdaVoice
 {
+    /// <summary>The rate the browser client captures and downsamples to (wwwroot <c>VOICE_IN_RATE</c>);
+    /// Whisper's native rate. Inbound frames must carry this before the Silero VAD, which forwards
+    /// audio ungated when the frame rate ≠ its configured rate.</summary>
+    private const int ClientInputSampleRate = 16000;
+
     /// <summary>Registers Voxa with Ada's local speech stack (both TTS engines). Models download on use.</summary>
     public static void AddAdaVoice(WebApplicationBuilder builder)
     {
@@ -76,8 +83,25 @@ public static class AdaVoice
             var threadId = context.Request.Query["thread"].FirstOrDefault();
             if (string.IsNullOrWhiteSpace(threadId) || convos?.Load(threadId) is null) threadId = null;
 
+            // Honour the configured Voxa:Profile (LowLatency) on this hand-built chain. Voxa's composer does
+            // this for us under .UseDefaults(); we resolve the same tuning so the manual route stays faithful
+            // to whatever Voxa:Profile is set — no magic constants in Ada.
+            var tuning = sp.GetRequiredService<VoxaTuningResolver>()
+                           .Resolve(sp.GetRequiredService<IOptions<VoxaOptions>>().Value);
+
+            var vadSettings = new VoxaVadSettings(
+                SampleRate:          ClientInputSampleRate,
+                ConfidenceThreshold: tuning.VadConfidenceThreshold,
+                MinRms:              tuning.VadMinRms,
+                StartDuration:       tuning.VadStartDuration,
+                StopDuration:        tuning.VadStopDuration,
+                PrerollDuration:     tuning.VadPrerollDuration);
+
             pipeline
-                .UseSilenceGate()
+                // Tag inbound frames at their true 16 kHz, then run the real Silero VAD (the engine Ada
+                // registers and downloads) instead of the fixed-constant energy gate UseSilenceGate() builds.
+                .UseProcessor(() => new InputRateTagProcessor(ClientInputSampleRate))
+                .UseProcessor(() => SileroVadDescriptors.Vad.CreateProcessor(sp, vadSettings))
                 .UseSpeechToText(() => WhisperCppDescriptors.Stt.CreateProcessor(sp, voxaCfg))
                 .UseTranscriptionFilter()
                 .UseProcessor(() => new BlankTranscriptionFilter())   // drop [BLANK_AUDIO] etc. before the agent
@@ -104,7 +128,13 @@ public static class AdaVoice
                         return ValueTask.CompletedTask;
                     };
                 })
-                .UseSentenceAggregator()
+                // Profile-tuned aggregator (LowLatency: 40-char eager first chunk / 350-char cap) instead of
+                // UseSentenceAggregator()'s parameterless defaults (0 / 500) — restores fast first-audio.
+                .UseProcessor(() => new SentenceAggregator
+                {
+                    EagerFirstChunkMinChars = tuning.EagerFirstChunkMinChars,
+                    MaxBufferChars          = tuning.MaxBufferChars,
+                })
                 .UseTextToSpeech(() => tts.CreateProcessor(sp, voxaCfg));
         });
 
