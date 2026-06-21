@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ada — Voice Pipeline Fidelity (M6.1) · Fix Specification · June 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#fbf7ef; --paper-1:#f6efe2; --paper-2:#efe5d2;
+    --ink:#221e18; --ink-soft:#4a443b; --muted:#7a7264; --rule:#e6ddcb;
+    --evergreen:#1f5040; --evergreen-deep:#173e32; --evergreen-tint:#e3ede7;
+    --clay:#a8552e; --clay-deep:#8e4523; --clay-tint:#f4e4d9;
+    --gold:#c29752; --info:#2a5670; --warn:#b97700; --danger:#9e2b1c;
+    --night:#16130e; --night-surface:#1f1b14; --night-text:#efe8da;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth;}
+  body{margin:0;background:radial-gradient(1200px 520px at 88% -6%,#f3ead7 0%,transparent 60%),var(--paper);
+    color:var(--ink);font:17px/1.65 "Newsreader","Iowan Old Style",Georgia,serif;}
+  .page{max-width:880px;margin:0 auto;padding:64px 42px 140px;}
+  header.cover{border-bottom:1px solid var(--rule);margin-bottom:40px;padding-bottom:34px;}
+  .eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:12px;color:var(--clay);
+    font-family:-apple-system,"Segoe UI",sans-serif;margin-bottom:16px;font-weight:600;}
+  header.cover h1{font-family:"Fraunces",Georgia,serif;font-size:46px;line-height:1.08;margin:0 0 16px;
+    font-weight:600;letter-spacing:-.018em;}
+  header.cover h1 .dot{color:var(--clay);}
+  header.cover .lede{color:var(--ink-soft);font-size:20px;max-width:62ch;}
+  header.cover .meta{margin-top:24px;color:var(--muted);font-size:13px;font-family:-apple-system,"Segoe UI",sans-serif;}
+  h2{font-family:"Fraunces",Georgia,serif;font-size:29px;font-weight:600;letter-spacing:-.01em;
+    margin:64px 0 12px;padding-bottom:9px;border-bottom:1px solid var(--rule);}
+  h2 .num{color:var(--clay);font-weight:500;margin-right:14px;}
+  h3{font-family:"Fraunces",Georgia,serif;font-size:21px;font-weight:600;margin:36px 0 8px;}
+  h4{font-size:13px;font-weight:700;margin:20px 0 4px;font-family:-apple-system,"Segoe UI",sans-serif;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--evergreen);}
+  p{margin:12px 0 16px;}
+  ul,ol{margin:10px 0 18px;padding-left:24px;}
+  li{margin:7px 0;}
+  strong{font-weight:600;}
+  em{color:var(--ink-soft);}
+  .muted{color:var(--muted);font-size:.85em;font-family:-apple-system,"Segoe UI",sans-serif;}
+  code{font-family:"JetBrains Mono","SF Mono",Menlo,monospace;font-size:13px;background:#f0e7d6;
+    padding:1px 6px;border-radius:3px;color:#3a342b;}
+  .big-quote{font-family:"Fraunces",Georgia,serif;font-size:25px;line-height:1.42;color:var(--ink);
+    margin:28px 0;padding-left:22px;border-left:3px solid var(--clay);}
+  .callout{background:#fffdf8;border:1px solid var(--rule);border-left:3px solid var(--clay);
+    padding:18px 22px;margin:22px 0;border-radius:3px;font-size:16px;}
+  .callout.accent{border-left-color:var(--evergreen);}
+  .callout.warn{border-left-color:var(--warn);}
+  .callout.danger{border-left-color:var(--danger);}
+  .callout.info{border-left-color:var(--info);background:#f3f7f9;}
+  .callout .label{text-transform:uppercase;letter-spacing:.1em;font-size:11px;
+    font-family:-apple-system,"Segoe UI",sans-serif;color:var(--muted);margin-bottom:7px;font-weight:700;}
+  .callout.accent .label{color:var(--evergreen);}
+  .callout.danger .label{color:var(--danger);}
+  .callout.warn .label{color:var(--warn);}
+  .callout.info .label{color:var(--info);}
+  table{width:100%;border-collapse:collapse;margin:16px 0 26px;font-size:14px;font-family:-apple-system,"Segoe UI",sans-serif;}
+  th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--rule);vertical-align:top;}
+  th{background:#f0e7d6;font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:12px;}
+  td.keep{color:var(--evergreen);font-weight:600;}
+  td.kill{color:var(--danger);font-weight:600;}
+  td.new{color:var(--clay);font-weight:600;}
+  td.dorm{color:var(--warn);font-weight:600;}
+  .toc{background:#fffdf8;border:1px solid var(--rule);border-radius:6px;padding:20px 26px;margin-bottom:46px;
+    font-family:-apple-system,"Segoe UI",sans-serif;font-size:14px;}
+  .toc ol{margin:8px 0;padding-left:22px;}
+  .toc a{color:var(--ink);text-decoration:none;border-bottom:1px dotted var(--muted);}
+  .toc a:hover{color:var(--clay);border-bottom-color:var(--clay);}
+  .codeblock{margin:20px 0 26px;border-radius:8px;overflow:hidden;border:1px solid #2c261c;
+    box-shadow:0 8px 24px rgba(34,30,24,.14);}
+  .codeblock .bar{background:#2c261c;color:#cfc4ac;font-family:"JetBrains Mono",monospace;font-size:12px;
+    padding:8px 16px;display:flex;justify-content:space-between;}
+  .codeblock .bar .lang{color:#8d826b;opacity:.7;}
+  .codeblock pre{margin:0;background:var(--night-surface);color:var(--night-text);padding:18px 20px;
+    overflow-x:auto;font-family:"JetBrains Mono","SF Mono",Menlo,monospace;font-size:12.6px;line-height:1.6;}
+  .codeblock pre .cm{color:#9a8f78;}
+  .codeblock pre .kw{color:#d27b4f;}
+  .codeblock pre .ty{color:#8fc2a9;}
+  .codeblock pre .st{color:#c9a85c;}
+  .codeblock pre .del{color:#c97a6d;}
+  .codeblock pre .add{color:#9ec99a;}
+  .spec{border:1px solid var(--rule);border-radius:10px;margin:28px 0;overflow:hidden;background:#fffdf8;}
+  .spec .head{background:linear-gradient(180deg,#f3ecdc,#fffdf8);padding:16px 24px;border-bottom:1px solid var(--rule);
+    display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .spec .head h3{margin:0;}
+  .spec .head .route{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted);}
+  .spec .inner{padding:6px 24px 20px;}
+  .accept{background:var(--evergreen-tint);border-left:3px solid var(--evergreen);border-radius:3px;
+    padding:13px 18px;margin:16px 0 6px;font-size:14.5px;font-family:-apple-system,sans-serif;}
+  .accept .label{text-transform:uppercase;letter-spacing:.1em;font-size:10.5px;color:var(--evergreen-deep);
+    font-weight:700;margin-bottom:6px;}
+  .accept ul{margin:4px 0 2px;padding-left:20px;}
+  .accept li{margin:4px 0;}
+  .pill{display:inline-block;font-size:11px;font-family:-apple-system,sans-serif;text-transform:uppercase;
+    letter-spacing:.07em;font-weight:700;padding:2px 10px;border-radius:20px;vertical-align:middle;}
+  .pill.ship{background:var(--evergreen-tint);color:var(--evergreen-deep);}
+  .pill.cut{background:#f6e2dc;color:var(--danger);}
+  .pill.later{background:#f4ecdd;color:var(--clay-deep);}
+  .footnote{font-size:13px;color:var(--muted);font-family:-apple-system,sans-serif;margin-top:34px;
+    padding-top:18px;border-top:1px solid var(--rule);}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="cover">
+  <div class="eyebrow">Ada · Voice Plane · Fix Specification</div>
+  <h1>Voice Pipeline Fidelity <span class="dot">·</span> M6.1</h1>
+  <p class="lede">The M6 voice pipeline configures <code>Voxa:Profile=LowLatency</code> and
+  <code>Voxa:Vad:Engine=Silero</code>, then hand-builds a pipeline that honours neither. This
+  spec makes the running pipeline match the configured intent — the real Silero VAD and the
+  LowLatency tuning Ada already asks for — without giving up Ada's per-thread voice memory.</p>
+  <div class="meta">
+    Status: <strong>Proposed</strong> · Increment on M6 (Voice) · Target: <code>src/Ada.Voice/AdaVoice.cs</code>
+    · Depends on: Voxa 0.5.0-alpha · June 21 2026
+  </div>
+</header>
+
+<div class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#problem">The defect: configured intent ≠ running pipeline</a></li>
+    <li><a href="#rootcause">Root cause — why the manual chain drops the tuning</a></li>
+    <li><a href="#design">Design — resolve the active profile, don't hardcode</a></li>
+    <li><a href="#patch">The patch</a></li>
+    <li><a href="#accept">Acceptance criteria</a></li>
+    <li><a href="#scope">Out of scope &amp; follow-ups</a></li>
+  </ol>
+</div>
+
+<h2 id="problem"><span class="num">1</span>The defect</h2>
+
+<p>Ada's voice plane (<code>AddAdaVoice</code> / <code>MapAdaVoice</code> in
+<code>src/Ada.Voice/AdaVoice.cs</code>) does everything right at <em>configuration</em> time:
+it registers the Silero VAD descriptor, sets <code>Voxa:Vad:Engine = "Silero"</code>, and seeds
+<code>Voxa:Profile = "LowLatency"</code> both as a startup default and per-connection. But it then
+maps the route with <code>MapVoxaVoice("/voice").Use((context, pipeline) =&gt; …)</code> and
+hand-assembles the stages. The hand-assembly bypasses Voxa's
+<code>DefaultVoicePipelineComposer</code> — the <em>only</em> component that reads the profile and
+selects the registered VAD — so three things Ada explicitly configures never actually run.</p>
+
+<div class="callout danger">
+  <div class="label">The headline</div>
+  <code>.UseSilenceGate()</code> builds a bare <code>SilenceGateProcessor()</code> — a fixed-constant
+  RMS energy gate. The Silero engine Ada registers and downloads is <strong>never instantiated</strong>,
+  and the LowLatency profile is <strong>inert</strong>. The voice stack the README advertises
+  ("Silero VAD … barge-in") is not the one that runs.
+</div>
+
+<table>
+  <thead><tr><th>Knob</th><th>Configured intent</th><th>What runs today</th><th>After this spec</th></tr></thead>
+  <tbody>
+    <tr><td>VAD engine</td><td><code>Silero</code> (neural, prob∧RMS)</td><td class="dorm">Energy gate (RMS&nbsp;only)</td><td class="keep">Silero</td></tr>
+    <tr><td>First-audio eagerness</td><td>LowLatency · 40 chars</td><td class="dorm">0 — disabled</td><td class="keep">40 chars</td></tr>
+    <tr><td>TTS buffer cap</td><td>LowLatency · 350 chars</td><td class="dorm">500 chars</td><td class="keep">350 chars</td></tr>
+    <tr><td>Turn-end silence</td><td>LowLatency · 400 ms</td><td class="dorm">800 ms hangover</td><td class="keep">400 ms</td></tr>
+    <tr><td>Speech-onset preroll</td><td>300 ms (no clipped first syllable)</td><td class="dorm">none</td><td class="keep">300 ms</td></tr>
+    <tr><td>Inbound frame rate</td><td>16&nbsp;kHz (Whisper's rate)</td><td class="dorm">mislabelled 24&nbsp;kHz</td><td class="keep">16&nbsp;kHz</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <div class="label">Evidence</div>
+  <code>UseSilenceGate()</code> → <code>new SilenceGateProcessor()</code> (Voxa
+  <code>SpeechBuilderExtensions.cs</code>); the profile is applied only by
+  <code>DefaultVoicePipelineComposer.Compose()</code>, reached only via <code>.UseDefaults()</code>.
+  <code>new SentenceAggregator()</code> defaults to <code>EagerFirstChunkMinChars = 0</code> /
+  <code>MaxBufferChars = 500</code>, versus LowLatency's <code>40 / 350</code>
+  (<code>VoxaTuningResolver</code>).
+</div>
+
+<h2 id="rootcause"><span class="num">2</span>Root cause</h2>
+
+<p>The manual chain was chosen for a <strong>legitimate</strong> reason: Ada needs custom turn
+persistence. Its <code>BuildMessages</code> / <code>OnTurnCompleted</code> hooks read and write
+Ada's own <code>IConversationStore</code> keyed by <code>?thread=</code>, so a spoken follow-up has
+session context and voice turns show up alongside text. Voxa's <code>.UseDefaults()</code> wires its
+own in-memory <code>InMemoryChatHistory</code> and exposes no seam to substitute a custom store — so
+Ada could not use the composer wholesale.</p>
+
+<p>The mistake is not "Ada hand-built a pipeline." It is that hand-building threw away the VAD and
+the profile tuning <em>along with</em> the agent stage Ada actually needed to customise. Those are
+separable. The convenience builder methods (<code>UseSilenceGate</code>,
+<code>UseSentenceAggregator</code>) each call a <em>parameterless</em> constructor; none of them
+read the profile. The profile lives in <code>VoxaTuningResolver</code>, which is a public,
+DI-registered service. We can resolve it ourselves and feed the same numbers the composer would.</p>
+
+<div class="callout warn">
+  <div class="label">Load-bearing prerequisite — the sample rate</div>
+  The browser client captures and downsamples to <strong>16 kHz</strong> ("Whisper needs exactly
+  16&nbsp;kHz", <code>wwwroot/index.html</code>). But Ada never calls <code>.UseDefaults()</code>, so
+  it never sets the session input rate — and that builder property is <code>internal</code>, so Ada
+  <em>cannot</em> set it. Voxa's <code>WebSocketAudioSource</code> therefore tags every inbound frame
+  with its default <strong>24 kHz</strong>. The current energy gate is rate-agnostic, so this never
+  mattered. <strong>Silero is not.</strong> Its processor <em>silently forwards audio without
+  gating</em> when the frame rate ≠ its configured rate — so dropping Silero in naively yields
+  <em>no VAD at all</em>. The frames must carry their true 16 kHz before the VAD. Fixing the label
+  also removes a latent mislabel that reaches Whisper today.
+</div>
+
+<h2 id="design"><span class="num">3</span>Design</h2>
+
+<p>Stay on the manual <code>.Use(...)</code> route (keep Ada's custom memory hooks untouched), and
+make three surgical changes inside the per-connection callback:</p>
+
+<ol>
+  <li><strong>Resolve the active profile once.</strong> Pull <code>VoxaTuningResolver</code> and
+  <code>IOptions&lt;VoxaOptions&gt;</code> from the request scope and call <code>Resolve()</code>.
+  This returns the same <code>VoxaEffectiveTuning</code> the composer uses — so we honour whatever
+  <code>Voxa:Profile</code> is set (LowLatency today) <em>and</em> any explicit overrides, with no
+  magic constants in Ada.</li>
+  <li><strong>Fix&nbsp;1 — the real VAD.</strong> Tag inbound frames at their true 16 kHz, then
+  replace <code>.UseSilenceGate()</code> with the registered <code>SileroVadDescriptors.Vad</code>,
+  configured from the resolved tuning. This is exactly the VAD stage the composer builds
+  (preroll, confidence∧RMS, eager-STT, force-split).</li>
+  <li><strong>Fix&nbsp;2 — the tuned aggregator.</strong> Replace <code>.UseSentenceAggregator()</code>
+  with a <code>SentenceAggregator</code> carrying the resolved <code>EagerFirstChunkMinChars</code>
+  and <code>MaxBufferChars</code> — restoring fast first-audio.</li>
+</ol>
+
+<p class="muted">Resolved LowLatency values, for reference: confidence 0.5 · minRMS 0.003 ·
+start 150 ms · stop 400 ms · preroll 300 ms · eager-STT 150 ms · max-utterance 20 s ·
+first-chunk 40 chars · buffer 350 chars.</p>
+
+<h2 id="patch"><span class="num">4</span>The patch</h2>
+
+<div class="spec">
+  <div class="head"><h3>4.1 New file</h3><span class="route">src/Ada.Voice/InputRateTagProcessor.cs</span>
+    <span class="pill new">new</span></div>
+  <div class="inner">
+    <p>A minimal stage that relabels inbound audio to the rate the client actually sends. It reuses
+    the existing PCM buffer (no copy) and is a no-op once a frame already carries the target rate. It
+    mirrors the existing <code>BlankTranscriptionFilter</code> pattern.</p>
+    <div class="codeblock"><div class="bar"><span>InputRateTagProcessor.cs</span><span class="lang">C#</span></div><pre>
+<span class="kw">using</span> Voxa.Frames;       <span class="cm">// Frame, AudioRawFrame</span>
+<span class="kw">using</span> Voxa.Processors;   <span class="cm">// FrameProcessor</span>
+
+<span class="kw">namespace</span> Ada.Voice;
+
+<span class="cm">/// &lt;summary&gt;</span>
+<span class="cm">/// Stamps inbound &lt;see cref="AudioRawFrame"/&gt;s with the sample rate the browser actually sends</span>
+<span class="cm">/// (16 kHz — see wwwroot VOICE_IN_RATE / "Whisper needs exactly 16 kHz"). Ada drives the pipeline</span>
+<span class="cm">/// through the fluent .Use(...) route, which never sets Voxa's (internal) session input rate, so the</span>
+<span class="cm">/// WebSocketAudioSource defaults to 24 kHz. The Silero VAD only gates when the frame rate matches its</span>
+<span class="cm">/// configured rate, so this corrects the label before the VAD — and hands Whisper an honest rate too.</span>
+<span class="kw">internal sealed class</span> <span class="ty">InputRateTagProcessor</span> : <span class="ty">FrameProcessor</span>
+{
+    <span class="kw">private readonly int</span> _rate;
+
+    <span class="kw">public</span> <span class="ty">InputRateTagProcessor</span>(<span class="kw">int</span> rate) : <span class="kw">base</span>(<span class="st">"InputRateTag"</span>) =&gt; _rate = rate;
+
+    <span class="kw">protected override async</span> <span class="ty">ValueTask</span> ProcessFrameAsync(<span class="ty">Frame</span> frame, <span class="ty">CancellationToken</span> ct)
+    {
+        <span class="kw">if</span> (frame <span class="kw">is</span> <span class="ty">AudioRawFrame</span> a &amp;&amp; a.SampleRate != _rate)
+            frame = <span class="kw">new</span> <span class="ty">AudioRawFrame</span>(a.Pcm, _rate, a.Channels); <span class="cm">// reuse the same PCM memory</span>
+        <span class="kw">await</span> PushFrameAsync(frame, ct).ConfigureAwait(<span class="kw">false</span>);
+    }
+}
+</pre></div>
+  </div>
+</div>
+
+<div class="spec">
+  <div class="head"><h3>4.2 Usings</h3><span class="route">src/Ada.Voice/AdaVoice.cs</span></div>
+  <div class="inner">
+    <p>Add two namespaces (the rest are already present; <code>Voxa.AspNetCore</code> already covers
+    <code>VoxaTuningResolver</code> / <code>VoxaOptions</code>):</p>
+    <div class="codeblock"><div class="bar"><span>AdaVoice.cs — add to the using block</span><span class="lang">C#</span></div><pre>
+<span class="kw">using</span> Microsoft.Extensions.Options;   <span class="cm">// IOptions&lt;VoxaOptions&gt;</span>
+<span class="kw">using</span> Voxa.Speech;                     <span class="cm">// VoxaVadSettings, SentenceAggregator</span>
+</pre></div>
+  </div>
+</div>
+
+<div class="spec">
+  <div class="head"><h3>4.3 The pipeline callback</h3><span class="route">MapAdaVoice → MapVoxaVoice("/voice").Use(...)</span></div>
+  <div class="inner">
+    <p>Add a sample-rate constant beside the other voice fields:</p>
+    <div class="codeblock"><div class="bar"><span>AdaVoice.cs</span><span class="lang">C#</span></div><pre>
+<span class="cm">/// The rate the browser client captures at (wwwroot VOICE_IN_RATE); Whisper's native rate.</span>
+<span class="kw">private const int</span> ClientInputSampleRate = <span class="st">16000</span>;
+</pre></div>
+
+    <p>Inside the <code>.Use((context, pipeline) =&gt; …)</code> body, after <code>var sp =
+    context.RequestServices;</code>, resolve the profile and build the VAD settings:</p>
+    <div class="codeblock"><div class="bar"><span>AdaVoice.cs — new, before the `pipeline` chain</span><span class="lang">C#</span></div><pre>
+<span class="cm">// Honour the configured Voxa:Profile (LowLatency) on the hand-built chain. The composer would do</span>
+<span class="cm">// this for us under .UseDefaults(); we resolve the same tuning so the manual route stays faithful.</span>
+<span class="kw">var</span> tuning = sp.GetRequiredService&lt;<span class="ty">VoxaTuningResolver</span>&gt;()
+               .Resolve(sp.GetRequiredService&lt;<span class="ty">IOptions</span>&lt;<span class="ty">VoxaOptions</span>&gt;&gt;().Value);
+
+<span class="kw">var</span> vadSettings = <span class="kw">new</span> <span class="ty">VoxaVadSettings</span>(
+    SampleRate:          ClientInputSampleRate,
+    ConfidenceThreshold: tuning.VadConfidenceThreshold,
+    MinRms:              tuning.VadMinRms,
+    StartDuration:       tuning.VadStartDuration,
+    StopDuration:        tuning.VadStopDuration,
+    PrerollDuration:     tuning.VadPrerollDuration)
+{
+    EagerSttDelay        = tuning.VadEagerSttDelay,
+    MaxUtteranceDuration = tuning.VadMaxUtteranceDuration,
+};
+</pre></div>
+
+    <p>Then change the head and tail of the pipeline chain:</p>
+    <div class="codeblock"><div class="bar"><span>AdaVoice.cs — the pipeline chain (diff)</span><span class="lang">C#</span></div><pre>
+ pipeline
+<span class="del">-    .UseSilenceGate()</span>
+<span class="add">+    .UseProcessor(() =&gt; new InputRateTagProcessor(ClientInputSampleRate))   // tag true 16 kHz</span>
+<span class="add">+    .UseProcessor(() =&gt; SileroVadDescriptors.Vad.CreateProcessor(sp, vadSettings))</span>
+     .UseSpeechToText(() =&gt; WhisperCppDescriptors.Stt.CreateProcessor(sp, voxaCfg))
+     .UseTranscriptionFilter()
+     .UseProcessor(() =&gt; new BlankTranscriptionFilter())
+     .UseMicrosoftAgent(agent, convos is null ? null : opts =&gt;
+     {
+         <span class="cm">// … unchanged: BuildMessages / OnTurnCompleted thread persistence …</span>
+     })
+<span class="del">-    .UseSentenceAggregator()</span>
+<span class="add">+    .UseProcessor(() =&gt; new SentenceAggregator</span>
+<span class="add">+    {</span>
+<span class="add">+        EagerFirstChunkMinChars = tuning.EagerFirstChunkMinChars,</span>
+<span class="add">+        MaxBufferChars          = tuning.MaxBufferChars,</span>
+<span class="add">+    })</span>
+     .UseTextToSpeech(() =&gt; tts.CreateProcessor(sp, voxaCfg));
+</pre></div>
+    <p class="muted">The agent stage, the <code>BlankTranscriptionFilter</code>, and the per-thread
+    persistence hooks are untouched. <code>SileroVadDescriptors</code> /
+    <code>WhisperCppDescriptors</code> are already imported.</p>
+  </div>
+</div>
+
+<div class="callout accent">
+  <div class="label">Adjacent &amp; optional — one more LowLatency knob</div>
+  LowLatency also caps a runaway response at <code>MaxResponseDuration = 30 s</code>. If desired, set
+  <code>opts.MaxResponseDuration = tuning.MaxResponseDuration;</code> inside the existing
+  <code>UseMicrosoftAgent</code> configure callback. Out of the two-fix core scope, but a one-line
+  completion of profile fidelity.
+</div>
+
+<h2 id="accept"><span class="num">5</span>Acceptance criteria</h2>
+
+<div class="accept">
+  <div class="label">Done when</div>
+  <ul>
+    <li><strong>Silero actually runs.</strong> With <code>ADA_LOG=Debug</code>, a spoken utterance logs
+    <code>SileroVad: gate OPENED … prerolling N windows</code> and a matching <code>gate CLOSED</code>.
+    No <code>received audio at 24000 Hz … forwarding without VAD</code> warning appears.</li>
+    <li><strong>The energy gate is gone.</strong> No <code>SilenceGateProcessor</code> is constructed on
+    the voice path (grep / a unit assertion on the composed stage list).</li>
+    <li><strong>The profile is live.</strong> The aggregator reports
+    <code>EagerFirstChunkMinChars == 40</code> and <code>MaxBufferChars == 350</code> under the default
+    LowLatency profile; switching <code>Voxa:Profile</code> changes them without code edits.</li>
+    <li><strong>First syllables survive.</strong> A clipped-onset phrase ("Ada, what time is it?")
+    transcribes its first word — preroll is flushing.</li>
+    <li><strong>No regression in memory.</strong> A spoken follow-up still sees prior-turn context and the
+    turn still lands in the <code>?thread=</code> conversation (the custom hooks are unchanged).</li>
+    <li><strong>Builds clean.</strong> <code>dotnet build Ada.slnx</code> with no new warnings.</li>
+  </ul>
+</div>
+
+<h2 id="scope"><span class="num">6</span>Out of scope &amp; follow-ups</h2>
+
+<ul>
+  <li><span class="pill later">later</span> <strong>Output rate via the session envelope.</strong> The
+  client already learns the TTS output rate from Ada's <code>GET /api/voice</code>; this spec does not
+  add a Voxa <code>SessionInfoFrame</code>. Unaffected by the two fixes.</li>
+  <li><span class="pill later">later</span> <strong>Acoustic echo cancellation.</strong> With speakers
+  (not headphones) and no AEC, the bot's own voice can still trip the VAD into a false barge-in. A real
+  VAD narrows this versus the energy gate, but the durable fix is an AEC stage — a separate increment.</li>
+  <li><span class="pill later">later</span> <strong>Upstream: a composer seam for custom memory.</strong>
+  The clean long-term shape is for Voxa's <code>.UseDefaults()</code> to accept a custom chat-history /
+  agent-options hook, so a host with its own conversation store keeps the composer (VAD + profile +
+  diagnostics) instead of re-deriving it. That would retire this spec's manual stages entirely and is
+  worth raising against Voxa. Until then, this spec is the faithful in-Ada fix.</li>
+  <li><span class="pill cut">non-goal</span> Changing the granular interruption model. Barge-in here is
+  sink-side audio purge (keyed on the speaking edge both gates emit); no in-flight-turn
+  <code>InterruptionFrame</code> is introduced.</li>
+</ul>
+
+<div class="footnote">
+  Ada — Voice Pipeline Fidelity (M6.1). Companion to <code>docs/ada-agent-spec.html</code> §M6.
+  Touches one file plus one new ~12-line processor; no public surface, no new dependency. The goal is
+  narrow: make the pipeline that runs equal the pipeline Ada already configured.
+</div>
+
+</div>
+</body>
+</html>
