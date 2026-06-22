@@ -5,6 +5,8 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!-- The exe / taskbar / Explorer icon: Ada's aurora mark (same brand as the tray + in-app logo). -->
+    <ApplicationIcon>ada.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
