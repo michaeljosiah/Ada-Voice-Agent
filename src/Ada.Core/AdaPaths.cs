@@ -51,4 +51,14 @@ public static class AdaPaths
 
     /// <summary>The editable persona / system-prompt file.</summary>
     public static string PersonaFile => Path.Combine(DataDir, "ADA.md");
+
+    /// <summary>Central log folder — <c>%APPDATA%\Ada\logs</c>.</summary>
+    public static string LogsDir => Path.Combine(DataDir, "logs");
+
+    /// <summary>The current day's log file (created on demand). One file per day keeps it inspectable.</summary>
+    public static string LogFilePath()
+    {
+        Directory.CreateDirectory(LogsDir);
+        return Path.Combine(LogsDir, $"ada-{DateTime.Now:yyyy-MM-dd}.log");
+    }
 }

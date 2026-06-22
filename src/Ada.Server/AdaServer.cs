@@ -47,6 +47,10 @@ public static class AdaServer
             && Enum.TryParse<Microsoft.Extensions.Logging.LogLevel>(lv, true, out var parsed)
             ? parsed : Microsoft.Extensions.Logging.LogLevel.Warning;
         builder.Logging.SetMinimumLevel(logLevel);
+        // Central file log under %APPDATA%\Ada\logs — server warnings/errors, and the Voxa voice pipeline at
+        // ADA_LOG=Debug, are captured even though the tray app has no console to print them to.
+        try { builder.Logging.AddProvider(new FileLoggerProvider(AdaPaths.LogFilePath(), logLevel)); }
+        catch (Exception ex) { Console.Error.WriteLine($"[log] file logging disabled: {ex.Message}"); }
 
         // The GUI uses interactive approval cards; register it before AddAda so the harness keeps it.
         builder.Services.AddSingleton<InteractiveApprovalHandler>();

@@ -15,6 +15,17 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
 
+        // Central crash logging: route unhandled exceptions to the same %APPDATA%\Ada\logs file as the
+        // server, so a GUI crash is never silent. (Set ADA_LOG=Debug for full voice-pipeline tracing.)
+        var logPath = AdaPaths.LogFilePath();
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            FileLoggerProvider.Append(logPath, $"{DateTime.UtcNow:HH:mm:ss.fff} CRT AppDomain — unhandled exception{Environment.NewLine}{e.ExceptionObject}");
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+            { FileLoggerProvider.Append(logPath, $"{DateTime.UtcNow:HH:mm:ss.fff} ERR Task — unobserved exception{Environment.NewLine}{e.Exception}"); e.SetObserved(); };
+        Application.ThreadException += (_, e) =>
+            FileLoggerProvider.Append(logPath, $"{DateTime.UtcNow:HH:mm:ss.fff} CRT UI thread — unhandled exception{Environment.NewLine}{e.Exception}");
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+
         var server = AdaServer.StartAsync(new AdaServerOptions(Port: 0, Voice: true)).GetAwaiter().GetResult();
 
         // A manual launch (double-click) opens the window and runs the startup splash; autostart-at-login
