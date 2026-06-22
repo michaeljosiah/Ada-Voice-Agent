@@ -20,4 +20,9 @@
     <ProjectReference Include="../Ada.Core/Ada.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The voice test project drives the internal pipeline processors directly. -->
+    <InternalsVisibleTo Include="Ada.Voice.Tests" />
+  </ItemGroup>
+
 </Project>

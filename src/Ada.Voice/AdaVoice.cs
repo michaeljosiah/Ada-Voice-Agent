@@ -165,6 +165,20 @@ public static class AdaVoice
             });
         });
 
+        // Prelaunch readiness: are the speech models cached, AND does the agent's model actually answer?
+        // The decisive check behind a silent "Hi → stuck on thinking" — also runnable via `ada doctor`.
+        app.MapGet("/api/voice/preflight", async (HttpContext http, CancellationToken ct) =>
+        {
+            var cfg = new ConfigStore().Load();
+            var report = await VoicePreflight.RunAsync(http.RequestServices, cfg.SttModel, cfg.TtsProvider, cfg.TtsVoice, ct: ct);
+            return Results.Json(new
+            {
+                ok = report.Ok,
+                worst = report.Worst.ToString().ToLowerInvariant(),
+                checks = report.Checks.Select(c => new { name = c.Name, status = c.Status.ToString().ToLowerInvariant(), detail = c.Detail }),
+            });
+        });
+
         // Change the pipeline (STT model / TTS engine / voice). Takes effect on the next voice session.
         app.MapPost("/api/voice", (VoiceSettingsDto dto) =>
         {

@@ -10,5 +10,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/Ada.Core.Tests/Ada.Core.Tests.csproj" />
     <Project Path="tests/Ada.Tools.Tests/Ada.Tools.Tests.csproj" />
+    <Project Path="tests/Ada.Voice.Tests/Ada.Voice.Tests.csproj" />
   </Folder>
 </Solution>

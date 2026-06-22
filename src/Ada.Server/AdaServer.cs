@@ -70,6 +70,23 @@ public static class AdaServer
         {
             try { AdaVoice.MapAdaVoice(app); }
             catch (Exception ex) { Console.Error.WriteLine($"[voice] endpoint not mapped: {ex.Message}"); }
+
+            // Fast, offline readiness hint in the log so a half-configured voice setup is visible up front.
+            // (The agent's model is probed on demand — `ada doctor` / GET /api/voice/preflight — not here,
+            // since a real generation can be slow and must never block startup.)
+            try
+            {
+                var vcfg = new ConfigStore().Load();
+                var notReady = VoicePreflight.CheckSpeechModels(vcfg.SttModel, vcfg.TtsProvider, vcfg.TtsVoice)
+                    .Where(c => c.Status != PreflightStatus.Ok).ToList();
+                var log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Ada.Voice");
+                if (notReady.Count == 0)
+                    log.LogInformation("Voice ready: speech models cached. Probe the model with `ada doctor`.");
+                else
+                    log.LogWarning("Voice enabled, but {Count} speech model(s) not cached: {Models}. Warm up in Settings → Voice, or run `ada doctor`.",
+                        notReady.Count, string.Join("; ", notReady.Select(c => c.Name)));
+            }
+            catch { /* readiness logging is best-effort */ }
         }
 
         return app;

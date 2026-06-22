@@ -4,6 +4,7 @@ using System.Text.Json;
 using Ada.Core;
 using Ada.Server;
 using Ada.Tools;
+using Ada.Voice;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -701,8 +702,27 @@ internal static class Program
         Console.WriteLine($"  scheduled jobs     : {new JobStore().Load().Count} (paused: {new KillSwitch().Paused})");
         Console.WriteLine($"  windows autostart  : {Autostart.IsEnabled()}");
         Console.WriteLine($"  setup complete     : {cfg.SetupComplete}");
+
+        // Voice readiness: speech models cached, and — the decisive one — the agent's model actually
+        // answers within the voice cap. A failure here is why a spoken turn hangs on "thinking".
+        Console.WriteLine("\n  voice pipeline:");
+        try
+        {
+            using var sp = new ServiceCollection().AddAdaCore().BuildServiceProvider();
+            var report = await VoicePreflight.RunAsync(sp, cfg.SttModel, cfg.TtsProvider, cfg.TtsVoice);
+            foreach (var c in report.Checks)
+                Console.WriteLine($"    [{Glyph(c.Status)}] {c.Name} — {c.Detail}");
+        }
+        catch (Exception ex) { Console.WriteLine($"    [FAIL] preflight could not run — {ex.Message}"); }
         return 0;
     }
+
+    private static string Glyph(PreflightStatus s) => s switch
+    {
+        PreflightStatus.Ok => "ok  ",
+        PreflightStatus.Warn => "warn",
+        _ => "FAIL",
+    };
 
     private static int Jobs(string[] args)
     {
