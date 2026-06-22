@@ -302,6 +302,9 @@ public static class AdaApi
             }
         });
 
+        // Which Ollama models are already pulled (model:tag), so the picker can mark downloaded vs not.
+        app.MapGet("/api/ollama/models", () => Results.Json(new { models = OllamaRuntime.InstalledModels() }));
+
         // Set up the managed Ollama runtime from the wizard: detect-or-download, pull the model, and
         // make it the local runtime — streamed as SSE progress. Ollama is left running for the session.
         app.MapPost("/api/ollama/setup", async (HttpContext http, CancellationToken ct) =>

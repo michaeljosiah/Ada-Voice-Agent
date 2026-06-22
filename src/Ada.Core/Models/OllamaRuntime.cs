@@ -43,6 +43,26 @@ public sealed class OllamaRuntime : IAsyncDisposable
         catch { return false; }
     }
 
+    /// <summary>
+    /// The models already pulled into the managed store, as <c>model:tag</c> (e.g. <c>gemma4:e4b</c>) — read
+    /// straight from Ollama's manifest layout on disk, so it works whether or not <c>ollama serve</c> is running.
+    /// Powers the "downloaded vs not" markers on the model picker.
+    /// </summary>
+    public static IReadOnlyList<string> InstalledModels(string? runtimeDir = null)
+    {
+        var library = Path.Combine(runtimeDir ?? DefaultRuntimeDir, "models", "manifests", "registry.ollama.ai", "library");
+        if (!Directory.Exists(library)) return Array.Empty<string>();
+        var models = new List<string>();
+        try
+        {
+            foreach (var modelDir in Directory.EnumerateDirectories(library))
+                foreach (var tagFile in Directory.EnumerateFiles(modelDir))
+                    models.Add($"{Path.GetFileName(modelDir)}:{Path.GetFileName(tagFile)}");
+        }
+        catch { /* best-effort listing */ }
+        return models;
+    }
+
     public static string? FindExecutable(string? runtimeDir)
     {
         var exeName = OperatingSystem.IsWindows() ? "ollama.exe" : "ollama";

@@ -344,7 +344,7 @@ const host = (m) => { try { window.chrome && window.chrome.webview && window.chr
 
 const S = {
   view:'main', theme:'light', themeMode:'light', widget:'idle',
-  config:null, onnxModels:[], catalog:[],
+  config:null, onnxModels:[], ollamaModels:[], catalog:[],
   profile:'Balanced', model:'ollama:gemma3:4b', cloudProvider:'', cloudKey:'',
   section:'appearance', autostart:false, sandbox:null, images:null, skills:null, threadId:null, threads:[],
   wizStep:0, dl:{status:'idle',model:null,line:'',i:0,n:0},
@@ -747,8 +747,15 @@ function modelList(){
     {id:'ollama:qwen2.5:1.5b', label:'Qwen 2.5 · 1.5B', meta:'~1 GB · fast, low-resource', kind:'Ollama'},
     {id:'ollama:llama3.2:3b', label:'Llama 3.2 · 3B', meta:'~2 GB · balanced', kind:'Ollama'},
   ];
-  for (const m of S.onnxModels) out.push({ id:'onnx:'+m.id, label:m.label+' · ONNX', meta:(m.approxMb?('~'+(m.approxMb/1024).toFixed(1)+' GB'):'in-process')+(m.downloaded?' · installed':''), kind:'ONNX' });
+  const pulled = S.ollamaModels||[];
+  for (const m of out) m.downloaded = pulled.includes(m.id.slice(7));   // strip the "ollama:" prefix → "model:tag"
+  for (const m of S.onnxModels) out.push({ id:'onnx:'+m.id, label:m.label+' · ONNX', meta:(m.approxMb?('~'+(m.approxMb/1024).toFixed(1)+' GB'):'in-process'), kind:'ONNX', downloaded:!!m.downloaded });
   return out;
+}
+async function refreshModelStatus(){
+  try { const mj = await (await fetch('/api/models')).json(); S.onnxModels = mj.models||[]; } catch(_){}
+  try { const om = await (await fetch('/api/ollama/models')).json(); S.ollamaModels = om.models||[]; } catch(_){}
+  if (S.view==='wizard') renderWizStep(); else if (S.view==='settings' && S.section==='model') renderSettingsBody();
 }
 function providerList(){
   const cat = S.catalog && S.catalog.length ? S.catalog : [{id:'anthropic',label:'Anthropic · Claude'},{id:'openai',label:'OpenAI'},{id:'azure',label:'Azure OpenAI'}];
@@ -772,7 +779,12 @@ function profileCardsHTML(sel, cls){
   return PROFILES.map(p=>'<div class="card '+(p.id===sel?'sel':'')+'" data-p="'+p.id+'"><div style="display:flex;align-items:center"><span class="cn">'+p.name+'</span>'+(p.rec?'<span class="rec">RECOMMENDED</span>':'')+'</div><div class="cd">'+p.desc+'</div></div>').join('');
 }
 function modelCardsHTML(sel){
-  return modelList().map(m=>'<div class="card mcard '+(m.id===sel?'sel':'')+'" data-m="'+m.id+'"><span class="kind '+(m.kind==='Ollama'?'ollama':'onnx')+'">'+m.kind+'</span><div style="flex:1;min-width:0"><div class="ml">'+esc(m.label)+'</div><div class="mm">'+esc(m.meta)+'</div></div></div>').join('');
+  return modelList().map(m=>{
+    const status = m.downloaded
+      ? '<span style="margin-left:10px;align-self:center;white-space:nowrap;font-size:12px;font-weight:600;color:#3a9c3e;display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>Downloaded</span>'
+      : '<span style="margin-left:10px;align-self:center;white-space:nowrap;font-size:12px;color:var(--text-mute)">Not downloaded</span>';
+    return '<div class="card mcard '+(m.id===sel?'sel':'')+'" data-m="'+m.id+'"><span class="kind '+(m.kind==='Ollama'?'ollama':'onnx')+'">'+m.kind+'</span><div style="flex:1;min-width:0"><div class="ml">'+esc(m.label)+'</div><div class="mm">'+esc(m.meta)+'</div></div>'+status+'</div>';
+  }).join('');
 }
 function providerCardsHTML(sel){
   return providerList().map(p=>'<div class="card pcard '+(p.id===sel?'sel':'')+'" data-prov="'+p.id+'"><div class="pmark" style="background:'+p.color+'">'+esc(p.mark)+'</div><div style="min-width:0"><div style="font-size:13.5px;font-weight:600;color:var(--text)">'+esc(p.name)+'</div><div style="font-size:11.5px;color:var(--text-mute)">'+esc(p.sub)+'</div></div></div>').join('');
@@ -853,7 +865,7 @@ async function startDownload(){
           else if(line.startsWith('data:')){
             const d=JSON.parse(line.slice(5).trim()||'{}');
             if(ev==='progress'){ if(typeof d==='string') S.dl.line=d; else if(d.n){ S.dl.i=d.i; S.dl.n=d.n; S.dl.line=d.file||''; } refreshDl(); }
-            else if(ev==='done'){ S.dl.status='done'; refreshDl(); }
+            else if(ev==='done'){ S.dl.status='done'; refreshDl(); refreshModelStatus(); }
             else if(ev==='error'){ S.dl.status='idle'; S.dl.line='Setup failed: '+d; refreshDl(); }
           }
         }
@@ -1173,7 +1185,7 @@ document.addEventListener('keydown', e => {
     if (cfg.profile) S.profile = cfg.profile;
     if (typeof cfg.autostart === 'boolean') S.autostart = cfg.autostart;
     if (cfg.catalog) S.catalog = cfg.catalog;
-    try { const mj = await (await fetch('/api/models')).json(); S.onnxModels = mj.models||[]; } catch(_){}
+    await refreshModelStatus();   // ONNX + pulled-Ollama lists, so the picker marks downloaded vs not
     loadVoiceStatus();
     loadSandboxStatus();
     loadSkills();
