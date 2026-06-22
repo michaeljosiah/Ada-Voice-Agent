@@ -38,6 +38,21 @@ public static class AdaApi
         app.MapGet("/voiceui", () => Results.Content(VoiceHtml, "text/html; charset=utf-8")); // the compact Voice Mode widget
         app.MapGet("/healthz", () => Results.Json(new { status = "ok", app = "ada", milestone = "M2" }));
 
+        // Launch readiness for the startup splash: is a brain reachable (the gating check), are the speech
+        // models cached? Kicks an observable, download-free Ollama start when it's the configured-but-idle
+        // runtime, so the page shows "starting → ready" instead of the first turn hanging on "thinking".
+        app.MapGet("/api/launch", async (HttpContext http, CancellationToken ct) =>
+        {
+            var r = await LaunchStatus.BuildAsync(http.RequestServices, ct);
+            return Results.Json(new
+            {
+                ready = r.Ready,
+                setupComplete = r.SetupComplete,
+                stage = r.Stage,
+                checks = r.Checks.Select(c => new { name = c.Name, status = c.Status, detail = c.Detail, action = c.Action }),
+            });
+        });
+
         app.MapPost("/api/chat", async (ChatRequestDto dto, IAdaEngine engine, IConversationStore convos, HttpContext http, CancellationToken ct) =>
         {
             var resp = http.Response;

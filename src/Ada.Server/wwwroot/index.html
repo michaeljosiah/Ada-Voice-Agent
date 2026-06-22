@@ -243,6 +243,19 @@
       </div>
     </div>
 
+    <!-- LAUNCH (startup readiness splash) -->
+    <div class="view launchview" id="view-launch">
+      <div class="launchbox">
+        <div class="launch-aura">
+          <svg width="56" height="56" viewBox="0 0 64 64"><circle cx="22" cy="32" r="5.6" fill="url(#aurora)"/><path d="M30 20.5 A14 14 0 0 1 30 43.5" stroke="url(#aurora)" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M34.6 14 A22 22 0 0 1 34.6 50" stroke="url(#aurora)" stroke-width="4.2" fill="none" stroke-linecap="round" opacity=".62"/><path d="M39.2 7.4 A30 30 0 0 1 39.2 56.6" stroke="url(#aurora)" stroke-width="3.4" fill="none" stroke-linecap="round" opacity=".38"/></svg>
+        </div>
+        <div class="launch-title" id="launchTitle">Starting Ada…</div>
+        <div class="launch-sub" id="launchSub">Checking that everything's ready.</div>
+        <div class="launch-checks" id="launchChecks"></div>
+        <div class="launch-cta" id="launchCta" style="display:none"></div>
+      </div>
+    </div>
+
     <!-- WIZARD -->
     <div class="view wizrow" id="view-wizard">
       <div class="rail">
@@ -300,6 +313,29 @@
 .cs-row:hover .cs-del{opacity:.7;}
 .cs-del:hover{opacity:1;color:#c0392b;background:rgba(192,57,43,.1);}
 .cs-empty{padding:22px 14px;color:var(--text-mute);text-align:center;font-size:12.5px;}
+/* launch readiness splash */
+.launchview{align-items:center;justify-content:center;}
+.launchview.fading{opacity:0;transition:opacity .45s ease;}
+.launchbox{width:100%;max-width:430px;padding:0 28px;display:flex;flex-direction:column;align-items:center;text-align:center;}
+.launch-aura{width:96px;height:96px;display:flex;align-items:center;justify-content:center;position:relative;margin-bottom:16px;}
+.launch-aura::before,.launch-aura::after{content:'';position:absolute;width:96px;height:96px;border-radius:50%;border:2px solid #6f5cd0;animation:launchWave 1.9s ease-out infinite;}
+.launch-aura::after{border-color:#0a7c84;animation-delay:.7s;}
+@keyframes launchWave{0%{transform:scale(.5);opacity:.5}100%{transform:scale(1.25);opacity:0}}
+.launch-title{font-size:21px;font-weight:600;color:var(--text);letter-spacing:-.01em;}
+.launch-sub{font-size:13.5px;color:var(--text-mute);margin:6px 0 22px;}
+.launch-checks{width:100%;display:flex;flex-direction:column;gap:9px;}
+.lcheck{display:flex;align-items:flex-start;gap:10px;text-align:left;background:var(--surface-2);border-radius:10px;padding:11px 13px;}
+.lcheck .lci{flex:none;width:18px;height:18px;margin-top:1px;}
+.lcheck .lcn{font-size:13px;color:var(--text);font-weight:500;}
+.lcheck .lcd{font-size:11.5px;color:var(--text-mute);margin-top:2px;line-height:1.45;}
+.lspin{flex:none;width:18px;height:18px;border-radius:50%;border:2px solid var(--surface-3);border-top-color:#6f5cd0;animation:lspin .8s linear infinite;}
+@keyframes lspin{to{transform:rotate(360deg)}}
+.launch-cta{margin-top:22px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.launch-cta button{border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+.lbtn-primary{background:#6f5cd0;color:#fff;}
+.lbtn-primary:hover{background:#5d4cc0;}
+.lbtn-ghost{background:var(--surface-2);color:var(--text-soft);}
+.lbtn-ghost:hover{background:var(--surface-3);}
 </style>
 <script>
 const $ = (s, r=document) => r.querySelector(s);
@@ -328,12 +364,12 @@ function setThemeMode(m){ S.themeMode = m; localStorage.setItem('adaTheme', m); 
 $('#themeBtn').onclick = () => setThemeMode(S.theme === 'dark' ? 'light' : 'dark');
 
 /* ---------- view switching ---------- */
-const SUBS = { main:'On your machine · private by default', wizard:'First-time setup', settings:'Settings' };
+const SUBS = { main:'On your machine · private by default', wizard:'First-time setup', settings:'Settings', launch:'Starting up' };
 function setView(v){
   S.view = v;
-  for (const id of ['main','wizard','settings']) $('#view-'+id).classList.toggle('on', id===v);
+  for (const id of ['main','wizard','settings','launch']) $('#view-'+id).classList.toggle('on', id===v);
   $('#headerSub').textContent = SUBS[v];
-  $('#settingsBtn').style.display = v==='wizard' ? 'none' : '';
+  $('#settingsBtn').style.display = (v==='wizard'||v==='launch') ? 'none' : '';
   const onMain = v==='main';
   $('#newChatBtn').style.display = onMain ? '' : 'none';
   $('#histBtn').style.display = onMain ? '' : 'none';
@@ -634,6 +670,49 @@ window.adaShowView = (v) => {
   if (v === 'main' && S.config && S.config.setupComplete === false) { setView('wizard'); return; }
   if (v === 'main' || v === 'settings' || v === 'wizard') setView(v);
 };
+
+/* ---------- launch readiness splash ---------- */
+let launchTimer=0, launchTries=0;
+function runLaunch(){ launchTries=0; clearTimeout(launchTimer); setView('launch'); pollLaunch(); }
+async function pollLaunch(){
+  if (S.view!=='launch') return;
+  let r=null; try{ r=await (await fetch('/api/launch')).json(); }catch(_){}
+  if (S.view!=='launch') return;          // navigated away mid-fetch
+  launchTries++;
+  if (r){ renderLaunch(r); if (r.ready){ finishLaunch(); return; } }
+  if (launchTries>90) return;             // stop auto-advancing after ~90s; CTAs (if any) stay on screen
+  const slow = r && r.stage==='needs-attention';
+  launchTimer=setTimeout(pollLaunch, slow?2500:1000);
+}
+function finishLaunch(){
+  const v=$('#view-launch'); if(v) v.classList.add('fading');
+  setTimeout(()=>{ if(v) v.classList.remove('fading'); emptyState(); setView('main'); }, 450);
+}
+function launchIcon(status){
+  if(status==='ok') return '<svg class="lci" viewBox="0 0 24 24" fill="none" stroke="#1a9d6b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  if(status==='fail') return '<svg class="lci" viewBox="0 0 24 24" fill="none" stroke="#d98a2b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+  return '<div class="lspin"></div>';     // warn / starting
+}
+function renderLaunch(r){
+  const titles={ready:'Ada is ready','starting-model':'Waking up your model…','needs-attention':'Almost there',setup:'Setting up…'};
+  $('#launchTitle').textContent = titles[r.stage] || 'Starting Ada…';
+  $('#launchSub').textContent = r.stage==='needs-attention'
+    ? 'One thing needs your attention before Ada can answer.'
+    : 'Getting your local brain and voice models ready.';
+  $('#launchChecks').innerHTML = (r.checks||[]).map(c=>
+    '<div class="lcheck">'+launchIcon(c.status)+'<div class="lct"><div class="lcn">'+esc(c.name)+'</div><div class="lcd">'+esc(c.detail)+'</div></div></div>').join('');
+  // Call to action only when something can't self-heal (a failed check that points somewhere).
+  const blocking=(r.checks||[]).filter(c=>c.status==='fail'&&c.action);
+  const cta=$('#launchCta');
+  if(blocking.length && r.stage==='needs-attention'){
+    const target=blocking[0].action;     // 'wizard' | 'settings'
+    cta.innerHTML='<button class="lbtn-primary" id="laGo">'+(target==='wizard'?'Set up a model':'Open Settings')+'</button>'+
+                  '<button class="lbtn-ghost" id="laSkip">Continue anyway</button>';
+    cta.style.display='';
+    $('#laGo').onclick=()=>{ clearTimeout(launchTimer); setView(target==='wizard'?'wizard':'settings'); };
+    $('#laSkip').onclick=()=>{ clearTimeout(launchTimer); emptyState(); setView('main'); };
+  } else { cta.style.display='none'; cta.innerHTML=''; }
+}
 
 /* ---------- data ---------- */
 const PROFILES = [
@@ -1079,7 +1158,7 @@ document.addEventListener('keydown', e => {
     loadSandboxStatus();
     loadSkills();
     loadThreads();
-    setView(cfg.setupComplete ? 'main' : 'wizard');
+    if (cfg.setupComplete) runLaunch(); else setView('wizard');
   } catch(_){ setView('main'); setWidget('idle'); }
 })();
 </script>
