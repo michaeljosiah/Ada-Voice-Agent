@@ -73,6 +73,18 @@ internal sealed class MainForm : Form
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
+    private const int WM_NCCALCSIZE = 0x0083;
+
+    // Borderless + WS_THICKFRAME otherwise leaves Windows painting a thin native frame line across the very
+    // top of the window (the stray light strip above the header). Eating WM_NCCALCSIZE makes the client area
+    // fill the whole window so no native border is drawn; WS_THICKFRAME still drives edge-resize hit-testing,
+    // and the window is never maximised, so there's no off-screen overhang to compensate for.
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == WM_NCCALCSIZE && m.WParam != IntPtr.Zero) { m.Result = IntPtr.Zero; return; }
+        base.WndProc(ref m);
+    }
+
     private async Task InitWebViewAsync()
     {
         await _web.EnsureCoreWebView2Async();
