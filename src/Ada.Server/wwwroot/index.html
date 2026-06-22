@@ -738,6 +738,10 @@ const PROFILES = [
 const PROV_STYLE = { anthropic:'#d97757', openai:'#10a37f', google:'#2f6cf2', gemini:'#2f6cf2', mistral:'#eb5c37', azure:'#2b7cd3' };
 function modelList(){
   const out = [
+    {id:'ollama:gemma4:e4b', label:'Gemma 4 · E4B', meta:'~9.6 GB · most capable on-device', kind:'Ollama'},
+    {id:'ollama:gemma4:e2b', label:'Gemma 4 · E2B', meta:'~7.2 GB · efficient', kind:'Ollama'},
+    {id:'ollama:gemma4:12b', label:'Gemma 4 · 12B', meta:'~7.6 GB · dense, discrete GPU', kind:'Ollama'},
+    {id:'ollama:gemma4:26b', label:'Gemma 4 · 26B', meta:'~18 GB · high-VRAM', kind:'Ollama'},
     {id:'ollama:gemma3:4b', label:'Gemma 3 · 4B', meta:'recommended · ~3.3 GB · fits most GPUs', kind:'Ollama'},
     {id:'ollama:qwen2.5:7b', label:'Qwen 2.5 · 7B', meta:'~4.7 GB · best on a discrete GPU', kind:'Ollama'},
     {id:'ollama:qwen2.5:1.5b', label:'Qwen 2.5 · 1.5B', meta:'~1 GB · fast, low-resource', kind:'Ollama'},
