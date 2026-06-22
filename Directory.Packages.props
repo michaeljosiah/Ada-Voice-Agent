@@ -28,12 +28,12 @@
     <!-- Packaging / autostart (M8) -->
     <PackageVersion Include="Microsoft.Win32.Registry" Version="5.0.0" />
     <!-- Voice (M6) — Voxa .NET 10 voice framework -->
-    <PackageVersion Include="Voxa.AspNetCore" Version="0.5.0-alpha" />
-    <PackageVersion Include="Voxa.Services.MicrosoftAgents" Version="0.5.0-alpha" />
-    <PackageVersion Include="Voxa.Speech.WhisperCpp" Version="0.5.0-alpha" />
-    <PackageVersion Include="Voxa.Speech.Piper" Version="0.5.0-alpha" />
-    <PackageVersion Include="Voxa.Speech.Kokoro" Version="0.5.0-alpha" />
-    <PackageVersion Include="Voxa.Audio.SileroVad" Version="0.5.0-alpha" />
+    <PackageVersion Include="Voxa.AspNetCore" Version="0.6.0-alpha" />
+    <PackageVersion Include="Voxa.Services.MicrosoftAgents" Version="0.6.0-alpha" />
+    <PackageVersion Include="Voxa.Speech.WhisperCpp" Version="0.6.0-alpha" />
+    <PackageVersion Include="Voxa.Speech.Piper" Version="0.6.0-alpha" />
+    <PackageVersion Include="Voxa.Speech.Kokoro" Version="0.6.0-alpha" />
+    <PackageVersion Include="Voxa.Audio.SileroVad" Version="0.6.0-alpha" />
     <!-- Native whisper.cpp runtime: Voxa pulls Whisper.net (managed) but NOT its native lib, so the
          WhisperCpp STT engine throws "Native Library not found" on first audio. This ships win-x64 CPU. -->
     <PackageVersion Include="Whisper.net.Runtime" Version="1.9.1" />

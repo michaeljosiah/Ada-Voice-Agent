@@ -95,7 +95,12 @@ public static class AdaVoice
                 MinRms:              tuning.VadMinRms,
                 StartDuration:       tuning.VadStartDuration,
                 StopDuration:        tuning.VadStopDuration,
-                PrerollDuration:     tuning.VadPrerollDuration);
+                PrerollDuration:     tuning.VadPrerollDuration)
+            {
+                // Nullable on the tuning → null leaves Voxa's own default; LowLatency sets both.
+                EagerSttDelay        = tuning.VadEagerSttDelay,
+                MaxUtteranceDuration = tuning.VadMaxUtteranceDuration,
+            };
 
             pipeline
                 // Tag inbound frames at their true 16 kHz, then run the real Silero VAD (the engine Ada
@@ -107,6 +112,7 @@ public static class AdaVoice
                 .UseProcessor(() => new BlankTranscriptionFilter())   // drop [BLANK_AUDIO] etc. before the agent
                 .UseMicrosoftAgent(agent, convos is null ? null : opts =>
                 {
+                    opts.MaxResponseDuration = tuning.MaxResponseDuration;  // LowLatency caps a runaway response
                     // Feed the thread's recent turns back so a spoken follow-up has context in the session.
                     opts.BuildMessages = (ctx, _) =>
                     {
