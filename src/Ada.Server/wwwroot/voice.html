@@ -420,11 +420,34 @@
   async function start(){
     if (running) return;
     if (DEMO){ running=true; setMode('ready'); runDemo(); return; }
+    // Readiness gate: confirm the model can actually respond BEFORE listening, so voice mode never opens
+    // straight into a silent "thinking" hang. Same /api/launch checks the main window's splash runs.
+    if (!(await ensureReady())) return;
     running = true; setMode('ready');
     try { var r = await fetch('/api/voice'); if (r.ok){ var j = await r.json(); if (j && j.outputRate) sessionRate = j.outputRate; } } catch(e){}  // play TTS at the selected voice's rate
     var ok = await startAudio(sessionRate);
     if (ok === false){ running=false; return; }
     connect();
+  }
+  // Poll launch readiness until the model is warm; show progress, and the error note if it can't start.
+  async function ensureReady(){
+    hideNote();
+    caption.classList.add('placeholder'); caption.textContent='Preparing Ada…';
+    statusText.textContent='Preparing…'; srcEl.className='src status-thinking';
+    for (var i=0;i<90;i++){
+      var r=null; try { var resp=await fetch('/api/launch'); if (resp.ok) r=await resp.json(); } catch(e){}
+      if (r && r.ready) return true;
+      if (r && r.stage==='needs-attention'){
+        var bad=(r.checks||[]).filter(function(c){return c.status==='fail';})[0];
+        showNote('Ada isn’t ready', bad ? bad.detail : 'Ada can’t start a model right now — open the main window → Settings.');
+        return false;
+      }
+      var pending=((r&&r.checks)||[]).filter(function(c){return c.status!=='ok';})[0];
+      caption.textContent = pending ? pending.detail : 'Preparing Ada…';
+      await new Promise(function(res){ setTimeout(res,1000); });
+    }
+    showNote('Taking too long', 'Ada’s model didn’t become ready. Open the main window to check Settings.');
+    return false;
   }
   function stop(){
     manualStop=true; running=false; cancelThinking();

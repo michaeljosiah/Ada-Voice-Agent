@@ -11,11 +11,15 @@ internal static class Program
     /// hotkey and the WebView2 window.
     /// </summary>
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
 
         var server = AdaServer.StartAsync(new AdaServerOptions(Port: 0, Voice: true)).GetAwaiter().GetResult();
+
+        // A manual launch (double-click) opens the window and runs the startup splash; autostart-at-login
+        // passes --tray so Ada stays quietly in the tray until the user summons her.
+        var startHidden = args.Any(a => string.Equals(a, "--tray", StringComparison.OrdinalIgnoreCase));
 
         // If Ollama is the chosen local runtime, bring it up now (no silent download — the wizard owns
         // that). Single-flight and observable via /api/launch, so the splash shows "starting → ready"
@@ -24,7 +28,7 @@ internal static class Program
 
         try
         {
-            using var ctx = new AdaApplicationContext(server.Url);
+            using var ctx = new AdaApplicationContext(server.Url, showOnLaunch: !startHidden);
             Application.Run(ctx);
         }
         finally

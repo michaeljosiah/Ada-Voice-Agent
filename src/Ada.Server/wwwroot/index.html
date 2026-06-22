@@ -668,12 +668,20 @@ window.adaToggleVoice = () => { voice ? stopVoice() : startVoice(); };
 window.adaStopVoice = () => { if (voice) stopVoice(); };   // host calls this when Voice mode takes over
 window.adaShowView = (v) => {
   if (v === 'main' && S.config && S.config.setupComplete === false) { setView('wizard'); return; }
+  if (S.launching) {                          // the startup splash owns the view until its checks pass
+    if (v === 'main') return;                 // it advances to main on its own — don't let the host pre-empt it
+    S.launchSkip = true; S.launching = false; clearTimeout(launchTimer);  // explicit Settings/voice intent wins
+  }
   if (v === 'main' || v === 'settings' || v === 'wizard') setView(v);
 };
 
 /* ---------- launch readiness splash ---------- */
-let launchTimer=0, launchTries=0;
-function runLaunch(){ launchTries=0; clearTimeout(launchTimer); setView('launch'); pollLaunch(); }
+let launchTimer=0, launchTries=0, launchStart=0;
+S.launching = true;   // claim the view synchronously so the host's first ShowConversation() can't pre-empt the splash
+function runLaunch(){
+  if (S.launchSkip){ S.launching=false; return; }   // an explicit Settings/voice open already took the view
+  S.launching=true; launchTries=0; launchStart=Date.now(); clearTimeout(launchTimer); setView('launch'); pollLaunch();
+}
 async function pollLaunch(){
   if (S.view!=='launch') return;
   let r=null; try{ r=await (await fetch('/api/launch')).json(); }catch(_){}
@@ -685,8 +693,15 @@ async function pollLaunch(){
   launchTimer=setTimeout(pollLaunch, slow?2500:1000);
 }
 function finishLaunch(){
-  const v=$('#view-launch'); if(v) v.classList.add('fading');
-  setTimeout(()=>{ if(v) v.classList.remove('fading'); emptyState(); setView('main'); }, 450);
+  if (S.launchEnding) return;                              // ignore a duplicate "ready" poll
+  S.launchEnding = true;
+  const wait=Math.max(0, 1900-(Date.now()-launchStart));   // hold the splash ~2s so the checks are clearly seen, not a flash
+  setTimeout(()=>{
+    const v=$('#view-launch'); if(v) v.classList.add('fading');
+    // Release the guard ONLY as we leave the splash — keeping it set for the whole hold stops the host's
+    // queued adaShowView('main') (from "Open Ada") from stomping the still-visible splash to chat.
+    setTimeout(()=>{ S.launching=false; if(v) v.classList.remove('fading'); emptyState(); setView('main'); }, 450);
+  }, wait);
 }
 function launchIcon(status){
   if(status==='ok') return '<svg class="lci" viewBox="0 0 24 24" fill="none" stroke="#1a9d6b" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
@@ -709,8 +724,8 @@ function renderLaunch(r){
     cta.innerHTML='<button class="lbtn-primary" id="laGo">'+(target==='wizard'?'Set up a model':'Open Settings')+'</button>'+
                   '<button class="lbtn-ghost" id="laSkip">Continue anyway</button>';
     cta.style.display='';
-    $('#laGo').onclick=()=>{ clearTimeout(launchTimer); setView(target==='wizard'?'wizard':'settings'); };
-    $('#laSkip').onclick=()=>{ clearTimeout(launchTimer); emptyState(); setView('main'); };
+    $('#laGo').onclick=()=>{ S.launching=false; clearTimeout(launchTimer); setView(target==='wizard'?'wizard':'settings'); };
+    $('#laSkip').onclick=()=>{ S.launching=false; clearTimeout(launchTimer); emptyState(); setView('main'); };
   } else { cta.style.display='none'; cta.innerHTML=''; }
 }
 
@@ -1147,6 +1162,7 @@ document.addEventListener('keydown', e => {
 /* ---------- init ---------- */
 (async function init(){
   emptyState();
+  runLaunch();              // show the splash immediately (before any network) — it self-advances once checks pass
   try {
     const cfg = await (await fetch('/api/config')).json();
     S.config = cfg;
@@ -1158,8 +1174,8 @@ document.addEventListener('keydown', e => {
     loadSandboxStatus();
     loadSkills();
     loadThreads();
-    if (cfg.setupComplete) runLaunch(); else setView('wizard');
-  } catch(_){ setView('main'); setWidget('idle'); }
+    if (!cfg.setupComplete) { S.launching=false; clearTimeout(launchTimer); setView('wizard'); }  // unsetup → wizard, not the splash
+  } catch(_){ S.launching=false; clearTimeout(launchTimer); setView('main'); setWidget('idle'); }
 })();
 </script>
 </body>

@@ -34,43 +34,55 @@ public static class LaunchStatus
         return new Report(cfg.SetupComplete && brainOk, cfg.SetupComplete, stage, items);
     }
 
-    /// <summary>The gating check: can Ada reach a brain? Drives the observable Ollama start when needed.</summary>
+    /// <summary>
+    /// The gating check. Two stages: (1) the runtime is available (Ollama reachable / ONNX downloaded /
+    /// provider configured), then (2) the model actually <em>responds</em> — a warm-up generation, not just
+    /// reachability. Stage 2 is the part a silent "stuck on thinking" needed: a reachable Ollama whose model
+    /// won't generate now fails loudly here instead of hanging the first turn.
+    /// </summary>
     private static async Task<(bool ok, bool starting, Item item)> CheckBrainAsync(AdaConfig cfg, IServiceProvider services, CancellationToken ct)
     {
         const string name = "Local model";
 
+        // --- Stage 1: is the runtime up at all? ---
         if (cfg.LocalRuntime == "ollama")
         {
             var opts = new OllamaOptions();
-            if (await OllamaRuntime.IsReachableAsync(opts.Endpoint, ct))
-                return (true, false, new(name, "ok", $"Ollama running · {cfg.OllamaModel ?? opts.DefaultModel}.", null));
-
-            OllamaLauncher.EnsureStarted(opts); // observable, never downloads
-            return OllamaLauncher.State switch
+            if (!await OllamaRuntime.IsReachableAsync(opts.Endpoint, ct))
             {
-                // NotConfigured here is the brief window before the background task sets Starting.
-                OllamaLaunchState.Starting or OllamaLaunchState.NotConfigured
-                    => (false, true, new(name, "warn", "Starting your local model…", null)),
-                OllamaLaunchState.NotInstalled
-                    => (false, false, new(name, "fail", "Ollama isn't installed yet — set up a local model.", "wizard")),
-                _ => (false, false, new(name, "fail", "Ollama isn't responding. Open Settings to start it or switch your model.", "settings")),
-            };
+                OllamaLauncher.EnsureStarted(opts); // observable, never downloads
+                return OllamaLauncher.State switch
+                {
+                    OllamaLaunchState.NotInstalled => (false, false, new(name, "fail", "Ollama isn't installed yet — set up a local model.", "wizard")),
+                    OllamaLaunchState.Failed => (false, false, new(name, "fail", "Ollama isn't responding. Open Settings to start it or switch your model.", "settings")),
+                    _ => (false, true, new(name, "warn", "Starting your local model…", null)), // Starting / brief NotConfigured window
+                };
+            }
         }
-
-        if (cfg.LocalRuntime == "onnx")
+        else if (cfg.LocalRuntime == "onnx")
         {
             var store = new OnnxModelStore();
             var id = cfg.LocalModelId ?? store.Downloaded().FirstOrDefault();
-            return id is not null && store.IsReady(id)
-                ? (true, false, new(name, "ok", $"On-device model ready · {id}.", null))
-                : (false, false, new(name, "fail", "No on-device model downloaded yet.", "wizard"));
+            if (id is null || !store.IsReady(id))
+                return (false, false, new(name, "fail", "No on-device model downloaded yet.", "wizard"));
+        }
+        else
+        {
+            var registry = services.GetRequiredService<ProviderRegistry>();
+            if (registry.ForRole(ModelRole.Default) is null && registry.ForRole(ModelRole.Escalation) is null)
+                return (false, false, new(name, "fail", "No model configured yet.", "wizard"));
         }
 
-        // No local runtime configured — fall back to a configured cloud provider, else nothing.
-        var registry = services.GetRequiredService<ProviderRegistry>();
-        if (registry.ForRole(ModelRole.Default) is not null || registry.ForRole(ModelRole.Escalation) is not null)
-            return (true, false, new(name, "ok", "Using a configured provider.", null));
-        return (false, false, new(name, "fail", "No model configured yet.", "wizard"));
+        // --- Stage 2: can the model actually generate? Warm it (load + one tiny reply) so the first real
+        //     turn is fast, and fail loudly if it never responds. ---
+        ModelWarmup.Ensure(services);
+        return ModelWarmup.State switch
+        {
+            WarmState.Ready => (true, false, new(name, "ok", "Ready.", null)),
+            WarmState.Failed => (false, false, new(name, "fail",
+                $"The model isn't responding ({ModelWarmup.Detail}) — open Settings to re-download it or switch models.", "settings")),
+            _ => (false, true, new(name, "warn", "Warming up the model…", null)), // Cold / Warming
+        };
     }
 
     private static string MapStatus(PreflightStatus s) => s switch

@@ -15,7 +15,7 @@ internal sealed class AdaApplicationContext : ApplicationContext
     private MainForm? _form;
     private VoiceForm? _voice;
 
-    public AdaApplicationContext(string url)
+    public AdaApplicationContext(string url, bool showOnLaunch = false)
     {
         _url = url;
 
@@ -32,6 +32,9 @@ internal sealed class AdaApplicationContext : ApplicationContext
         _hotkeys.HotkeyPressed += OnHotkey;
         _openHotkeyId = _hotkeys.Register(ModifierKeys.Control | ModifierKeys.Alt, Keys.A);
         _voiceHotkeyId = _hotkeys.Register(ModifierKeys.Control | ModifierKeys.Alt, Keys.Space);
+
+        // Manual launch: open the window immediately so the user sees the startup splash without a tray trip.
+        if (showOnLaunch) OpenConversation();
     }
 
     private ContextMenuStrip BuildMenu()
@@ -62,8 +65,11 @@ internal sealed class AdaApplicationContext : ApplicationContext
 
     private void OpenConversation()
     {
+        var fresh = _form is null;
         ShowWindow();               // creates + centres + shows the window
-        _form?.ShowConversation();  // land on the chat surface, not whatever view was last open
+        // Re-opens land on the chat surface; the very first open lets the startup splash run and self-advance
+        // (forcing 'main' here would stomp the splash to chat instantly).
+        if (!fresh) _form?.ShowConversation();
     }
 
     // ---- Voice mode: the compact /voiceui widget in its own small window ----

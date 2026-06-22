@@ -14,7 +14,8 @@ public static class Autostart
     {
         if (!OperatingSystem.IsWindows()) return false;
         using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true) ?? Registry.CurrentUser.CreateSubKey(RunKeyPath);
-        key.SetValue(valueName, $"\"{exePath}\"");
+        // --tray: an autostart launch stays hidden in the tray; a manual double-click (no args) opens the window.
+        key.SetValue(valueName, $"\"{exePath}\" --tray");
         return true;
     }
 
