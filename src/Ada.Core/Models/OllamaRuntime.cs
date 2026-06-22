@@ -120,7 +120,15 @@ public sealed class OllamaRuntime : IAsyncDisposable
         };
         psi.Environment["OLLAMA_HOST"] = $"{host.Host}:{host.Port}";
         psi.Environment["OLLAMA_MODELS"] = modelsDir;
-        return Process.Start(psi)!;
+        var process = Process.Start(psi)!;
+        // Drain stdout/stderr. Ollama logs verbosely; if we redirect the streams but never read them, the OS
+        // pipe buffer fills and Ollama BLOCKS on the next write — the server stays reachable (it answered
+        // /api/version early) but every generation hangs forever. Discarding the lines keeps it flowing.
+        process.OutputDataReceived += (_, _) => { };
+        process.ErrorDataReceived += (_, _) => { };
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+        return process;
     }
 
     private static async Task<string> DownloadAsync(OllamaOptions options, IProgress<string>? progress, CancellationToken ct)
