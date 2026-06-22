@@ -13,6 +13,15 @@ public sealed class OnnxModelStore
 
     public string DirFor(string id) => Path.Combine(_root, id);
 
+    /// <summary>Delete a downloaded ONNX model's folder to free disk. Returns false if it wasn't present.</summary>
+    public bool Delete(string id)
+    {
+        var dir = DirFor(id);
+        if (!Directory.Exists(dir)) return false;
+        try { Directory.Delete(dir, recursive: true); return true; }
+        catch { return false; }
+    }
+
     public bool IsReady(string id) => File.Exists(Path.Combine(DirFor(id), "genai_config.json"));
 
     public IReadOnlyList<string> Downloaded() =>

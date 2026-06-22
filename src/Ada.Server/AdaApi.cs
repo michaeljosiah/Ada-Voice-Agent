@@ -305,6 +305,15 @@ public static class AdaApi
         // Which Ollama models are already pulled (model:tag), so the picker can mark downloaded vs not.
         app.MapGet("/api/ollama/models", () => Results.Json(new { models = OllamaRuntime.InstalledModels() }));
 
+        // Delete a downloaded model to free disk — Ollama via its API (blob-refcount aware), ONNX by folder.
+        app.MapPost("/api/ollama/delete", async (HttpContext http, CancellationToken ct) =>
+        {
+            var model = http.Request.Query["model"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(model)) return Results.BadRequest(new { error = "model required" });
+            return Results.Json(new { ok = await OllamaRuntime.DeleteModelAsync(model, ct: ct) });
+        });
+        app.MapPost("/api/models/{id}/delete", (string id) => Results.Json(new { ok = new OnnxModelStore().Delete(id) }));
+
         // Set up the managed Ollama runtime from the wizard: detect-or-download, pull the model, and
         // make it the local runtime — streamed as SSE progress. Ollama is left running for the session.
         app.MapPost("/api/ollama/setup", async (HttpContext http, CancellationToken ct) =>

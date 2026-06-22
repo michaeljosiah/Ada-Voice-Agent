@@ -757,6 +757,16 @@ async function refreshModelStatus(){
   try { const om = await (await fetch('/api/ollama/models')).json(); S.ollamaModels = om.models||[]; } catch(_){}
   if (S.view==='wizard') renderWizStep(); else if (S.view==='settings' && S.section==='model') renderSettingsBody();
 }
+window.adaDeleteModel = async (mid) => {
+  const sep=mid.indexOf(':'), kind=mid.slice(0,sep), id=mid.slice(sep+1);
+  const m=modelList().find(x=>x.id===mid); const label=m?m.label:id;
+  if (!confirm('Delete '+label+'?\n\nThis frees disk space — you can re-download it later.')) return;
+  try {
+    const url = kind==='ollama' ? '/api/ollama/delete?model='+encodeURIComponent(id) : '/api/models/'+encodeURIComponent(id)+'/delete';
+    await fetch(url,{method:'POST'});
+  } catch(_){}
+  await refreshModelStatus();
+};
 function providerList(){
   const cat = S.catalog && S.catalog.length ? S.catalog : [{id:'anthropic',label:'Anthropic · Claude'},{id:'openai',label:'OpenAI'},{id:'azure',label:'Azure OpenAI'}];
   return cat.map(c => ({ id:c.id, name:c.label, sub:c.auth||'', mark:(c.label||c.id).trim()[0].toUpperCase(), color:PROV_STYLE[c.id]||'#6f5cd0' }));
@@ -783,7 +793,10 @@ function modelCardsHTML(sel){
     const status = m.downloaded
       ? '<span style="margin-left:10px;align-self:center;white-space:nowrap;font-size:12px;font-weight:600;color:#3a9c3e;display:inline-flex;align-items:center;gap:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>Downloaded</span>'
       : '<span style="margin-left:10px;align-self:center;white-space:nowrap;font-size:12px;color:var(--text-mute)">Not downloaded</span>';
-    return '<div class="card mcard '+(m.id===sel?'sel':'')+'" data-m="'+m.id+'"><span class="kind '+(m.kind==='Ollama'?'ollama':'onnx')+'">'+m.kind+'</span><div style="flex:1;min-width:0"><div class="ml">'+esc(m.label)+'</div><div class="mm">'+esc(m.meta)+'</div></div>'+status+'</div>';
+    const del = m.downloaded
+      ? '<button title="Delete to free space" onclick="event.stopPropagation();adaDeleteModel(\''+m.id+'\')" style="margin-left:6px;align-self:center;border:none;background:none;cursor:pointer;color:var(--text-mute);padding:5px;border-radius:6px;line-height:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>'
+      : '';
+    return '<div class="card mcard '+(m.id===sel?'sel':'')+'" data-m="'+m.id+'"><span class="kind '+(m.kind==='Ollama'?'ollama':'onnx')+'">'+m.kind+'</span><div style="flex:1;min-width:0"><div class="ml">'+esc(m.label)+'</div><div class="mm">'+esc(m.meta)+'</div></div>'+status+del+'</div>';
   }).join('');
 }
 function providerCardsHTML(sel){

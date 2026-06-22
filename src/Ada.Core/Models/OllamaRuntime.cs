@@ -125,6 +125,26 @@ public sealed class OllamaRuntime : IAsyncDisposable
         }
     }
 
+    /// <summary>Delete a pulled model (frees disk). Brings Ollama up first if needed (no download), then
+    /// asks it to remove the model so shared blobs are reference-counted correctly. Returns false if it can't.</summary>
+    public static async Task<bool> DeleteModelAsync(string model, OllamaOptions? options = null, CancellationToken ct = default)
+    {
+        options ??= new OllamaOptions();
+        if (!await IsReachableAsync(options.Endpoint, ct))
+            await StartAsync(options, allowDownload: false, ct: ct);
+        if (!await IsReachableAsync(options.Endpoint, ct)) return false;
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            using var req = new HttpRequestMessage(HttpMethod.Delete, $"{options.Endpoint}/api/delete")
+            {
+                Content = JsonContent.Create(new { model, name = model }), // `model` (new) + `name` (older) for compat
+            };
+            return (await http.SendAsync(req, ct)).IsSuccessStatusCode;
+        }
+        catch { return false; }
+    }
+
     private static Process StartServe(string exe, OllamaOptions options)
     {
         var modelsDir = Path.Combine(options.RuntimeDir ?? DefaultRuntimeDir, "models");
