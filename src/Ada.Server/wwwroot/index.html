@@ -345,7 +345,7 @@ const host = (m) => { try { window.chrome && window.chrome.webview && window.chr
 const S = {
   view:'main', theme:'light', themeMode:'light', widget:'idle',
   config:null, onnxModels:[], ollamaModels:[], catalog:[],
-  profile:'Balanced', model:'ollama:gemma3:4b', cloudProvider:'', cloudKey:'',
+  profile:'Balanced', model:'ollama:gemma3:4b', activeModel:null, cloudProvider:'', cloudKey:'',
   section:'appearance', autostart:false, sandbox:null, images:null, skills:null, threadId:null, threads:[],
   wizStep:0, dl:{status:'idle',model:null,line:'',i:0,n:0},
 };
@@ -365,10 +365,16 @@ $('#themeBtn').onclick = () => setThemeMode(S.theme === 'dark' ? 'light' : 'dark
 
 /* ---------- view switching ---------- */
 const SUBS = { main:'On your machine · private by default', wizard:'First-time setup', settings:'Settings', launch:'Starting up' };
+// The chat header shows the model the engine actually answers with (from /api/model/active) — the single
+// source of truth, so the header never disagrees with what's loaded. Falls back to the tagline until known.
+function headerSubText(v){
+  if (v==='main' && S.activeModel && S.activeModel.label) return S.activeModel.label + ' · on your machine';
+  return SUBS[v];
+}
 function setView(v){
   S.view = v;
   for (const id of ['main','wizard','settings','launch']) $('#view-'+id).classList.toggle('on', id===v);
-  $('#headerSub').textContent = SUBS[v];
+  $('#headerSub').textContent = headerSubText(v);
   $('#settingsBtn').style.display = (v==='wizard'||v==='launch') ? 'none' : '';
   const onMain = v==='main';
   $('#newChatBtn').style.display = onMain ? '' : 'none';
@@ -413,7 +419,12 @@ async function sendText(text){
   const caret=document.createElement('span'); caret.className='caret';
   const ctrl = new AbortController();
   let got=false, acc='';
-  const to = setTimeout(()=>{ if(!got) ctrl.abort('timeout'); }, 75000);  // a wedged/oversized model never streams
+  // Idle watchdog: abort if the stream goes quiet too long — whether it never starts OR stalls mid-reply
+  // (a wedged tool/model can stream a word then freeze; the old timer was cleared on the first chunk, so a
+  // mid-stream stall hung forever). Re-armed on every chunk, so it only fires on genuine silence.
+  let idle;
+  const arm = ()=>{ clearTimeout(idle); idle = setTimeout(()=>ctrl.abort('idle'), 75000); };
+  arm();
   try {
     const res = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message:text, threadId:S.threadId }), signal:ctrl.signal });
     const rd = res.body.getReader(); const dec=new TextDecoder(); let buf='', ev='message';
@@ -427,19 +438,19 @@ async function sendText(text){
           else if(line.startsWith('data:')){
             const d=JSON.parse(line.slice(5).trim());
             if(ev==='thread'){ S.threadId=d.id; }
-            else if(ev==='chunk' && d.text){ if(!got){ got=true; clearTimeout(to); reply.tx.textContent=''; } acc+=d.text; reply.tx.textContent=acc; reply.tx.appendChild(caret); scrollLog(); }
-            else if(ev==='done'){ got=true; clearTimeout(to); if(caret.parentNode) caret.remove();
+            else if(ev==='chunk' && d.text){ arm(); if(!got){ got=true; reply.tx.textContent=''; } acc+=d.text; reply.tx.textContent=acc; reply.tx.appendChild(caret); scrollLog(); }
+            else if(ev==='done'){ got=true; clearTimeout(idle); if(caret.parentNode) caret.remove();
               if(!acc) reply.tx.textContent='(No reply — the local model returned nothing. Try a different model in Settings → Local model.)';
               routeBadge(reply.lbl, d.route); scrollLog(); loadThreads(); }
           }
         }
       }
     }
-    clearTimeout(to); if (caret.parentNode) caret.remove();
+    clearTimeout(idle); if (caret.parentNode) caret.remove();
   } catch(e){
-    clearTimeout(to);
-    reply.tx.textContent = acc || (ctrl.signal.aborted
-      ? 'The local model didn’t respond — it may be too large for your GPU. Pick a smaller one in Settings → Local model.'
+    clearTimeout(idle); if (caret.parentNode) caret.remove();
+    reply.tx.textContent = (acc ? acc + '\n\n' : '') + (ctrl.signal.aborted
+      ? '…(stopped — the reply stalled. A tool or the model may be stuck; try again, or pick a smaller model in Settings → Local model.)'
       : 'Couldn’t reach the local model (' + e + ').');
   }
 }
@@ -756,6 +767,32 @@ async function refreshModelStatus(){
   try { const mj = await (await fetch('/api/models')).json(); S.onnxModels = mj.models||[]; } catch(_){}
   try { const om = await (await fetch('/api/ollama/models')).json(); S.ollamaModels = om.models||[]; } catch(_){}
   if (S.view==='wizard') renderWizStep(); else if (S.view==='settings' && S.section==='model') renderSettingsBody();
+  await refreshActiveModel();   // keep the chat header + "loaded vs selected" hint current
+}
+// The model the engine is actually answering with (resolved server-side). Drives the chat header and the
+// Settings "loaded now / restart to switch" hint, so the displayed model can never drift from what's loaded.
+async function refreshActiveModel(){
+  try {
+    const a = await (await fetch('/api/model/active')).json();
+    const card = modelList().find(x => x.id === a.id);
+    a.label = card ? card.label : (a.modelId || a.runtime);
+    S.activeModel = a;
+  } catch(_){ S.activeModel = null; }
+  if (S.view==='main') $('#headerSub').textContent = headerSubText('main');
+  if (S.view==='settings' && S.section==='model') renderSettingsBody();
+}
+// Select a model card in Settings. Persists the choice immediately for an already-downloaded model (so the
+// highlight, config, and next-launch engine agree); for a not-yet-downloaded one it just targets the
+// Download button, which persists on completion.
+async function selectModelCard(mid){
+  S.model = mid; S.dl = {status:'idle',model:null,line:'',i:0,n:0};
+  const card = modelList().find(x => x.id === mid);
+  renderSettingsBody();
+  if (card && card.downloaded){
+    const sep = mid.indexOf(':'), runtime = mid.slice(0,sep), model = mid.slice(sep+1);
+    try { await fetch('/api/models/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runtime,model})}); } catch(_){}
+    await refreshActiveModel();
+  }
 }
 window.adaDeleteModel = async (mid) => {
   const sep=mid.indexOf(':'), kind=mid.slice(0,sep), id=mid.slice(sep+1);
@@ -925,7 +962,13 @@ function renderSettingsBody(){
   } else if (sec==='profile'){
     h='<div class="fadeUp cards" id="setProfiles" style="max-width:560px">'+profileCardsHTML(S.profile)+'</div>';
   } else if (sec==='model'){
-    h='<div class="fadeUp" style="max-width:560px"><div class="cards" id="setModels" style="margin-bottom:18px">'+modelCardsHTML(S.model)+'</div><div id="setDlWrap">'+dlControlHTML()+'</div></div>';
+    const am=S.activeModel; let note='';
+    if (am && am.label){
+      note = (am.id===S.model)
+        ? '<div class="muted" style="margin-bottom:14px">Currently loaded: <b>'+esc(am.label)+'</b></div>'
+        : '<div class="muted" style="margin-bottom:14px;color:var(--purple)">Loaded now: <b>'+esc(am.label)+'</b> — restart Ada to switch to your selected model.</div>';
+    }
+    h='<div class="fadeUp" style="max-width:560px">'+note+'<div class="cards" id="setModels" style="margin-bottom:18px">'+modelCardsHTML(S.model)+'</div><div id="setDlWrap">'+dlControlHTML()+'</div></div>';
   } else if (sec==='cloud'){
     h='<div class="fadeUp" style="max-width:560px"><div class="provgrid" id="setProviders">'+providerCardsHTML(S.cloudProvider)+'</div><label class="lab">API key</label><input class="key" type="password" id="setKey" placeholder="••••••••••••••••" value="'+esc(S.cloudKey)+'"><div class="muted">Encrypted by Windows Credential Manager — never written to a file.</div></div>';
   } else if (sec==='startup'){
@@ -945,7 +988,7 @@ function renderSettingsBody(){
   b.innerHTML=h;
   if (sec==='appearance') b.querySelectorAll('[data-tm]').forEach(d=>d.onclick=()=>setThemeMode(d.dataset.tm));
   if (sec==='profile') b.querySelectorAll('[data-p]').forEach(c=>c.onclick=async()=>{ S.profile=c.dataset.p; renderSettingsBody(); try{ await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile:S.profile})}); }catch(_){} });
-  if (sec==='model'){ b.querySelectorAll('[data-m]').forEach(c=>c.onclick=()=>{ S.model=c.dataset.m; S.dl={status:'idle',model:null,line:'',i:0,n:0}; renderSettingsBody(); }); const d=$('#dlBtn'); if(d) d.onclick=startDownload; }
+  if (sec==='model'){ b.querySelectorAll('[data-m]').forEach(c=>c.onclick=()=>selectModelCard(c.dataset.m)); const d=$('#dlBtn'); if(d) d.onclick=startDownload; }
   if (sec==='cloud'){ b.querySelectorAll('[data-prov]').forEach(c=>c.onclick=()=>{ S.cloudProvider=c.dataset.prov; renderSettingsBody(); }); const k=$('#setKey'); if(k) k.oninput=()=>{S.cloudKey=k.value;}; if(k) k.onchange=async()=>{ if(S.cloudProvider) try{ await fetch('/api/providers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:S.cloudProvider,key:k.value||null})}); }catch(_){} }; }
   if (sec==='startup'){ const sw=$('#autoSw'); if(sw) sw.onclick=async()=>{ S.autostart=!S.autostart; sw.classList.toggle('on',S.autostart); try{ await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({autostart:S.autostart})}); }catch(_){} }; }
   if (sec==='voice') wireVoicePanel();
@@ -1198,7 +1241,11 @@ document.addEventListener('keydown', e => {
     if (cfg.profile) S.profile = cfg.profile;
     if (typeof cfg.autostart === 'boolean') S.autostart = cfg.autostart;
     if (cfg.catalog) S.catalog = cfg.catalog;
-    await refreshModelStatus();   // ONNX + pulled-Ollama lists, so the picker marks downloaded vs not
+    // Highlight the model that's actually persisted, not the hardcoded default — otherwise the picker shows
+    // a model you never chose (and never reflects what's loaded).
+    if (cfg.localRuntime === 'onnx' && cfg.localModelId) S.model = 'onnx:' + cfg.localModelId;
+    else if (cfg.localRuntime === 'ollama' && cfg.ollamaModel) S.model = 'ollama:' + cfg.ollamaModel;
+    await refreshModelStatus();   // ONNX + pulled-Ollama lists, so the picker marks downloaded vs not (also refreshes the active model)
     loadVoiceStatus();
     loadSandboxStatus();
     loadSkills();

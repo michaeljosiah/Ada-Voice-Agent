@@ -2,6 +2,7 @@ using Ada.Core;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace Ada.Tools;
 
@@ -49,7 +50,7 @@ public static class AdaToolsServiceCollectionExtensions
         services.AddSingleton<ISkill, FinanceRecordsSkill>();
         services.AddSingleton<ISkill, EmailSkill>();
         services.TryAddSingleton(sp => new SkillRegistry(sp.GetServices<ISkill>()));
-        services.TryAddSingleton(sp => new McpMounter(sp.GetRequiredService<IApprovalHandler>(), sp.GetRequiredService<IAuditLog>()));
+        services.TryAddSingleton(sp => new McpMounter(sp.GetRequiredService<IApprovalHandler>(), sp.GetRequiredService<IAuditLog>(), sp.GetService<ILogger<McpMounter>>()));
 
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<FileSystemTools>().ReadFile, "read_file"));
         services.AddSingleton<AITool>(sp => AIFunctionFactory.Create(sp.GetRequiredService<FileSystemTools>().ListDirectory, "list_directory"));

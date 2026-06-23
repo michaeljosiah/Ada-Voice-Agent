@@ -24,8 +24,8 @@ internal sealed class MainForm : Form
 
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
-        var wa = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 720);
-        Size = new Size(Math.Min(1320, wa.Width - 80), Math.Min(880, wa.Height - 80));
+        var wa = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1600, 900);
+        Size = new Size(Math.Min(1680, wa.Width - 60), Math.Min(1040, wa.Height - 60));
         MinimumSize = new Size(960, 620);
         ShowInTaskbar = false;
         TopMost = true;
@@ -74,14 +74,40 @@ internal sealed class MainForm : Form
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     private const int WM_NCCALCSIZE = 0x0083;
+    private const int WM_NCHITTEST = 0x0084;
+    private const int HTCLIENT = 1, HTLEFT = 10, HTRIGHT = 11, HTTOP = 12, HTTOPLEFT = 13,
+                      HTTOPRIGHT = 14, HTBOTTOM = 15, HTBOTTOMLEFT = 16, HTBOTTOMRIGHT = 17;
+    private const int ResizeBorder = 6; // px grab zone along each edge
 
     // Borderless + WS_THICKFRAME otherwise leaves Windows painting a thin native frame line across the very
     // top of the window (the stray light strip above the header). Eating WM_NCCALCSIZE makes the client area
-    // fill the whole window so no native border is drawn; WS_THICKFRAME still drives edge-resize hit-testing,
-    // and the window is never maximised, so there's no off-screen overhang to compensate for.
+    // fill the whole window so no native border is drawn.
+    //
+    // But removing the non-client area also removes the area Windows hit-tests for resize, so WS_THICKFRAME
+    // alone no longer makes the window resizable (only dragging via the header's CSS -webkit-app-region works).
+    // So re-add resize by hand in WM_NCHITTEST: when the cursor is within ResizeBorder of an edge/corner,
+    // report the matching HT* code and Windows performs the drag-resize. The base handler runs first so the
+    // header's drag region still yields HTCAPTION and the window buttons stay clickable.
     protected override void WndProc(ref Message m)
     {
         if (m.Msg == WM_NCCALCSIZE && m.WParam != IntPtr.Zero) { m.Result = IntPtr.Zero; return; }
+
+        if (m.Msg == WM_NCHITTEST)
+        {
+            base.WndProc(ref m);
+            if ((int)m.Result == HTCLIENT)
+            {
+                var lp = (long)m.LParam; // screen coords: x in low word, y in high word
+                var p = PointToClient(new Point(unchecked((short)lp), unchecked((short)(lp >> 16))));
+                bool l = p.X <= ResizeBorder, r = p.X >= ClientSize.Width - ResizeBorder;
+                bool t = p.Y <= ResizeBorder, b = p.Y >= ClientSize.Height - ResizeBorder;
+                int ht = t && l ? HTTOPLEFT : t && r ? HTTOPRIGHT : b && l ? HTBOTTOMLEFT : b && r ? HTBOTTOMRIGHT
+                       : l ? HTLEFT : r ? HTRIGHT : t ? HTTOP : b ? HTBOTTOM : HTCLIENT;
+                if (ht != HTCLIENT) m.Result = (IntPtr)ht;
+            }
+            return;
+        }
+
         base.WndProc(ref m);
     }
 

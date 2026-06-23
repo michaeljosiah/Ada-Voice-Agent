@@ -68,12 +68,19 @@ public sealed class SandboxSession
         catch { /* best-effort — fall through to whatever state we have */ }
     }
 
-    /// <summary>Folds the work environment into the agent's tools: when active, drop the host fs/shell
-    /// tools and append the sandbox's; otherwise return the base tools unchanged.</summary>
+    /// <summary>Direct tools safe to expose alongside the active sandbox. Host fs/shell tools are removed
+    /// when the sandbox is active so filesystem and command work stays inside the sandbox boundary.</summary>
+    public IReadOnlyList<AITool> DirectToolsFor(IReadOnlyList<AITool> baseTools)
+    {
+        if (!Active) return baseTools;
+        return baseTools.Where(t => !HostFileAndShellTools.Contains(t.Name)).ToList();
+    }
+
+    /// <summary>Legacy broad tool surface: direct host-safe tools plus all sandbox tools.</summary>
     public IReadOnlyList<AITool> ApplyTo(IReadOnlyList<AITool> baseTools)
     {
         if (!Active) return baseTools;
-        return baseTools.Where(t => !HostFileAndShellTools.Contains(t.Name)).Concat(Tools).ToList();
+        return DirectToolsFor(baseTools).Concat(Tools).ToList();
     }
 
     private static TaskCompletionSource CompletedSource()

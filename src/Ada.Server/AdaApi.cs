@@ -21,6 +21,9 @@ public sealed record AddProviderDto(string Id, string? Key = null, string? Endpo
 /// <summary>Body for <c>POST /api/sandbox</c> — the AIO sandbox preference and the image-prefetch toggle.</summary>
 public sealed record SandboxToggleDto(bool? Enabled = null, bool? Prefetch = null);
 
+/// <summary>Body for <c>POST /api/models/select</c> — switch the local brain to an already-downloaded model.</summary>
+public sealed record SelectModelDto(string Runtime, string Model);
+
 /// <summary>
 /// Maps Ada's loopback HTTP surface: the chat UI at <c>/</c>, a health probe, the streaming
 /// <c>/api/chat</c> endpoint, and the approval channel (<c>/api/approvals/stream</c> +
@@ -127,6 +130,9 @@ public static class AdaApi
                 setupComplete = c.SetupComplete,
                 autostart = c.Autostart,
                 hotkey = c.Hotkey,
+                localRuntime = c.LocalRuntime,   // what the model picker should highlight as the selected brain
+                ollamaModel = c.OllamaModel,
+                localModelId = c.LocalModelId,
                 catalog = ProviderCatalog.BuiltIns.Select(e => new { e.Id, e.Label, auth = e.Auth.ToString() }),
                 providers = providers.Configured.Select(p => new { p.Id, kind = p.Kind.ToString(), role = p.Role.ToString(), p.ModelId }),
                 skills = (skills?.Available ?? []).Select(s => new { s.Name, enabled = skills!.IsEnabled(s.Name), mcp = s.Mcp is not null }),
@@ -141,6 +147,36 @@ public static class AdaApi
             if (dto.Autostart is { } auto) c.Autostart = auto;
             configStore.Save(c);
             return Results.Ok();
+        });
+
+        // The model the engine actually answers with — resolved exactly the way the engine builds it (a
+        // configured Default-role provider, else the local runtime captured at startup). This is the single
+        // source of truth the chat header shows, so "what's loaded" can never drift from the Settings
+        // highlight or the config file again. AdaModelOptions is the resolved singleton the engine was built
+        // on, so it reflects what's *loaded now* even if the persisted selection has since changed.
+        app.MapGet("/api/model/active", (ProviderRegistry providers, AdaModelOptions options) =>
+        {
+            var def = providers.ForRole(ModelRole.Default);
+            var esc = providers.ForRole(ModelRole.Escalation);
+            string runtime, modelId;
+            if (def is not null) { runtime = def.Kind.ToString(); modelId = def.ModelId; }
+            else
+            {
+                runtime = options.Provider switch
+                {
+                    "onnx" => "onnx",
+                    "openai-compatible" when options.Endpoint?.Contains(":11434", StringComparison.Ordinal) == true => "ollama",
+                    _ => options.Provider,
+                };
+                modelId = options.ModelId ?? "(none)";
+            }
+            return Results.Json(new
+            {
+                runtime,
+                modelId,
+                id = $"{runtime}:{modelId}",   // matches the model-picker card ids ("ollama:qwen2.5:1.5b", "onnx:…")
+                escalation = esc is null ? null : new { esc.Id, esc.ModelId },
+            });
         });
 
         app.MapPost("/api/providers", (AddProviderDto dto, ProviderStore store, ICredentialVault vault) =>
@@ -314,6 +350,18 @@ public static class AdaApi
         });
         app.MapPost("/api/models/{id}/delete", (string id) => Results.Json(new { ok = new OnnxModelStore().Delete(id) }));
 
+        // Switch the local brain to an already-downloaded model (no download). Persists runtime + model so the
+        // Settings highlight, the config file, and the next-start engine all agree. Takes effect on next launch.
+        app.MapPost("/api/models/select", (SelectModelDto dto, ConfigStore configStore) =>
+        {
+            var c = configStore.Load();
+            if (string.Equals(dto.Runtime, "ollama", StringComparison.OrdinalIgnoreCase)) { c.LocalRuntime = "ollama"; c.OllamaModel = dto.Model; }
+            else if (string.Equals(dto.Runtime, "onnx", StringComparison.OrdinalIgnoreCase)) { c.LocalRuntime = "onnx"; c.LocalModelId = dto.Model; }
+            else return Results.BadRequest(new { error = "runtime must be 'ollama' or 'onnx'" });
+            configStore.Save(c);
+            return Results.Ok();
+        });
+
         // Set up the managed Ollama runtime from the wizard: detect-or-download, pull the model, and
         // make it the local runtime — streamed as SSE progress. Ollama is left running for the session.
         app.MapPost("/api/ollama/setup", async (HttpContext http, CancellationToken ct) =>
@@ -365,8 +413,11 @@ public static class AdaApi
             try
             {
                 await store.DownloadAsync(entry, progress, ct);
+                // Switch the local runtime to ONNX too — without this the engine keeps resolving the old
+                // "ollama" runtime and the freshly-downloaded model is never actually used (the "wrong model
+                // loaded" bug). Mirrors /api/ollama/setup, which sets both runtime + model.
                 var cfg = new ConfigStore();
-                var c = cfg.Load(); c.LocalModelId = entry.Id; cfg.Save(c);
+                var c = cfg.Load(); c.LocalRuntime = "onnx"; c.LocalModelId = entry.Id; cfg.Save(c);
                 await http.Response.WriteAsync("event: done\ndata: {}\n\n", ct);
             }
             catch (Exception ex)

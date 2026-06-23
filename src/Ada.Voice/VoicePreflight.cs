@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Ada.Core;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using Voxa.Speech;   // VoxaModelCache, VoxaModelCacheOptions
 
 namespace Ada.Voice;
 
@@ -103,26 +102,18 @@ public static class VoicePreflight
     }
 
     /// <summary>
-    /// The Silero VAD ONNX is not in Ada's warm-up catalog — Voxa downloads it internally on the first
-    /// voice turn — so check the model cache directly. Best-effort and never fatal: it self-heals with one
-    /// online turn, but flagging it warns about an offline first run (which would get no real VAD).
+    /// The Silero VAD ONNX (~2.3 MB) ships <em>embedded</em> inside <c>Voxa.Audio.SileroVad.dll</c> — there's
+    /// no download and no model cache to populate. An earlier version checked Voxa's download cache and so
+    /// always reported "not cached" — a false alarm that wrongly implicated the VAD in voice hangs. So just
+    /// confirm the assembly that carries the embedded model is deployed next to the app.
     /// </summary>
     private static PreflightCheck CheckSileroVad()
     {
         const string name = "Voice activity detector: Silero VAD";
-        try
-        {
-            var cache = new VoxaModelCache(new VoxaModelCacheOptions(VoxaModelCacheOptions.ResolveCacheRoot(), Offline: true));
-            var cached = cache.Enumerate().Any(m => m.Id.Contains("silero", StringComparison.OrdinalIgnoreCase));
-            return cached
-                ? new(name, PreflightStatus.Ok, "Cached.")
-                : new(name, PreflightStatus.Warn,
-                    "Not cached yet — Voxa downloads it on the first voice turn (needs network once). An offline first run has no VAD.");
-        }
-        catch (Exception ex)
-        {
-            return new(name, PreflightStatus.Warn, $"Could not check the VAD cache: {ex.Message}");
-        }
+        var dll = Path.Combine(AppContext.BaseDirectory, "Voxa.Audio.SileroVad.dll");
+        return File.Exists(dll)
+            ? new(name, PreflightStatus.Ok, "Built in (model embedded in the app).")
+            : new(name, PreflightStatus.Warn, "Voxa.Audio.SileroVad.dll is missing — voice can't detect when you start or stop speaking.");
     }
 
     /// <summary>

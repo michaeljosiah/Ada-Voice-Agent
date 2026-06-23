@@ -77,4 +77,16 @@ public class ProcessorTests
         Assert.Contains("Hi", finals);
         Assert.DoesNotContain("[BLANK_AUDIO]", finals);
     }
+
+    [Fact]
+    public async Task TurnEndAggregator_flushes_short_unpunctuated_reply_at_turn_end()
+    {
+        var capture = await RunAsync(new TurnEndSentenceAggregator { EagerFirstChunkMinChars = 40, MaxBufferChars = 350 },
+            f => f is TextFrame { Text: "Good" },
+            new LlmTurnStartedFrame("turn-1"),
+            new LlmTextChunkFrame("Good"),
+            new LlmTurnEndedFrame("turn-1"));
+
+        Assert.Contains(capture.Frames.OfType<TextFrame>(), f => f.Text == "Good");
+    }
 }

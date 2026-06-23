@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Client;
 
 namespace Ada.Core;
@@ -8,9 +9,13 @@ namespace Ada.Core;
 /// server — wraps each tool in Ada's approval gate. Every mount is an egress channel, recorded in the
 /// audit log. Clients are kept alive for the lifetime of the mounter so the tools remain callable.
 /// </summary>
-public sealed class McpMounter(IApprovalHandler approval, IAuditLog audit) : IAsyncDisposable
+public sealed class McpMounter(IApprovalHandler approval, IAuditLog audit, ILogger<McpMounter>? log = null) : IAsyncDisposable
 {
     private readonly List<McpClient> _clients = [];
+
+    /// <summary>How long a single mounted MCP tool call may run before it's cancelled, so a wedged tool
+    /// (e.g. an unresponsive sandbox) can't hang the agent turn forever. Generous enough for real work.</summary>
+    private static readonly TimeSpan ToolTimeout = TimeSpan.FromSeconds(60);
 
     public async Task<IReadOnlyList<AITool>> MountAsync(McpMount mount, CancellationToken ct = default)
     {
@@ -42,9 +47,11 @@ public sealed class McpMounter(IApprovalHandler approval, IAuditLog audit) : IAs
         foreach (var tool in tools)
         {
             await audit.RecordAsync(new AuditEntry($"mcp:{mount.Name}", tool.Name, RiskTier.Medium, "mounted"), ct).ConfigureAwait(false);
-            result.Add(mount.GateMutatingTools
+            AIFunction fn = mount.GateMutatingTools
                 ? new GatedAIFunction(tool, () => GateAsync(mount, tool.Name))
-                : tool);
+                : tool;
+            // Bound + log every call, so a wedged tool can't hang the turn forever and the log names the culprit.
+            result.Add(new TimedAIFunction(fn, ToolTimeout, mount.Name, log));
         }
         return result;
     }

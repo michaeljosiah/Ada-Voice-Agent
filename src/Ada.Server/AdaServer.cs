@@ -70,6 +70,10 @@ public static class AdaServer
         var app = builder.Build();
         AdaApi.Map(app);
 
+        // Snapshot config + the actually-resolved model + downloaded models to the log, so a bug report is
+        // self-contained ("what was loaded and how it was set up") even before any error appears.
+        StartupDiagnostics.Write(app.Services);
+
         if (voiceReady)
         {
             try { AdaVoice.MapAdaVoice(app); }

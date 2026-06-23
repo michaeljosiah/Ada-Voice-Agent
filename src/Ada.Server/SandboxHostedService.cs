@@ -1,4 +1,6 @@
 using Ada.Core;
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -11,7 +13,7 @@ namespace Ada.Server;
 /// startup never blocks; the agent (built lazily on first request) waits briefly on the
 /// <see cref="SandboxSession"/> so it always composes against the settled environment.
 /// </summary>
-internal sealed class SandboxHostedService(SandboxSession session, McpMounter mounter, ImageProvisioner images, ILogger<SandboxHostedService> log) : IHostedService
+internal sealed class SandboxHostedService(SandboxSession session, McpMounter mounter, ImageProvisioner images, IServiceProvider services, ILogger<SandboxHostedService> log) : IHostedService
 {
     private AioSandboxRuntime? _runtime;
 
@@ -20,12 +22,29 @@ internal sealed class SandboxHostedService(SandboxSession session, McpMounter mo
         if (!new ConfigStore().Load().SandboxEnabled)
         {
             log.LogInformation("[sandbox] disabled by config — using host tools.");
+            _ = Task.Run(WarmAgents, ct); // pre-build off the request path (instant here — session is already ready)
             return Task.CompletedTask; // session stays ready + inactive
         }
 
         session.BeginInitialization();
         _ = Task.Run(() => BringUpAsync(ct), ct); // background — never block startup (mirrors managed Ollama)
         return Task.CompletedTask;
+    }
+
+    // Build the agent + engine singletons now, OFF any request/connection thread. AdaAgentFactory.Create and
+    // BuildEngine call SandboxSession.WaitUntilReady (a blocking wait) and, when the sandbox is active, compose
+    // the 32 mounted MCP tools. Doing that lazily on the first voice connection meant it ran on the WebSocket
+    // handler thread BEFORE the audio pipeline started — so the voice turn stalled. Pre-building here (after
+    // bring-up has settled, so WaitUntilReady returns at once) means the connection just gets a ready singleton.
+    private void WarmAgents()
+    {
+        try
+        {
+            services.GetService<IAdaEngine>();
+            services.GetService<AIAgent>();
+            log.LogInformation("[warmup] agent + engine pre-built off the request path.");
+        }
+        catch (Exception ex) { log.LogDebug(ex, "[warmup] agent pre-build skipped: {Message}", ex.Message); }
     }
 
     private async Task BringUpAsync(CancellationToken ct)
@@ -55,6 +74,7 @@ internal sealed class SandboxHostedService(SandboxSession session, McpMounter mo
         }
         finally
         {
+            WarmAgents(); // sandbox state has settled (active or host-fallback) — pre-build off the connection thread
             await MaybePrefetchRuntimesAsync(ct);
         }
     }

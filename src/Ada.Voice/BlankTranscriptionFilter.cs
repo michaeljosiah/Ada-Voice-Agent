@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Voxa.Frames;       // Frame, TranscriptionFrame
 using Voxa.Processors;   // FrameProcessor
 
@@ -10,12 +11,15 @@ namespace Ada.Voice;
 /// the bracketed blank-audio marker). Any wholly bracketed/parenthesised/asterisked final transcript,
 /// or one with no letters or digits, is treated as non-speech and not forwarded.
 /// </summary>
-internal sealed class BlankTranscriptionFilter : FrameProcessor
+internal sealed class BlankTranscriptionFilter(ILogger? log = null) : FrameProcessor
 {
     protected override async ValueTask ProcessFrameAsync(Frame frame, CancellationToken ct)
     {
-        if (frame is TranscriptionFrame { IsFinal: true } t && IsNonSpeech(t.Text))
-            return; // drop — never forwarded downstream, so no agent turn and nothing shown
+        if (frame is TranscriptionFrame { IsFinal: true } t)
+        {
+            if (IsNonSpeech(t.Text)) { log?.LogInformation("[voice] BlankFilter DROPPED (non-speech): {Text}", t.Text); return; }
+            log?.LogInformation("[voice] BlankFilter PASSED to agent: {Text}", t.Text);
+        }
         await PushFrameAsync(frame, ct).ConfigureAwait(false);
     }
 

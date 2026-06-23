@@ -87,10 +87,12 @@ public static class AdaCoreServiceCollectionExtensions
         // the background bring-up to settle so the first turn already has the right tools.
         var sandbox = sp.GetService<SandboxSession>();
         sandbox?.WaitUntilReady(TimeSpan.FromSeconds(20));
-        var tools = sandbox?.ApplyTo(composed.Tools) ?? composed.Tools;
+        var tools = sandbox?.DirectToolsFor(composed.Tools) ?? composed.Tools;
 
-        // File-based skills (MAF), bundled scripts run in the sandbox; null when no skills exist yet.
-        var skills = sandbox is not null ? AdaSkills.BuildProvider(sandbox) : null;
+        // MAF progressive-discovery skills: file-based skills plus mounted sandbox tools as skill scripts.
+        var skills = sandbox is not null
+            ? AdaSkills.BuildProvider(sandbox, tools, sandbox.Active ? sandbox.Tools : null, sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>())
+            : null;
         var conversations = sp.GetService<IConversationStore>(); // durable per-thread history
 
         var local = registry.CreateForRole(ModelRole.Default) ?? ModelClientFactory.Create(options);
@@ -105,11 +107,11 @@ public static class AdaCoreServiceCollectionExtensions
             var escalationId = registry.ForRole(ModelRole.Escalation)!.Id;
             var policy = new RoutingPolicy(hasEscalation: true, stayLocal, localLabel: "local", escalationLabel: escalationId);
             var hybrid = new HybridChatClient(local, cloud, policy, audit);
-            return new AgentEngine(hybrid, persona, tools: tools, memory: memory, compaction: compaction, skills: skills, conversations: conversations);
+            return new AgentEngine(hybrid, persona, tools: tools, memory: memory, compaction: compaction, skills: skills, conversations: conversations, log: sp.GetService<Microsoft.Extensions.Logging.ILogger<AgentEngine>>());
         }
 
         var single = local ?? cloud!;
         var route = local is not null ? "local" : registry.ForRole(ModelRole.Escalation)!.Id;
-        return new AgentEngine(single, persona, route, tools, memory, compaction, skills, conversations);
+        return new AgentEngine(single, persona, route, tools, memory, compaction, skills, conversations, sp.GetService<Microsoft.Extensions.Logging.ILogger<AgentEngine>>());
     }
 }

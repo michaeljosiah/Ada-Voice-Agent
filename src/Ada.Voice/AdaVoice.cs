@@ -7,10 +7,12 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;   // IOptions<VoxaOptions>
 using Voxa.AspNetCore;
 using Voxa.Audio.SileroVad;
-using Voxa.Speech;                     // VoxaVadSettings, SentenceAggregator
+using Voxa.Processors;
+using Voxa.Speech;                     // VoxaVadSettings
 using Voxa.Speech.Kokoro;
 using Voxa.Speech.Piper;
 using Voxa.Speech.WhisperCpp;
@@ -32,6 +34,9 @@ public static class AdaVoice
     /// Whisper's native rate. Inbound frames must carry this before the Silero VAD, which forwards
     /// audio ungated when the frame rate ≠ its configured rate.</summary>
     private const int ClientInputSampleRate = 16000;
+
+    /// <summary>Hold the mic open long enough for natural pauses; Voxa LowLatency's 400 ms is too eager for Ada.</summary>
+    private static readonly TimeSpan VoiceStopDuration = TimeSpan.FromMilliseconds(900);
 
     /// <summary>Registers Voxa with Ada's local speech stack (both TTS engines). Models download on use.</summary>
     public static void AddAdaVoice(WebApplicationBuilder builder)
@@ -69,11 +74,12 @@ public static class AdaVoice
         app.UseWebSockets();
         app.MapVoxaVoice("/voice").Use((context, pipeline) =>
         {
-            var agent = context.RequestServices.GetRequiredService<AIAgent>();
+            var engine = context.RequestServices.GetRequiredService<IAdaEngine>();
             var convos = context.RequestServices.GetService<IConversationStore>();
             var cfg = new ConfigStore().Load();                 // current selection, per connection
             var voxaCfg = BuildVoxaSection(cfg);
             var sp = context.RequestServices;
+            var vlog = sp.GetService<ILoggerFactory>()?.CreateLogger("Ada.Voice.Turn");
             var tts = string.Equals(cfg.TtsProvider, "Kokoro", StringComparison.OrdinalIgnoreCase)
                 ? KokoroDescriptors.Tts : PiperDescriptors.Tts;
 
@@ -94,53 +100,52 @@ public static class AdaVoice
                 ConfidenceThreshold: tuning.VadConfidenceThreshold,
                 MinRms:              tuning.VadMinRms,
                 StartDuration:       tuning.VadStartDuration,
-                StopDuration:        tuning.VadStopDuration,
+                StopDuration:        VoiceStopDuration,
                 PrerollDuration:     tuning.VadPrerollDuration)
             {
-                // Nullable on the tuning → null leaves Voxa's own default; LowLatency sets both.
-                EagerSttDelay        = tuning.VadEagerSttDelay,
+                // Eager STT is great for demos, but without smart-turn it can split normal pauses mid-thought.
+                EagerSttDelay        = null,
                 MaxUtteranceDuration = tuning.VadMaxUtteranceDuration,
             };
+            vlog?.LogInformation("[voice] Ada VAD tuning — stop={Stop}ms eagerStt=off maxResponse=120000ms", (int)VoiceStopDuration.TotalMilliseconds);
+
+            string? ThreadIdForVoiceTurn(VoiceTurnContext ctx)
+            {
+                vlog?.LogInformation("[voice] agent INVOKED — transcript: {Text}", ctx.UserText);
+                if (convos is null) return null;
+                if (threadId is null)
+                    threadId = convos.Create(VoiceTitle(ctx.UserText)).Id;
+                return threadId;
+            }
 
             pipeline
+                .UseProcessor(() => new TranscriptTap("raw-in", vlog))   // FIRST: is mic audio arriving at all, and at what rate?
                 // Tag inbound frames at their true 16 kHz, then run the real Silero VAD (the engine Ada
                 // registers and downloads) instead of the fixed-constant energy gate UseSilenceGate() builds.
                 .UseProcessor(() => new InputRateTagProcessor(ClientInputSampleRate))
                 .UseProcessor(() => SileroVadDescriptors.Vad.CreateProcessor(sp, vadSettings))
+                .UseProcessor(() => new TranscriptTap("VAD-out", vlog))   // audio rate + VAD speech-start/stop frames
                 .UseSpeechToText(() => WhisperCppDescriptors.Stt.CreateProcessor(sp, voxaCfg))
+                .UseProcessor(() => new TranscriptTap("STT-out", vlog))   // STT finals before any filter
                 .UseTranscriptionFilter()
-                .UseProcessor(() => new BlankTranscriptionFilter())   // drop [BLANK_AUDIO] etc. before the agent
-                .UseMicrosoftAgent(agent, convos is null ? null : opts =>
-                {
-                    opts.MaxResponseDuration = tuning.MaxResponseDuration;  // LowLatency caps a runaway response
-                    // Feed the thread's recent turns back so a spoken follow-up has context in the session.
-                    opts.BuildMessages = (ctx, _) =>
+                .UseProcessor(() => new BlankTranscriptionFilter(vlog))   // drop [BLANK_AUDIO] etc. before the agent
+                .UseProcessor(() => new AgentLoopProcessor(
+                    new AdaEngineTurnDriver(engine, ThreadIdForVoiceTurn, vlog),
+                    onTurnCompleted: (ctx, summary, _) =>
                     {
-                        var msgs = new List<ChatMessage>();
-                        if (threadId is not null && convos!.Load(threadId) is { } convo)
-                            msgs.AddRange(VoiceContextTail(convo.Messages));
-                        msgs.Add(new ChatMessage(ChatRole.User, ctx.UserText));
-                        return ValueTask.FromResult<IReadOnlyList<ChatMessage>>(msgs);
-                    };
-                    // Append the finished turn — Voxa hands us the assembled assistant text in the summary.
-                    opts.OnTurnCompleted = (ctx, summary, _) =>
-                    {
-                        var convo = (threadId is not null ? convos!.Load(threadId) : null) ?? convos!.Create(VoiceTitle(ctx.UserText));
-                        threadId = convo.Id;
-                        var ts = DateTimeOffset.UtcNow.ToString("o");
-                        convo.Messages.Add(new ConversationMessage { Role = "user", Text = ctx.UserText, Ts = ts });
-                        convo.Messages.Add(new ConversationMessage { Role = "assistant", Text = summary.AssistantText, Route = "voice", Ts = ts });
-                        convos!.Save(convo);
+                        vlog?.LogInformation("[voice] turn COMPLETED — reply: {Text}", summary.AssistantText);
                         return ValueTask.CompletedTask;
-                    };
-                })
-                // Profile-tuned aggregator (LowLatency: 40-char eager first chunk / 350-char cap) instead of
-                // UseSentenceAggregator()'s parameterless defaults (0 / 500) — restores fast first-audio.
-                .UseProcessor(() => new SentenceAggregator
+                    },
+                    maxResponseDuration: TimeSpan.FromSeconds(120)))
+                .UseProcessor(() => new TranscriptTap("agent-out", vlog))   // what the agent actually replies (text frames)
+                // Profile-tuned aggregator (LowLatency: 40-char eager first chunk / 350-char cap) that also
+                // flushes on LLM turn end, because Ada keeps the voice WebSocket open across turns.
+                .UseProcessor(() => new TurnEndSentenceAggregator
                 {
                     EagerFirstChunkMinChars = tuning.EagerFirstChunkMinChars,
                     MaxBufferChars          = tuning.MaxBufferChars,
                 })
+                .UseProcessor(() => new TranscriptTap("tts-in", vlog))      // what reaches TTS after aggregation
                 .UseTextToSpeech(() => tts.CreateProcessor(sp, voxaCfg));
         });
 
@@ -224,17 +229,6 @@ public static class AdaVoice
             ["Voxa:Vad:Engine"] = "Silero",
         };
         return new ConfigurationBuilder().AddInMemoryCollection(kv).Build().GetSection("Voxa");
-    }
-
-    /// <summary>The last few turns of a thread as model messages — bounded so a long thread stays
-    /// low-latency for voice, and never starting on an assistant turn.</summary>
-    private static IEnumerable<ChatMessage> VoiceContextTail(IReadOnlyList<ConversationMessage> messages)
-    {
-        const int max = 40;
-        var tail = messages.Count > max ? messages.Skip(messages.Count - max).ToList() : messages.ToList();
-        while (tail.Count > 0 && tail[0].Role == "assistant") tail.RemoveAt(0);
-        foreach (var m in tail)
-            yield return new ChatMessage(m.Role == "assistant" ? ChatRole.Assistant : ChatRole.User, m.Text);
     }
 
     private static string VoiceTitle(string userText)
