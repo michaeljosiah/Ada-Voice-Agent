@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ada — Omnigent as an Optional Substrate (M9) · Specification · July 2026</title>
+<style>
+:root{
+  --paper:#fbf7ef; --paper-1:#f6efe2; --paper-2:#efe5d2;
+  --ink:#221e18; --ink-soft:#4a443b; --muted:#7a7264; --rule:#e6ddcb;
+  --evergreen:#1f5040; --evergreen-deep:#173e32; --evergreen-tint:#e3ede7;
+  --clay:#a8552e; --clay-deep:#8e4523; --clay-tint:#f4e4d9;
+  --gold:#c29752; --info:#2a5670; --warn:#b97700; --danger:#9e2b1c;
+  --mono:"Cascadia Code",Consolas,"JetBrains Mono",monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+body{margin:0;background:radial-gradient(1200px 520px at 88% -6%,#f3ead7 0%,transparent 60%),var(--paper);
+  color:var(--ink);font:17px/1.65 "Newsreader","Iowan Old Style",Georgia,serif}
+.page{max-width:880px;margin:0 auto;padding:64px 42px 140px}
+header.cover{border-bottom:1px solid var(--rule);margin-bottom:40px;padding-bottom:34px}
+.eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:12px;color:var(--clay);
+  font-family:-apple-system,"Segoe UI",sans-serif;margin-bottom:16px;font-weight:600}
+header.cover h1{font-family:"Fraunces",Georgia,serif;font-size:44px;line-height:1.08;margin:0 0 16px;
+  font-weight:600;letter-spacing:-.018em}
+header.cover h1 .dot{color:var(--clay)}
+header.cover .lede{color:var(--ink-soft);font-size:20px;max-width:62ch}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;font-family:-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.meta span{background:var(--paper-1);border:1px solid var(--rule);border-radius:999px;padding:4px 14px;color:var(--ink-soft)}
+.meta b{color:var(--evergreen)}
+h2{font-family:"Fraunces",Georgia,serif;font-size:29px;font-weight:600;letter-spacing:-.01em;
+  margin:56px 0 14px;padding-top:26px;border-top:1px solid var(--rule)}
+h2 .no{color:var(--clay);margin-right:10px;font-size:.8em}
+h3{font-family:-apple-system,"Segoe UI",sans-serif;font-size:15px;text-transform:uppercase;
+  letter-spacing:.09em;color:var(--evergreen);margin:34px 0 10px;font-weight:700}
+p,li{color:var(--ink-soft)}
+strong{color:var(--ink)}
+code{font-family:var(--mono);font-size:.82em;background:var(--paper-2);border:1px solid var(--rule);
+  border-radius:4px;padding:1px 6px;color:var(--evergreen-deep)}
+pre{background:var(--night,#16130e);color:#efe8da;border-radius:10px;padding:18px 20px;overflow-x:auto;
+  font-size:13.5px;line-height:1.55;font-family:var(--mono)}
+pre code{background:none;border:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;
+  font-family:-apple-system,"Segoe UI",sans-serif}
+th,td{border:1px solid var(--rule);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:var(--paper-1);font-weight:650;color:var(--ink)}
+td{background:#fffdf8}
+.callout{border-left:4px solid var(--evergreen);background:var(--evergreen-tint);border-radius:0 10px 10px 0;
+  padding:14px 20px;margin:20px 0;font-size:15.5px}
+.callout.warn{border-left-color:var(--warn);background:#f7edd8}
+.callout.danger{border-left-color:var(--danger);background:#f6e0dc}
+.callout b:first-child{color:var(--evergreen-deep)}
+.callout.warn b:first-child{color:var(--warn)}
+.callout.danger b:first-child{color:var(--danger)}
+ul.check{list-style:none;padding-left:6px}
+ul.check li{margin:9px 0;padding:10px 14px;background:#fffdf8;border:1px solid var(--rule);border-radius:8px}
+ul.check .tid{font-family:var(--mono);color:var(--clay);font-size:.78em;margin-right:8px;font-weight:600}
+ul.check .ac{display:block;color:var(--muted);font-size:.86em;margin-top:4px}
+.tag{display:inline-block;font-family:-apple-system,"Segoe UI",sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:2px 10px;margin-left:8px;vertical-align:middle}
+.tag.verified{background:var(--evergreen-tint);color:var(--evergreen-deep)}
+.tag.unknown{background:var(--clay-tint);color:var(--clay-deep)}
+.tag.gate{background:#e8eef3;color:var(--info)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="cover">
+  <div class="eyebrow">Ada · Specification M9 · July 2026</div>
+  <h1>Omnigent as an Optional Substrate<span class="dot">.</span></h1>
+  <p class="lede">
+    Ada keeps her body — the voice loop, the memory files, the approval UI, the tray — and gains the
+    option of renting a different brain-executor: an <strong>Omnigent</strong> server that runs her agent
+    turns on any of ~15 coding harnesses (Claude Code, Codex, Goose, OpenCode, …) with cloud or local
+    sandboxing. Off by default, additive by construction, and gated on measured voice-grade latency.
+  </p>
+  <div class="meta">
+    <span>Document <b>M9 v1.0</b></span>
+    <span>Status <b>Draft — spike first</b></span>
+    <span>Depends on <b>M0–M8 shipped</b></span>
+    <span>Omnigent pin <b>v0.4.0 (2026-07-03)</b></span>
+    <span>Source of truth <b>omnigent.ai + repo API.md + openapi.json</b></span>
+  </div>
+</header>
+
+<h2><span class="no">1.</span> What is this, in plain English?</h2>
+<p>
+Today Ada's brain is a Microsoft Agent Framework <code>ChatClientAgent</code> over an
+<code>IChatClient</code>: a hybrid router picks a local model (Ollama / ONNX) or escalates to a cloud
+model, and Ada's own harness runs the loop — tools, skills, memory folding, approval gates, sandboxes.
+That is the right default and it stays the default.
+</p>
+<p>
+But some tasks are bigger than a chat loop: "refactor this repo", "triage my downloads folder and write
+a report", "keep working on this until the tests pass". Purpose-built coding harnesses are far better at
+long agentic work than a bare chat loop, and <strong>Omnigent</strong> (Apache-2.0, by the Databricks AI
+team) is a common REST layer over ~15 of them, plus sandboxed execution (Modal, Daytona, Kubernetes,
+E2B), session persistence, policies, and human-approval plumbing. M9 lets Ada <em>optionally</em> route a
+turn — or a whole thread — to an Omnigent server, while everything the user touches stays Ada: her voice,
+her window, her memory, her approval prompts.
+</p>
+<div class="callout">
+  <b>One sentence.</b> M9 adds an <code>OmnigentEngine : IAdaEngine</code> that runs Ada's turns on an
+  Omnigent server over REST + SSE, mapped faithfully onto Ada's existing chunk-stream contract — nothing
+  above the engine seam changes, and <code>Substrate: Local</code> remains the default.
+</div>
+
+<h2><span class="no">2.</span> Omnigent, verified</h2>
+<p>
+Facts below were verified 2026-07-08 against <code>omnigent.ai</code>, the
+<code>omnigent-ai/omnigent</code> repository (<code>server/API.md</code>, <code>server/auth.py</code>,
+<code>openapi.json</code> — declared the single source of truth for wire shapes), and the v0.4.0 release
+notes. Anything not listed here should be treated as unverified.
+</p>
+<table>
+  <tr><th>Aspect</th><th>Fact</th></tr>
+  <tr><td>What it is</td><td>Open-source <strong>meta-harness</strong>: an agent harness of its own (YAML agents, orchestrators) <em>and</em> a server/runner execution platform fronting ~15 harnesses (claude, codex, cursor, pi, opencode, goose, hermes, kimi, qwen, kiro, copilot, antigravity, openai-agents-sdk, custom). Alpha; Python-primary. <span class="tag verified">verified</span></td></tr>
+  <tr><td>Interface</td><td><strong>REST + SSE under <code>/v1</code></strong> (FastAPI; OpenAPI 3.2 spec at repo root). WebSocket is used only runner↔server and for session-list liveness. ACP is consumed internally (Goose), <em>not</em> the public surface. <span class="tag verified">verified</span></td></tr>
+  <tr><td>Topology</td><td><strong>Server</strong> = control plane (persistence, policies, auth, SSE fan-out). <strong>Runner</strong> = per-session process on a registered host (<code>omni host &lt;url&gt;</code>) or a server-provisioned sandbox (<code>host_type:"managed"</code>). A session with no live runner returns <code>503</code> on message post. <span class="tag verified">verified</span></td></tr>
+  <tr><td>Session flow</td><td><code>POST /api/agents</code> (bundle) → <code>POST /v1/sessions</code> (<code>agent_id</code> required) → <code>PATCH /v1/sessions/{id}</code> (bind <code>runner_id</code>, <code>model_override</code>, <code>reasoning_effort</code>) → open <code>GET /v1/sessions/{id}/stream</code> (SSE) → <code>POST /v1/sessions/{id}/events</code> <code>{type:"message", data:{role:"user", content:[{type:"input_text", text}]}}</code> → <code>202 {queued:true}</code>. States: <code>idle → running → idle</code>, <code>running → waiting</code> (client tool / background), <code>running → failed</code>. <span class="tag verified">verified</span></td></tr>
+  <tr><td>Streaming</td><td>Two families on one SSE stream: <code>session.*</code> (status, usage, todos, interrupted, child sessions) and OpenAI-Responses-style <code>response.*</code> — notably <code>response.output_text.delta {type, delta}</code> (flat payloads), <code>response.reasoning_text.delta</code>, <code>response.output_item.added/done</code> (incl. <code>function_call</code> / <code>function_call_output</code> items), <code>response.elicitation_request</code>, <code>response.heartbeat</code>, terminates <code>data: [DONE]</code>. <span class="tag verified">verified</span></td></tr>
+  <tr><td>Reconnect</td><td><strong>Live-tail only — no replay, no sequence numbers.</strong> Documented contract: open the stream first, then <code>GET /v1/sessions/{id}</code> snapshot (<code>items</code>, <code>pending_elicitations</code>, <code>pending_inputs</code>, <code>todos</code>, <code>runner_online</code>), dedupe by item id. <span class="tag verified">verified</span></td></tr>
+  <tr><td>Interrupt</td><td><code>POST …/events {type:"interrupt"}</code> → <code>202 {queued:false}</code> — bypasses the input queue, cancels the loop, emits <code>response.incomplete</code> (reason <code>user_interrupt</code>) + <code>session.interrupted</code>, then <code>session.status: idle</code>. <span class="tag verified">verified</span></td></tr>
+  <tr><td>Client tools</td><td>Supported: session enters <code>waiting</code>; the client posts <code>POST …/events {type:"function_call_output", data:{call_id, output}}</code>. <span class="tag verified">verified</span></td></tr>
+  <tr><td>Approvals</td><td><strong>Elicitations</strong> (not policies): <code>response.elicitation_request</code> → <code>POST /v1/sessions/{id}/elicitations/{eid}/resolve {action: accept|decline|cancel, content?}</code> → <code>202</code> (ack only — no event-confirmed resolution). v0.4.0: decline cleanly cancels the turn. Policies (<code>session_policies</code>, spend caps, intent gate) are a separate static governance engine. <span class="tag verified">verified</span></td></tr>
+  <tr><td>Auth</td><td><code>OMNIGENT_AUTH_PROVIDER</code>: <code>header</code> (default; trusts <code>X-Forwarded-Email</code> behind your proxy), <code>oidc</code>, <code>accounts</code> (both mint a browser cookie). Local no-auth: <code>OMNIGENT_LOCAL_SINGLE_USER=1</code>. <strong>No first-class long-lived API key</strong> (only runner-scoped tokens). <span class="tag verified">verified</span></td></tr>
+  <tr><td>Not yet</td><td><strong>No audio input</strong> (<code>input_audio</code> explicitly "Not Yet"), no session metadata, no rate limiting, no event replay, no client-message-id echo; API.md itself warns <code>session.input.consumed</code> may change. <span class="tag verified">verified</span></td></tr>
+  <tr><td>Latency</td><td><strong>Nothing published.</strong> Structurally: message → 202 → queue → runner over a WS tunnel → harness (often a spawned CLI) → SSE back, plus an optional model-router judge call at turn start. Voice-grade TTFT is unvalidated. <span class="tag unknown">unknown — spike gate</span></td></tr>
+</table>
+
+<h2><span class="no">3.</span> Where it plugs into Ada — the seam decision</h2>
+<p>Ada has three altitudes where a substrate could attach. M9 chooses the top one.</p>
+<table>
+  <tr><th>Altitude</th><th>Seam</th><th>Verdict</th></tr>
+  <tr>
+    <td><strong>Engine</strong> (chosen)</td>
+    <td><code>IAdaEngine.RespondAsync(AdaRequest) → IAsyncEnumerable&lt;AdaResponseChunk&gt;</code> — the single seam every host (CLI, WebView2, voice, tests) already talks to.</td>
+    <td><strong>Right.</strong> Omnigent owns the loop, the tools, and the history — exactly what an <code>IAdaEngine</code> owns. Every Ada surface inherits the substrate for free, including voice (via the existing <code>AdaEngineTurnDriver</code>).</td>
+  </tr>
+  <tr>
+    <td>Model</td>
+    <td><code>IChatClient</code> inside the hybrid router.</td>
+    <td><strong>Wrong.</strong> Omnigent is not a model endpoint; wrapping it as one would run Ada's MAF loop <em>around</em> Omnigent's own loop — double agents, double tools, double history.</td>
+  </tr>
+  <tr>
+    <td>Voice stage</td>
+    <td>Voxa's <code>IAgentTurnDriver</code> directly.</td>
+    <td><strong>Too narrow.</strong> Only the voice plane would get the substrate; CLI and window turns would not. The engine altitude reaches all of them through the driver Ada already has.</td>
+  </tr>
+</table>
+
+<h3>Composition</h3>
+<pre><code>// Ada.Core — registration (AddAdaCore), config-driven:
+// Substrate: "Local" (default) | "Omnigent"
+services.AddSingleton&lt;IAdaEngine&gt;(sp => cfg.Substrate switch
+{
+    AdaSubstrate.Omnigent =&gt; new SubstrateRoutingEngine(
+        local:    BuildLocalEngine(sp),          // today's AgentEngine, unchanged
+        omnigent: new OmnigentEngine(sp.GetRequiredService&lt;OmnigentClient&gt;(), cfg.Omnigent),
+        rules:    cfg.Omnigent.Routing),          // per-thread / per-request override
+    _ =&gt; BuildLocalEngine(sp),
+});</code></pre>
+<p>
+<code>SubstrateRoutingEngine</code> is a thin dispatcher: a thread pinned to a substrate stays on it
+(history lives where the turns ran); an unpinned request follows the routing rules
+(<code>voice: local</code> by default — §7). The local engine is untouched; with
+<code>Substrate: Local</code> the composition is byte-identical to M8.
+</p>
+
+<h2><span class="no">4.</span> The mapping — Omnigent wire ↔ Ada chunk stream</h2>
+<p>
+<code>OmnigentEngine</code> translates one <code>AdaRequest</code> into one Omnigent turn and folds the
+SSE stream back into Ada's chunk contract. The mapping is total: every event family either maps or is
+deliberately ignored, so a new server-side event can never fault a turn.
+</p>
+<table>
+  <tr><th>Omnigent (SSE / REST)</th><th>Ada (<code>AdaResponseChunk</code>)</th><th>Notes</th></tr>
+  <tr><td><code>response.output_text.delta {delta}</code></td><td><code>Answer</code> chunk (text)</td><td>The spoken/rendered stream. Voice sanitization unchanged (<code>VoiceTextSanitizer</code>).</td></tr>
+  <tr><td><code>response.reasoning_text.delta</code></td><td><code>Thinking</code> chunk</td><td>UI-only, never spoken — same as local metadata chunks today.</td></tr>
+  <tr><td><code>response.output_item.added: function_call</code></td><td><code>Tool</code> chunk (name, args)</td><td>Status surface: "running <code>grep</code> on the runner…". Execution happens runner-side (§6).</td></tr>
+  <tr><td><code>function_call_output</code> item</td><td><code>Tool</code> chunk (result summary)</td><td></td></tr>
+  <tr><td><code>response.elicitation_request</code></td><td><code>Approval</code> chunk → Ada approval UI</td><td>Resolved via <code>…/elicitations/{eid}/resolve</code>; decline cancels the turn (v0.4). §6.</td></tr>
+  <tr><td><code>session.status {running|waiting|idle}</code></td><td><code>Status</code> chunk</td><td>Also drives the CLI spinner / window state pill.</td></tr>
+  <tr><td><code>session.usage {tokens, total_cost_usd}</code></td><td>Turn summary metadata</td><td>Feeds Ada's route badge: <code>"omnigent · claude-code"</code> + cost.</td></tr>
+  <tr><td><code>response.completed</code> / <code>[DONE]</code></td><td>final chunk (<code>IsFinal</code>)</td><td>Turn ends; engine returns.</td></tr>
+  <tr><td><code>response.failed</code> / <code>response.error</code></td><td><code>Answer</code> error text + <code>Status</code></td><td>Per-turn isolation — the thread survives, matching local engine behavior.</td></tr>
+  <tr><td><code>response.incomplete (user_interrupt)</code> + <code>session.interrupted</code></td><td>(stream ends)</td><td>The normal end of a cancelled turn — see the row below.</td></tr>
+  <tr><td>— (outbound)</td><td><code>CancellationToken</code> fires</td><td><code>POST …/events {type:"interrupt"}</code>, then drain until <code>incomplete</code>/idle. This is what Voxa's barge-in lands on.</td></tr>
+  <tr><td><code>session.created</code> / <code>session.child_session.updated</code>, <code>response.compaction.*</code>, <code>response.retry</code>, <code>response.heartbeat</code>, <code>session.todos</code>, <code>session.reasoning_effort</code></td><td>ignored (heartbeat resets the stall timer)</td><td>Sub-agent fan-in and compaction chatter must not choke the fold — tested with recorded fixtures.</td></tr>
+</table>
+<div class="callout warn">
+  <b>Flat payloads.</b> Real <code>response.*</code> frames are flat (<code>{type, delta}</code> /
+  <code>{type, item}</code>); some <code>session.*</code> events are nested envelopes. The Arke spike's
+  first normalizer read a nested shape everywhere and had to be rewritten — Ada's parser is written
+  against <code>API.md</code>'s documented shapes and tested against <em>captured</em> frames from the
+  spike (P0), not hand-written fixtures.
+</div>
+
+<h3>Correlation and the queue</h3>
+<p>
+Omnigent has no client-message-id echo: correlation between a posted message and stream items is FIFO +
+<code>session.input.consumed</code> (itself flagged as unstable). <code>OmnigentEngine</code> therefore
+allows <strong>one in-flight turn per session</strong> and treats everything between post and
+<code>response.completed</code> as belonging to that turn — matching Ada's engine contract (one
+<code>RespondAsync</code> at a time per thread) rather than fighting the wire.
+</p>
+
+<h2><span class="no">5.</span> Sessions, threads, and reconnect</h2>
+<ul>
+  <li><strong>Thread map.</strong> One Omnigent session per Ada thread, created lazily on the thread's
+    first Omnigent turn and persisted (<code>threadId → conv_…</code>) in Ada's SQLite store. History for
+    substrate threads lives server-side; Ada's local memory (files + FTS5) still receives the turn
+    summaries it records today, so recall works across substrates.</li>
+  <li><strong>Agent identity.</strong> On first use Ada uploads an agent bundle
+    (<code>POST /api/agents</code>) generated from her persona + memory-context preamble. Skills are
+    folded into instructions; Ada's <em>local</em> gated tools are <strong>not</strong> exported (§6).
+    The bundle is content-hashed; a persona/skill change re-uploads and re-points new sessions.</li>
+  <li><strong>Runner binding.</strong> Config selects <code>host_type: "external"</code> + a
+    <code>runner_id</code> on the user's own host (default: the local machine running
+    <code>omni host</code>) or <code>"managed"</code> (server-provisioned sandbox). A session whose
+    runner is offline fails preflight (§8) rather than 503-ing mid-conversation.</li>
+  <li><strong>Reconnect.</strong> On SSE drop mid-turn: reopen the stream <em>first</em>, snapshot
+    <code>GET /v1/sessions/{id}</code>, dedupe by item id, and continue folding. If the turn completed
+    while disconnected, synthesize the final from the snapshot's items. If the session is
+    <code>failed</code>, surface a per-turn error chunk.</li>
+  <li><strong>Fork as retry.</strong> "Try that differently" maps to
+    <code>POST /v1/sessions/{source}/fork</code> (optionally <code>up_to_response_id</code> +
+    <code>model_override</code>) — a new idle session; re-bind the runner, update the thread map. Deferred
+    to P5; recorded here because the wire supports it cleanly.</li>
+</ul>
+
+<h2><span class="no">6.</span> The security model shift — zones vs. runners</h2>
+<div class="callout danger">
+  <b>This is the sharpest edge of M9.</b> Ada's M2 safety floor scopes tools to allowed directories,
+  gates writes behind approvals, and sandboxes execution in Zones 0–2 <em>on Ada's machine</em>. An
+  Omnigent turn executes tools <em>on the runner host</em> under Omnigent's policy engine — Ada's zone
+  scoping does not reach it. M9 does not pretend otherwise; it fences the substrate instead.
+</div>
+<ul>
+  <li><strong>Default fence: a scoped workspace.</strong> The default runner binding points at a
+    dedicated workspace directory (<code>workspace</code> on session create), not the user's home. A
+    managed (sandboxed) host is the recommended setting for anything beyond that workspace.</li>
+  <li><strong>Elicitation bridge.</strong> Omnigent's human-approval mechanism becomes Ada's:
+    <code>response.elicitation_request</code> surfaces in Ada's existing approval UI (tray toast + window
+    prompt, same as <code>GatedAIFunction</code> approvals), and the user's accept / decline / cancel is
+    posted to <code>…/elicitations/{eid}/resolve</code>. Decline cancels the turn cleanly (v0.4.0
+    behavior). Because resolve is 202-ack-only, Ada confirms the outcome from the event stream
+    (<code>…resolved</code> / turn continuation) before updating the UI.</li>
+  <li><strong>Policies as belt-and-braces.</strong> The agent bundle ships conservative
+    <code>session_policies</code> (spend cap, intent gate on destructive commands) so the fence holds
+    even if the UI is away.</li>
+  <li><strong>Ada's local tools stay home.</strong> No fs/shell/web tool of Ada's is exported to the
+    bundle in M9. A later milestone may expose selected Ada capabilities as <em>client-side tools</em>
+    (the <code>waiting</code> + <code>function_call_output</code> round-trip), which would put them back
+    behind Ada's own gates — recorded as future work, not in scope.</li>
+</ul>
+
+<h2><span class="no">7.</span> The voice plane — unchanged, and gated</h2>
+<p>
+Voice is where Ada lives, and it is exactly why M9 must not regress latency. Nothing in the voice
+pipeline changes: Voxa still runs STT/VAD/TTS locally, <code>AdaEngineTurnDriver</code> still yields
+<code>Answer</code> chunks into <code>LlmTextChunkFrame</code>s, and barge-in still cancels the per-turn
+token — which <code>OmnigentEngine</code> now translates into the wire interrupt (202, queue-bypassing).
+Omnigent takes <strong>no audio</strong> (<code>input_audio</code> is "Not Yet"): the substrate always
+receives final STT text and returns text for local TTS. Omnigent replaces only the brain, never the ears
+or the voice.
+</p>
+<div class="callout">
+  <b>Voice gate.</b> <span class="tag gate">exit criterion</span> Voice turns route to Omnigent only if
+  the P0 spike measures <strong>TTFT p50 ≤ 1.5 s and p95 ≤ 3 s</strong> (message-post → first
+  <code>output_text.delta</code>, local server + local runner + the target harness). Until then the
+  routing default is <code>voice: local, text: omnigent-eligible</code> — a spoken "work on X" can still
+  <em>delegate</em> to a substrate thread and Ada narrates progress from <code>Status</code>/<code>Tool</code>
+  chunks, which tolerates seconds of thinking time gracefully.
+</div>
+
+<h2><span class="no">8.</span> Auth, config, preflight</h2>
+<h3>Deployment postures</h3>
+<table>
+  <tr><th>Posture</th><th>Auth</th><th>M9 support</th></tr>
+  <tr><td>Local, same machine (recommended)</td><td><code>OMNIGENT_LOCAL_SINGLE_USER=1</code> — no auth, loopback</td><td>P1 — matches Ada's local-first stance</td></tr>
+  <tr><td>Remote behind own proxy</td><td><code>header</code> provider; proxy injects <code>X-Forwarded-Email</code></td><td>P5 — config carries the header name/value; secret stored in Ada's M3 vault</td></tr>
+  <tr><td>OIDC / accounts (cookie)</td><td>browser-shaped session cookie</td><td>Out of scope — no headless story; no long-lived API tokens exist upstream</td></tr>
+</table>
+<h3>Configuration (AdaConfig)</h3>
+<pre><code>{
+  "Substrate": "Local",                      // Local | Omnigent
+  "Omnigent": {
+    "Url": "http://127.0.0.1:8000",
+    "AgentId": null,                         // set after first bundle upload
+    "RunnerId": null,                        // external host binding; null + HostType=managed ⇒ sandbox
+    "HostType": "external",                  // external | managed
+    "ModelOverride": null,                   // else Omnigent's router / harness default
+    "Routing": { "Voice": "Local", "Text": "Omnigent" },
+    "TurnTimeoutSeconds": 300,               // engine backstop; distinct from Ada's local 120 s
+    "SpendCapUsdPerTurn": 0.50
+  }
+}</code></pre>
+<h3>Preflight (extends M6's VoicePreflight discipline)</h3>
+<ul>
+  <li><code>GET /v1/sessions</code> reachable (server up, auth valid).</li>
+  <li>Session snapshot shows <code>runner_online</code>/<code>host_online</code> for the bound runner —
+    else the turn is refused up front with a actionable message ("runner offline — run
+    <code>omni host …</code>"), never a mid-turn 503.</li>
+  <li>Pinned-version check: server version echoed against the pinned <code>0.4.x</code> range; a major
+    drift downgrades to Local with a status chunk.</li>
+  <li><code>ada doctor</code> gains an <code>omnigent</code> section reporting all of the above.</li>
+</ul>
+
+<h2><span class="no">9.</span> Plan of action — phases &amp; acceptance</h2>
+<ul class="check">
+  <li><span class="tid">P0</span><strong>Spike (throwaway).</strong> Docker-compose Omnigent 0.4.0 + local runner + one harness; drive create→bind→stream→message→deltas→interrupt from a .NET console using a client generated from the <em>pinned</em> <code>openapi.json</code>; capture real SSE frames as fixtures.
+    <span class="ac">Exit: e2e turn works; TTFT p50/p95 and token cadence measured and recorded in this doc; captured fixtures checked in. The voice gate (§7) is decided by these numbers.</span></li>
+  <li><span class="tid">P1</span><strong><code>OmnigentEngine</code> — text path.</strong> Engine + wire client + event fold (fixtures-tested); <code>ada chat --substrate omnigent</code>; route badge shows <code>omnigent · &lt;harness&gt;</code> + cost.
+    <span class="ac">Exit: a full CLI conversation on Omnigent with per-turn error isolation; Substrate=Local byte-identical composition proven by tests.</span></li>
+  <li><span class="tid">P2</span><strong>Threads, reconnect, interrupt.</strong> Thread↔session map in SQLite; snapshot+dedupe reconnect; cancellation → wire interrupt; agent-bundle upload + hash refresh.
+    <span class="ac">Exit: kill the SSE mid-turn and the turn completes from snapshot; Ctrl-C lands as user_interrupt; a persona edit re-uploads the bundle.</span></li>
+  <li><span class="tid">P3</span><strong>Elicitation ↔ approval bridge.</strong> Elicitations render in Ada's approval UI; accept/decline/cancel resolve; decline cancels the turn; policies (spend cap, intent gate) in the bundle.
+    <span class="ac">Exit: a destructive runner command prompts in Ada's window and a decline ends the turn without faulting the thread.</span></li>
+  <li><span class="tid">P4</span><strong>Voice enablement (behind the gate).</strong> If §7 numbers pass: voice routing opt-in; barge-in→interrupt verified against a live server; spoken delegation ("work on X and tell me when done") narrates Status/Tool chunks regardless of the gate.
+    <span class="ac">Exit: barge-in stops runner-side generation ≤ 500 ms after VAD start; a delegated task narrates progress and completion.</span></li>
+  <li><span class="tid">P5</span><strong>Settings &amp; polish.</strong> Settings UI section, remote header-auth posture, <code>ada doctor</code> checks, fork-as-retry.
+    <span class="ac">Exit: a user configures a remote Omnigent without editing JSON; doctor diagnoses server/runner/auth states distinctly.</span></li>
+</ul>
+
+<h2><span class="no">10.</span> Risk register</h2>
+<table>
+  <tr><th>Risk</th><th>Sev</th><th>Mitigation</th></tr>
+  <tr><td>Voice-grade TTFT is structurally suspect (queue + tunnel + spawned harness + optional router judge).</td><td><strong>High</strong></td><td>P0 measures before any code; voice stays Local unless the gate passes; delegation-with-narration is the fallback UX that tolerates seconds.</td></tr>
+  <tr><td>Alpha churn: API.md warns of shape changes; pip packaging has broken before; openapi vs source drift.</td><td><strong>High</strong></td><td>Pin 0.4.0; generate the wire client from the pinned <code>openapi.json</code>; fold is total (unknown events ignored); preflight version check downgrades to Local.</td></tr>
+  <tr><td>No headless API token — remote posture needs a proxy injecting an identity header.</td><td>Med</td><td>Local single-user is the P1 target; header posture documented in P5; cookie flows declared out of scope.</td></tr>
+  <tr><td>Tools execute outside Ada's zones.</td><td>Med</td><td>§6 fences: scoped workspace, managed sandbox recommendation, elicitation bridge, policy belt-and-braces, no local-tool export.</td></tr>
+  <tr><td>No event replay: an SSE drop can lose mid-turn deltas.</td><td>Med</td><td>Documented reconnect contract (stream→snapshot→dedupe); a completed turn is reconstructed from items; a lost partial only costs cosmetic streaming.</td></tr>
+  <tr><td>Elicitation resolve is ack-only.</td><td>Low</td><td>Confirm from the event stream before the UI marks the approval settled.</td></tr>
+</table>
+
+<h2><span class="no">11.</span> Out of scope</h2>
+<ul>
+  <li>Audio input to Omnigent (upstream "Not Yet"); STT/TTS remain Ada-local permanently under this spec.</li>
+  <li>Exporting Ada's gated local tools as Omnigent client-side tools (recorded as the natural M9.1).</li>
+  <li>Multi-device session sync UI, team governance, cross-conversation search.</li>
+  <li>Any Omnigent-side change — Ada consumes the public API as-is.</li>
+  <li>Cookie-auth (OIDC/accounts) postures.</li>
+</ul>
+
+<p style="margin-top:56px;color:var(--muted);font-size:14px;border-top:1px solid var(--rule);padding-top:18px">
+Ada — personal chief-of-staff · M9 specification · verified against Omnigent v0.4.0 (2026-07-03) on 2026-07-08 ·
+companion reading: <code>docs/ada-agent-spec.html</code> (M0–M8), Arke ADR-0002 (the sibling substrate decision this
+spec cross-checked).
+</p>
+
+</div>
+</body>
+</html>
