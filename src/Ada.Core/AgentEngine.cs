@@ -96,7 +96,31 @@ public sealed class AgentEngine : IAdaEngine
         turn.Add(new ChatMessage(ChatRole.User, request.Message));
 
         var assistant = new StringBuilder();
-        var useTools = ShouldUseTools(request.Message);
+        var useTools = !request.ChatOnly && ShouldUseTools(request.Message);
+
+        // M10 talker/thinker split: a voice turn that would enter the slow tool path is handed to
+        // the background thinker instead — the tool path (load_skill + sandbox scripts) is exactly
+        // what stalls voice for 10-30 s. The Delegate chunk carries the goal; a short acknowledgment
+        // is what gets spoken. Text surfaces never set AllowDelegation, so their inline flow is
+        // untouched (M10-T7).
+        if (useTools && request.AllowDelegation)
+        {
+            // Carry recent conversation so the thinker (its own history, no thread) can resolve
+            // "that file" / pronouns / ellipses — otherwise it may do the wrong task (Codex #1).
+            yield return new AdaResponseChunk(
+                string.Empty, CurrentRoute, Kind: AdaResponseChunkKind.Delegate,
+                Goal: request.Message, ContextSummary: RecentContext(turn));
+
+            const string ack = "On it — I'll work on that in the background and let you know what I find.";
+            assistant.Append(ack);
+            yield return new AdaResponseChunk(ack, CurrentRoute);
+            yield return new AdaResponseChunk(string.Empty, CurrentRoute, IsFinal: true);
+
+            PersistTurn(threaded, convo, request.Message, assistant.ToString(), request.PersistUserMessage);
+            if (!threaded) await CompactHistoryAsync(ct).ConfigureAwait(false);
+            yield break;
+        }
+
         var agent = useTools ? _toolAgent : _chatAgent;
         _log?.LogInformation("[engine] selected {Mode} mode; toolsAvailable={Tools}", useTools ? "tools" : "chat", _toolCount);
 
@@ -149,22 +173,57 @@ public sealed class AgentEngine : IAdaEngine
         finally { await stream.DisposeAsync(); }
         yield return new AdaResponseChunk(string.Empty, CurrentRoute, IsFinal: true);
 
+        PersistTurn(threaded, convo, request.Message, assistant.ToString(), request.PersistUserMessage);
+        if (!threaded) await CompactHistoryAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Record the finished turn: to the stored thread (threaded) or the in-process window. When
+    /// <paramref name="persistUserMessage"/> is false (a background-result delivery, Codex #2), the
+    /// synthetic "[System note…]" prompt is NOT written — only the spoken reply is recorded, and only
+    /// if there is one (a result the relevance gate dropped to silence leaves no trace at all).
+    /// </summary>
+    private void PersistTurn(bool threaded, Conversation? convo, string userText, string assistantText, bool persistUserMessage)
+    {
         if (threaded)
         {
-            // Persist the full turn — the stored thread keeps everything; only the model context was bounded.
             var ts = DateTimeOffset.UtcNow.ToString("o");
-            convo!.Messages.Add(new ConversationMessage { Role = "user", Text = request.Message, Ts = ts });
-            convo.Messages.Add(new ConversationMessage { Role = "assistant", Text = assistant.ToString(), Route = CurrentRoute, Ts = ts });
+            if (persistUserMessage)
+                convo!.Messages.Add(new ConversationMessage { Role = "user", Text = userText, Ts = ts });
+            if (!persistUserMessage && string.IsNullOrWhiteSpace(assistantText))
+                return; // silent background result — nothing to record, don't even re-save
+            convo!.Messages.Add(new ConversationMessage { Role = "assistant", Text = assistantText, Route = CurrentRoute, Ts = ts });
             _conversations!.Save(convo);
         }
         else
         {
-            // Unthreaded: keep the in-process window bounded (existing behaviour).
-            _history.Add(new ChatMessage(ChatRole.User, request.Message));
-            _history.Add(new ChatMessage(ChatRole.Assistant, assistant.ToString()));
-            _history = await _compaction.CompactAsync(_history, ct).ConfigureAwait(false);
+            if (persistUserMessage)
+                _history.Add(new ChatMessage(ChatRole.User, userText));
+            if (!string.IsNullOrWhiteSpace(assistantText))
+                _history.Add(new ChatMessage(ChatRole.Assistant, assistantText));
         }
     }
+
+    /// <summary>A compact render of the last few conversation turns for a delegated task's context
+    /// (Codex #1). Excludes system/memory messages and the current user message; caps length so a
+    /// long history can't bloat the delegated request.</summary>
+    private static string? RecentContext(List<ChatMessage> turn)
+    {
+        // turn = [optional system memory] + history + current user message. Drop the trailing user
+        // message and any system messages, take the last few exchanges.
+        var body = turn.Take(Math.Max(0, turn.Count - 1))
+            .Where(m => m.Role == ChatRole.User || m.Role == ChatRole.Assistant)
+            .TakeLast(6)
+            .Select(m => $"{(m.Role == ChatRole.User ? "User" : "Ada")}: {m.Text}")
+            .ToList();
+        if (body.Count == 0) return null;
+        var text = string.Join("\n", body);
+        return text.Length > 1200 ? text[^1200..] : text; // keep it compact for a voice-latency turn
+    }
+
+    /// <summary>Unthreaded: keep the in-process window bounded (existing behaviour).</summary>
+    private async Task CompactHistoryAsync(CancellationToken ct)
+        => _history = await _compaction.CompactAsync(_history, ct).ConfigureAwait(false);
 
     private static ChatMessage ToChatMessage(ConversationMessage m) => new(
         m.Role switch { "assistant" => ChatRole.Assistant, "system" => ChatRole.System, _ => ChatRole.User },

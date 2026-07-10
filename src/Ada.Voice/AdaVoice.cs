@@ -2,17 +2,13 @@ using System.Text.Json;
 using Ada.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Agents.AI;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;   // IOptions<VoxaOptions>
 using Voxa.AspNetCore;
 using Voxa.Audio.SileroVad;
 using Voxa.Processors;
-using Voxa.Speech;                     // VoxaVadSettings
 using Voxa.Speech.Kokoro;
 using Voxa.Speech.Piper;
 using Voxa.Speech.WhisperCpp;
@@ -23,27 +19,22 @@ namespace Ada.Voice;
 public sealed record VoiceSettingsDto(string? SttModel = null, string? SttLanguage = null, string? TtsProvider = null, string? TtsVoice = null);
 
 /// <summary>
-/// Ada's voice plane (M6): hosts the Voxa pipeline in-process on the loopback server, fully local —
-/// Silero VAD, WhisperCpp STT, and a choice of Piper or Kokoro TTS. The STT model, TTS engine and voice
-/// are read from <see cref="AdaConfig"/> per connection, so the user can reconfigure them live in
-/// Settings → Voice. The agent is the same Ada the text surface uses; barge-in is handled by Voxa.
+/// Ada's voice plane (M6, rebuilt on Voxa's composer for M10): fully local — Silero VAD, WhisperCpp
+/// STT, Piper or Kokoro TTS — via <c>MapVoxaVoice("/voice").UseDefaults()</c>. Ada registers her
+/// engine as the composed pipeline's <c>IAgentTurnDriver</c> (VDX-007) and the M10 thinker as the
+/// background agent (VDX-008), and keeps everything else Voxa ships: the real barge-in path,
+/// bracket-marker transcript filtering (retires <c>BlankTranscriptionFilter</c>), profile tuning
+/// (the 900 ms stop duration is now <c>Voxa:Vad:StopDurationMs</c>), and diagnostics taps.
 /// </summary>
 public static class AdaVoice
 {
-    /// <summary>The rate the browser client captures and downsamples to (wwwroot <c>VOICE_IN_RATE</c>);
-    /// Whisper's native rate. Inbound frames must carry this before the Silero VAD, which forwards
-    /// audio ungated when the frame rate ≠ its configured rate.</summary>
-    private const int ClientInputSampleRate = 16000;
-
-    /// <summary>Hold the mic open long enough for natural pauses; Voxa LowLatency's 400 ms is too eager for Ada.</summary>
-    private static readonly TimeSpan VoiceStopDuration = TimeSpan.FromMilliseconds(900);
-
-    /// <summary>Registers Voxa with Ada's local speech stack (both TTS engines). Models download on use.</summary>
+    /// <summary>Registers Voxa with Ada's local speech stack and Ada's turn drivers. Models download on use.</summary>
     public static void AddAdaVoice(WebApplicationBuilder builder)
     {
         var cfg = new ConfigStore().Load();
-        // Lowest-priority defaults seeded from the user's saved choice; real config/env still wins. The
-        // per-connection pipeline (below) is what actually selects the model/voice at request time.
+        // Lowest-priority defaults seeded from the user's saved choice; the live source below and
+        // real config/env still win. Voxa:Vad:StopDurationMs carries what the hand-built chain
+        // hard-coded: hold the mic open for natural pauses (LowLatency's 400 ms is too eager for Ada).
         var defaults = new Dictionary<string, string?>
         {
             ["Voxa:Profile"] = "LowLatency",
@@ -54,10 +45,16 @@ public static class AdaVoice
             ["Voxa:Piper:Voice"] = cfg.TtsProvider == "Kokoro" ? "en_US-lessac-medium" : cfg.TtsVoice,
             ["Voxa:Kokoro:Voice"] = cfg.TtsProvider == "Kokoro" ? cfg.TtsVoice : "af_heart",
             ["Voxa:Vad:Engine"] = "Silero",
+            ["Voxa:Vad:StopDurationMs"] = "900",
             ["Voxa:Models:EagerWarmup"] = "false", // we warm explicitly via Settings → Voice
-            ["Voxa:Agent:Provider"] = "Echo",      // Ada supplies her own agent; keep Voxa's keyless
+            ["Voxa:Agent:Provider"] = "Echo",      // never used (Ada's driver replaces the stage) but keeps Voxa keyless
         };
         builder.Configuration.Sources.Insert(0, new MemoryConfigurationSource { InitialData = defaults });
+        // Settings → Voice changes apply on the NEXT session: the composer reads these keys per
+        // connection, so a live source over ConfigStore keeps model/voice/language switches working
+        // without a restart. (Switching the TTS *provider* still needs a restart — Voxa:Tts is bound
+        // once into VoxaOptions; documented Path-B refinement in docs/m10-talker-thinker-spec.html.)
+        builder.Configuration.Sources.Insert(1, new AdaVoiceLiveConfigSource());
 
         builder.Services.AddVoxa(builder.Configuration, voxa =>
         {
@@ -66,88 +63,52 @@ public static class AdaVoice
             voxa.AddProvider(KokoroDescriptors.Tts);
             voxa.AddProvider(SileroVadDescriptors.Vad);
         });
-    }
 
-    /// <summary>Maps the loopback voice endpoint and composes the local pipeline around Ada's agent.</summary>
-    public static void MapAdaVoice(WebApplication app)
-    {
-        app.UseWebSockets();
-        app.MapVoxaVoice("/voice").Use((context, pipeline) =>
+        builder.Services.AddHttpContextAccessor();
+
+        // VDX-007: Ada's engine drives the composed pipeline's agent stage. Scoped = one driver per
+        // voice connection; the thread id is per-connection state (the in-chat mic passes
+        // ?thread=<id> to continue the active text thread; otherwise voice gets its own thread,
+        // created lazily on the first REAL user turn — never for a background result, whose
+        // UserText is empty and must not mint a thread titled from nothing).
+        builder.Services.AddScoped<IAgentTurnDriver>(sp =>
         {
-            var engine = context.RequestServices.GetRequiredService<IAdaEngine>();
-            var convos = context.RequestServices.GetService<IConversationStore>();
-            var cfg = new ConfigStore().Load();                 // current selection, per connection
-            var voxaCfg = BuildVoxaSection(cfg);
-            var sp = context.RequestServices;
+            var engine = sp.GetRequiredService<IAdaEngine>();
+            var convos = sp.GetService<IConversationStore>();
             var vlog = sp.GetService<ILoggerFactory>()?.CreateLogger("Ada.Voice.Turn");
-            var tts = string.Equals(cfg.TtsProvider, "Kokoro", StringComparison.OrdinalIgnoreCase)
-                ? KokoroDescriptors.Tts : PiperDescriptors.Tts;
 
-            // Persist the voice conversation into a thread so Ada remembers within the session and the
-            // history shows alongside text. The in-chat mic passes ?thread=<id> to continue the active
-            // text thread; otherwise voice gets its own thread, created lazily on the first turn.
-            var threadId = context.Request.Query["thread"].FirstOrDefault();
+            var http = sp.GetService<IHttpContextAccessor>()?.HttpContext;
+            var threadId = http?.Request.Query["thread"].FirstOrDefault();
             if (string.IsNullOrWhiteSpace(threadId) || convos?.Load(threadId) is null) threadId = null;
-
-            // Honour the configured Voxa:Profile (LowLatency) on this hand-built chain. Voxa's composer does
-            // this for us under .UseDefaults(); we resolve the same tuning so the manual route stays faithful
-            // to whatever Voxa:Profile is set — no magic constants in Ada.
-            var tuning = sp.GetRequiredService<VoxaTuningResolver>()
-                           .Resolve(sp.GetRequiredService<IOptions<VoxaOptions>>().Value);
-
-            var vadSettings = new VoxaVadSettings(
-                SampleRate:          ClientInputSampleRate,
-                ConfidenceThreshold: tuning.VadConfidenceThreshold,
-                MinRms:              tuning.VadMinRms,
-                StartDuration:       tuning.VadStartDuration,
-                StopDuration:        VoiceStopDuration,
-                PrerollDuration:     tuning.VadPrerollDuration)
-            {
-                // Eager STT is great for demos, but without smart-turn it can split normal pauses mid-thought.
-                EagerSttDelay        = null,
-                MaxUtteranceDuration = tuning.VadMaxUtteranceDuration,
-            };
-            vlog?.LogInformation("[voice] Ada VAD tuning — stop={Stop}ms eagerStt=off maxResponse=120000ms", (int)VoiceStopDuration.TotalMilliseconds);
 
             string? ThreadIdForVoiceTurn(VoiceTurnContext ctx)
             {
+                if (ctx.Trigger != Voxa.Frames.TurnTrigger.UserUtterance) return threadId;
                 vlog?.LogInformation("[voice] agent INVOKED — transcript: {Text}", ctx.UserText);
                 if (convos is null) return null;
-                if (threadId is null)
-                    threadId = convos.Create(VoiceTitle(ctx.UserText)).Id;
+                threadId ??= convos.Create(VoiceTitle(ctx.UserText)).Id;
                 return threadId;
             }
 
-            pipeline
-                .UseProcessor(() => new TranscriptTap("raw-in", vlog))   // FIRST: is mic audio arriving at all, and at what rate?
-                // Tag inbound frames at their true 16 kHz, then run the real Silero VAD (the engine Ada
-                // registers and downloads) instead of the fixed-constant energy gate UseSilenceGate() builds.
-                .UseProcessor(() => new InputRateTagProcessor(ClientInputSampleRate))
-                .UseProcessor(() => SileroVadDescriptors.Vad.CreateProcessor(sp, vadSettings))
-                .UseProcessor(() => new TranscriptTap("VAD-out", vlog))   // audio rate + VAD speech-start/stop frames
-                .UseSpeechToText(() => WhisperCppDescriptors.Stt.CreateProcessor(sp, voxaCfg))
-                .UseProcessor(() => new TranscriptTap("STT-out", vlog))   // STT finals before any filter
-                .UseTranscriptionFilter()
-                .UseProcessor(() => new BlankTranscriptionFilter(vlog))   // drop [BLANK_AUDIO] etc. before the agent
-                .UseProcessor(() => new AgentLoopProcessor(
-                    new AdaEngineTurnDriver(engine, ThreadIdForVoiceTurn, vlog),
-                    onTurnCompleted: (ctx, summary, _) =>
-                    {
-                        vlog?.LogInformation("[voice] turn COMPLETED — reply: {Text}", summary.AssistantText);
-                        return ValueTask.CompletedTask;
-                    },
-                    maxResponseDuration: TimeSpan.FromSeconds(120)))
-                .UseProcessor(() => new TranscriptTap("agent-out", vlog))   // what the agent actually replies (text frames)
-                // Profile-tuned aggregator (LowLatency: 40-char eager first chunk / 350-char cap) that also
-                // flushes on LLM turn end, because Ada keeps the voice WebSocket open across turns.
-                .UseProcessor(() => new TurnEndSentenceAggregator
-                {
-                    EagerFirstChunkMinChars = tuning.EagerFirstChunkMinChars,
-                    MaxBufferChars          = tuning.MaxBufferChars,
-                })
-                .UseProcessor(() => new TranscriptTap("tts-in", vlog))      // what reaches TTS after aggregation
-                .UseTextToSpeech(() => tts.CreateProcessor(sp, voxaCfg));
+            return new AdaEngineTurnDriver(engine, ThreadIdForVoiceTurn, vlog);
         });
+
+        // VDX-008: the M10 thinker. Registering it is the whole opt-in — the composer inserts the
+        // background stage and the loop's arbitration; AdaEngineTurnDriver emits the requests. The
+        // driver gets a FACTORY so each concurrent background task resolves a fresh (transient)
+        // thinker engine with its own history (Codex #4).
+        builder.Services.AddVoxaBackgroundAgent(sp => new AdaBackgroundTurnDriver(
+            () => sp.GetRequiredKeyedService<IAdaEngine>(AdaCoreServiceCollectionExtensions.ThinkerEngineKey),
+            sp.GetService<ILoggerFactory>()?.CreateLogger("Ada.Voice.Thinker")));
+    }
+
+    /// <summary>Maps the loopback voice endpoint (Voxa-composed) and the Settings → Voice API.</summary>
+    public static void MapAdaVoice(WebApplication app)
+    {
+        app.UseWebSockets();
+        // The whole M6.1 hand-built chain, retired (Path B): Voxa's composer now owns VAD → STT →
+        // filter → Ada's driver → aggregation → TTS, plus the background stage for the M10 thinker.
+        app.MapVoxaVoice("/voice").UseDefaults();
 
         // Voice config + status for Settings → Voice. Mapped only when voice is enabled (404 ⇒ off).
         app.MapGet("/api/voice", () =>
@@ -184,7 +145,8 @@ public static class AdaVoice
             });
         });
 
-        // Change the pipeline (STT model / TTS engine / voice). Takes effect on the next voice session.
+        // Change the pipeline (STT model / TTS engine / voice). Model/language/voice apply on the next
+        // voice session (the live config source); switching the TTS provider needs an app restart.
         app.MapPost("/api/voice", (VoiceSettingsDto dto) =>
         {
             var store = new ConfigStore();
@@ -215,26 +177,41 @@ public static class AdaVoice
         });
     }
 
-    /// <summary>Build a per-connection <c>"Voxa"</c> section carrying the user's STT model + TTS voice.</summary>
-    private static IConfigurationSection BuildVoxaSection(AdaConfig cfg)
-    {
-        var kokoro = string.Equals(cfg.TtsProvider, "Kokoro", StringComparison.OrdinalIgnoreCase);
-        var kv = new Dictionary<string, string?>
-        {
-            ["Voxa:Profile"] = "LowLatency",
-            ["Voxa:WhisperCpp:Model"] = cfg.SttModel,
-            ["Voxa:WhisperCpp:Language"] = cfg.SttLanguage,
-            ["Voxa:Piper:Voice"] = kokoro ? null : cfg.TtsVoice,
-            ["Voxa:Kokoro:Voice"] = kokoro ? cfg.TtsVoice : null,
-            ["Voxa:Vad:Engine"] = "Silero",
-        };
-        return new ConfigurationBuilder().AddInMemoryCollection(kv).Build().GetSection("Voxa");
-    }
-
     private static string VoiceTitle(string userText)
     {
         var t = (userText ?? string.Empty).Trim().ReplaceLineEndings(" ");
         if (t.Length == 0) return "Voice chat";
         return t.Length > 60 ? t[..60].TrimEnd() + "…" : t;
+    }
+}
+
+/// <summary>
+/// Live per-connection knobs (Settings → Voice) for keys the composer reads at COMPOSE time — the
+/// hand-built chain used to rebuild its config per connection; this source preserves that behavior
+/// under <c>UseDefaults()</c>. Reads <see cref="ConfigStore"/> on every lookup (a few key reads per
+/// new connection). Sits above the startup defaults, below real config/env.
+/// </summary>
+internal sealed class AdaVoiceLiveConfigSource : ConfigurationProvider, IConfigurationSource
+{
+    public IConfigurationProvider Build(IConfigurationBuilder builder) => this;
+
+    public override bool TryGet(string key, out string? value)
+    {
+        value = key switch
+        {
+            "Voxa:WhisperCpp:Model" => new ConfigStore().Load().SttModel,
+            "Voxa:WhisperCpp:Language" => new ConfigStore().Load().SttLanguage,
+            "Voxa:Piper:Voice" => Voice(kokoro: false),
+            "Voxa:Kokoro:Voice" => Voice(kokoro: true),
+            _ => null,
+        };
+        return value is not null;
+
+        static string? Voice(bool kokoro)
+        {
+            var cfg = new ConfigStore().Load();
+            var isKokoro = string.Equals(cfg.TtsProvider, "Kokoro", StringComparison.OrdinalIgnoreCase);
+            return isKokoro == kokoro ? cfg.TtsVoice : null; // fall through to the startup default otherwise
+        }
     }
 }
