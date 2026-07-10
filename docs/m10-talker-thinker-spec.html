@@ -81,12 +81,31 @@ ul.check .ac{display:block;color:var(--muted);font-size:.86em;margin-top:4px}
   </p>
   <div class="meta">
     <span>Document <b>M10 v1.0</b></span>
-    <span>Status <b>Draft</b></span>
+    <span>Status <b>Implemented — Path B (v1.1)</b></span>
     <span>Depends on <b>Voxa ≥ v0.7.1-alpha</b></span>
     <span>Upstream spec <b>VDX-008 v1.2 (Implemented)</b></span>
     <span>Upstream guide <b>voxa/docs/background-agent.md</b></span>
   </div>
 </header>
+
+<div class="callout">
+  <b>Implementation refinements (v1.1 — what shipped differs from the draft in four places).</b>
+  (1) <em>Delegation is heuristic, not a model tool call:</em> Ada's tool mode is skill-forced
+  (<code>load_skill</code>), so a bare <code>delegate_task</code> function would rarely be called by a
+  local model. Instead the engine's existing <code>ShouldUseTools()</code> heuristic — which identifies
+  exactly the turns that stall voice — became the trigger: a voice turn (<code>AdaRequest.AllowDelegation</code>)
+  that would enter tool mode yields a <code>Delegate</code> chunk plus a canned acknowledgment, and the
+  thinker runs the goal with the full tool harness in the background. Text surfaces never set the flag
+  (M10-T7 by construction). (2) <em>Result deliveries are <code>ChatOnly</code>:</em> a new
+  <code>AdaRequest</code> flag pins background-result turns to the fast chat agent so their content can
+  never keyword-match back into tool mode. (3) <em>Settings → Voice under UseDefaults():</em> a live
+  configuration source keeps STT model/language and voice switches applying on the next session;
+  switching the TTS <em>provider</em> (Piper ↔ Kokoro) now needs an app restart (<code>Voxa:Tts</code>
+  binds once into <code>VoxaOptions</code>). (4) The thinker is a keyed second engine
+  (<code>AdaCoreServiceCollectionExtensions.ThinkerEngineKey</code>) on the escalation client with its
+  own in-process history, and gated tools fail fast inside <code>ToolContext.EnterBackgroundScope()</code>
+  (AsyncLocal) rather than a policy object.
+</div>
 
 <h2><span class="no">1.</span> What is this, in plain English?</h2>
 <p>

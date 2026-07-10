@@ -50,9 +50,17 @@ public static class AdaCoreServiceCollectionExtensions
         services.TryAddSingleton<IConversationStore>(_ => new FileConversationStore()); // durable per-thread history
 
         services.AddSingleton<IAdaEngine>(sp => BuildEngine(sp, options));
+        // M10: the background "thinker" — a second engine on the heavyweight route with the full
+        // tool harness and its OWN in-process history (never the talker's, never a stored thread),
+        // so delegated research can't pollute the conversation. Lazy: costs nothing until the first
+        // delegation resolves it.
+        services.AddKeyedSingleton<IAdaEngine>(ThinkerEngineKey, (sp, _) => BuildThinkerEngine(sp, options));
         services.TryAddSingleton<AIAgent>(AdaAgentFactory.Create); // the agent the voice plane drives
         return services;
     }
+
+    /// <summary>Keyed-service key for the M10 background thinker engine.</summary>
+    public const string ThinkerEngineKey = "ada:thinker";
 
     /// <summary>Wires the agent engine over an explicit chat client (tests, the self-test stub).</summary>
     public static IServiceCollection AddAdaCore(this IServiceCollection services, IChatClient chatClient, string route = "local")
@@ -113,5 +121,42 @@ public static class AdaCoreServiceCollectionExtensions
         var single = local ?? cloud!;
         var route = local is not null ? "local" : registry.ForRole(ModelRole.Escalation)!.Id;
         return new AgentEngine(single, persona, route, tools, memory, compaction, skills, conversations, sp.GetService<Microsoft.Extensions.Logging.ILogger<AgentEngine>>());
+    }
+
+    /// <summary>
+    /// M10: the thinker takes the heavyweight route directly — no hybrid router, no heuristics;
+    /// delegation IS the escalation decision. Falls back to the local client (still useful: the
+    /// tool path off the voice-latency budget) and finally to echo when nothing is configured.
+    /// Same persona/tools/skills composition as the talker, plus researcher framing; no
+    /// conversation store — results flow back through the voice turn, not a thread.
+    /// </summary>
+    private static IAdaEngine BuildThinkerEngine(IServiceProvider sp, AdaModelOptions options)
+    {
+        var registry = sp.GetRequiredService<ProviderRegistry>();
+        var memory = sp.GetService<ITurnContext>();
+        var compaction = sp.GetService<ICompactionStrategy>();
+
+        var skillRegistry = sp.GetService<SkillRegistry>();
+        var composed = SkillComposer.Compose(sp.GetRequiredService<Persona>(), sp.GetServices<AITool>(), skillRegistry?.Enabled ?? []);
+        var persona = new Persona(composed.Instructions +
+            "\n\nYou are running as Ada's background researcher: another assistant is speaking with the user " +
+            "while you work. Use your tools, then answer in 2-3 compact sentences — your answer is read " +
+            "aloud, so no lists or markdown. If a tool reports it needs approval, say so briefly.");
+
+        var sandbox = sp.GetService<SandboxSession>();
+        sandbox?.WaitUntilReady(TimeSpan.FromSeconds(20));
+        var tools = sandbox?.DirectToolsFor(composed.Tools) ?? composed.Tools;
+        var skills = sandbox is not null
+            ? AdaSkills.BuildProvider(sandbox, tools, sandbox.Active ? sandbox.Tools : null, sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>())
+            : null;
+
+        var cloud = registry.CreateForRole(ModelRole.Escalation);
+        var local = registry.CreateForRole(ModelRole.Default) ?? ModelClientFactory.Create(options);
+        var client = cloud ?? local;
+        if (client is null) return new EchoEngine();
+
+        var route = cloud is not null ? registry.ForRole(ModelRole.Escalation)!.Id : "local";
+        return new AgentEngine(client, persona, route, tools, memory, compaction, skills,
+            conversations: null, sp.GetService<Microsoft.Extensions.Logging.ILogger<AgentEngine>>());
     }
 }
