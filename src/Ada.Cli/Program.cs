@@ -103,7 +103,8 @@ internal static class Program
         {
             await foreach (var chunk in engine.RespondAsync(new AdaRequest(message)))
             {
-                Console.Write(chunk.Text);
+                if (chunk.Kind == AdaResponseChunkKind.Answer)
+                    Console.Write(chunk.Text);
                 route = chunk.Route;
             }
         }
@@ -412,8 +413,8 @@ internal static class Program
         Report("ONNX downloader fetches a real model file from Hugging Face", onnxDownloaded);
 
         // ---- Ollama (managed local runtime — the default after setup) ----
-        Report("Ollama default targets gemma3:4b on loopback",
-            new OllamaOptions() is { DefaultModel: "gemma3:4b" } oo && oo.Endpoint.Contains("11434"));
+        Report("Ollama default targets gemma4-e4b-32k on loopback",
+            new OllamaOptions() is { DefaultModel: "gemma4-e4b-32k" } oo && oo.Endpoint.Contains("11434"));
         Report("Ollama reachability probe works (none running here)", !await OllamaRuntime.IsReachableAsync("http://127.0.0.1:1"));
 
         var ok = _failures == 0;
@@ -427,7 +428,8 @@ internal static class Program
         var route = string.Empty;
         await foreach (var chunk in engine.RespondAsync(new AdaRequest(message)))
         {
-            sb.Append(chunk.Text);
+            if (chunk.Kind == AdaResponseChunkKind.Answer)
+                sb.Append(chunk.Text);
             route = chunk.Route;
         }
         return (sb.ToString(), route);

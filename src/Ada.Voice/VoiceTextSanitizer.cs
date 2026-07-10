@@ -2,28 +2,39 @@ using System.Text.RegularExpressions;
 
 namespace Ada.Voice;
 
-/// <summary>
-/// Strips text-chat furniture the TTS would otherwise read aloud — markdown emphasis, inline code,
-/// code fences, headings, list bullets, bare URLs' angle brackets. The engine writes for a chat
-/// bubble; this makes it speakable without changing the words.
-/// </summary>
+/// <summary>Converts streamed assistant text into speech-safe plain text before it reaches TTS —
+/// strips markdown furniture, JSON/bracket punctuation from leaked tool output, and normalizes
+/// dashes/ellipses. Sanitizes per streamed chunk, so leading whitespace is preserved (dropping it
+/// would glue adjacent words together as the reply streams).</summary>
 internal static partial class VoiceTextSanitizer
 {
-    [GeneratedRegex(@"```[\s\S]*?```|`([^`]*)`", RegexOptions.Compiled)]
-    private static partial Regex CodeSpans();
-
-    [GeneratedRegex(@"(\*\*|__|\*|_)(?=\S)([\s\S]*?)(?<=\S)\1", RegexOptions.Compiled)]
-    private static partial Regex Emphasis();
-
-    [GeneratedRegex(@"^\s{0,3}(#{1,6}\s+|[-*+]\s+|\d+\.\s+)", RegexOptions.Compiled | RegexOptions.Multiline)]
-    private static partial Regex LinePrefixes();
-
     public static string Sanitize(string text)
     {
-        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-        var s = CodeSpans().Replace(text, "$1");     // fences vanish; inline code keeps its content
-        s = Emphasis().Replace(s, "$2");             // **bold**/_italics_ keep their words
-        s = LinePrefixes().Replace(s, string.Empty); // headings and bullets speak as plain sentences
-        return s.Replace("<", string.Empty).Replace(">", string.Empty);
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+
+        var s = text.ReplaceLineEndings("\n");
+        s = MarkdownLinePrefix().Replace(s, string.Empty);
+        s = s.Replace("```", " ")
+             .Replace("`", string.Empty)
+             .Replace("**", string.Empty)
+             .Replace("*", string.Empty)
+             .Replace("__", string.Empty)
+             .Replace("_", string.Empty)
+             .Replace("•", string.Empty)
+             .Replace("…", "...")
+             .Replace("—", " - ")
+             .Replace("–", " - ");
+        s = JsonPunctuation().Replace(s, " ");
+        s = Whitespace().Replace(s, " ");
+        return s;
     }
+
+    [GeneratedRegex(@"(?m)^\s*(?:#{1,6}|[-+*]|\d+[.)])\s+")]
+    private static partial Regex MarkdownLinePrefix();
+
+    [GeneratedRegex(@"[{}\[\]<>]")]
+    private static partial Regex JsonPunctuation();
+
+    [GeneratedRegex(@"[ \t\r\n]{2,}")]
+    private static partial Regex Whitespace();
 }

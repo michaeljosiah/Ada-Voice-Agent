@@ -76,6 +76,8 @@ public static class AdaApi
             {
                 if (chunk.IsFinal)
                     await WriteSse(resp, "done", JsonSerializer.Serialize(new { route = chunk.Route, threadId }), ct);
+                else if (chunk.Kind != AdaResponseChunkKind.Answer)
+                    await WriteSse(resp, "status", JsonSerializer.Serialize(new { kind = ChunkKind(chunk.Kind), text = chunk.Text, label = chunk.Label }), ct);
                 else
                     await WriteSse(resp, "chunk", JsonSerializer.Serialize(new { text = chunk.Text }), ct);
             }
@@ -435,6 +437,8 @@ public static class AdaApi
         summary = r.Summary,
         detail = r.Detail,
     });
+
+    private static string ChunkKind(AdaResponseChunkKind kind) => kind.ToString().ToLowerInvariant();
 
     private static async Task WriteSse(HttpResponse resp, string ev, string jsonData, CancellationToken ct)
     {

@@ -31,7 +31,7 @@ public sealed class AdaConfig
     /// <summary>Which local runtime Ada uses: "ollama" (managed subprocess, default) or "onnx" (in-process). Null until setup.</summary>
     public string? LocalRuntime { get; set; }
 
-    /// <summary>The Ollama model tag (e.g. "gemma3:4b") when <see cref="LocalRuntime"/> is "ollama".</summary>
+    /// <summary>The Ollama model tag (e.g. "gemma4-e4b-32k") when <see cref="LocalRuntime"/> is "ollama".</summary>
     public string? OllamaModel { get; set; }
 
     /// <summary>The downloaded ONNX model Ada uses as her local brain (e.g. "gemma-3-1b"), if any.</summary>

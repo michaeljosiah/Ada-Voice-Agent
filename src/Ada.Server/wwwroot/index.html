@@ -70,6 +70,12 @@
   .ma .lbl{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
   .ma .nm{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--purple);}
   .ma .tx{font-size:14.5px;line-height:1.6;color:var(--text);white-space:pre-wrap;word-wrap:break-word;}
+  .ma .proc{display:none;align-items:center;gap:8px;margin:2px 0 7px;color:var(--text-soft);font-size:12.5px;}
+  .ma .proc.on{display:flex;}
+  .ma .proc .pi{width:14px;height:14px;border-radius:50%;border:2px solid var(--surface-3);border-top-color:var(--purple);animation:spinSlow .8s linear infinite;flex-shrink:0;}
+  .ma .proc.tool .pi{border-top-color:var(--teal);}
+  .ma .proc.delegation .pi{border-top-color:var(--coral);}
+  .ma .proc .pk{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--purple);}
   .route{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:2px 8px;border-radius:6px;background:rgba(5,90,96,.12);color:#055a60;}
   .route.cloud{background:rgba(235,92,55,.13);color:#c2492a;}
   .caret{display:inline-block;width:2px;height:15px;background:var(--purple);margin-left:2px;vertical-align:-3px;animation:blink 1s step-end infinite;}
@@ -399,9 +405,18 @@ function addUser(text){ clearEmpty(); const d=document.createElement('div'); d.c
 function addAda(){
   clearEmpty();
   const w=document.createElement('div'); w.className='ma fadeUp';
-  w.innerHTML='<div class="lbl"><span class="nm">Ada</span></div><div class="tx"></div>';
+  w.innerHTML='<div class="lbl"><span class="nm">Ada</span></div><div class="proc"><span class="pi"></span><span class="pk"></span><span class="pt"></span></div><div class="tx"></div>';
   log.appendChild(w); scrollLog();
-  return { tx:w.querySelector('.tx'), lbl:w.querySelector('.lbl') };
+  return { tx:w.querySelector('.tx'), lbl:w.querySelector('.lbl'), proc:w.querySelector('.proc') };
+}
+function setProcess(reply, kind, text, label){
+  if(!reply || !reply.proc) return;
+  if(!text){ reply.proc.className='proc'; reply.proc.classList.remove('on'); return; }
+  const k=(kind||'status').toLowerCase();
+  reply.proc.className='proc on '+k;
+  reply.proc.querySelector('.pk').textContent=label||k;
+  reply.proc.querySelector('.pt').textContent=text;
+  scrollLog();
 }
 function routeBadge(lbl, route){
   if (!route) return;
@@ -415,7 +430,7 @@ async function sendText(text){
   text = (text||'').trim(); if (!text) return;
   addUser(text);
   const reply = addAda();
-  reply.tx.innerHTML = '<span style="color:var(--text-mute)">thinking…</span>';
+  setProcess(reply, 'thinking', 'Thinking', 'Thinking');
   const caret=document.createElement('span'); caret.className='caret';
   const ctrl = new AbortController();
   let got=false, acc='';
@@ -438,8 +453,10 @@ async function sendText(text){
           else if(line.startsWith('data:')){
             const d=JSON.parse(line.slice(5).trim());
             if(ev==='thread'){ S.threadId=d.id; }
-            else if(ev==='chunk' && d.text){ arm(); if(!got){ got=true; reply.tx.textContent=''; } acc+=d.text; reply.tx.textContent=acc; reply.tx.appendChild(caret); scrollLog(); }
+            else if(ev==='status'){ arm(); setProcess(reply, d.kind, d.text, d.label); }
+            else if(ev==='chunk' && d.text){ arm(); if(!got){ got=true; setProcess(reply, null); reply.tx.textContent=''; } acc+=d.text; reply.tx.textContent=acc; reply.tx.appendChild(caret); scrollLog(); }
             else if(ev==='done'){ got=true; clearTimeout(idle); if(caret.parentNode) caret.remove();
+              setProcess(reply, null);
               if(!acc) reply.tx.textContent='(No reply — the local model returned nothing. Try a different model in Settings → Local model.)';
               routeBadge(reply.lbl, d.route); scrollLog(); loadThreads(); }
           }
@@ -449,6 +466,7 @@ async function sendText(text){
     clearTimeout(idle); if (caret.parentNode) caret.remove();
   } catch(e){
     clearTimeout(idle); if (caret.parentNode) caret.remove();
+    setProcess(reply, null);
     reply.tx.textContent = (acc ? acc + '\n\n' : '') + (ctrl.signal.aborted
       ? '…(stopped — the reply stalled. A tool or the model may be stuck; try again, or pick a smaller model in Settings → Local model.)'
       : 'Couldn’t reach the local model (' + e + ').');

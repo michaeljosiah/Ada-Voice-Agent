@@ -28,9 +28,4 @@ jobs:
         run: dotnet build Ada.slnx --configuration Release --no-restore
 
       - name: Test
-        # NOTE: OllamaTests.Default_options_target_gemma4_on_loopback is a pre-existing failure on
-        # main (OllamaOptions.DefaultModel vs the test's expected model id disagree) — being fixed by
-        # separate in-flight work on the model config. Remove this filter once that lands.
-        run: >-
-          dotnet test Ada.slnx --configuration Release --no-build
-          --filter "FullyQualifiedName!~Default_options_target_gemma4_on_loopback"
+        run: dotnet test Ada.slnx --configuration Release --no-build

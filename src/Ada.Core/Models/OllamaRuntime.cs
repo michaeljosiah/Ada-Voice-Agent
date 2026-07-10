@@ -10,7 +10,7 @@ public sealed record OllamaOptions(
     string Endpoint = "http://127.0.0.1:11434",
     string? RuntimeDir = null,
     string DownloadUrl = "https://github.com/ollama/ollama/releases/latest/download/ollama-windows-amd64.zip",
-    string DefaultModel = "gemma3:4b");
+    string DefaultModel = "gemma4-e4b-32k");
 
 /// <summary>
 /// Manages Ollama as a loopback subprocess so a local model is "automatically available" with zero
@@ -44,7 +44,7 @@ public sealed class OllamaRuntime : IAsyncDisposable
     }
 
     /// <summary>
-    /// The models already pulled into the managed store, as <c>model:tag</c> (e.g. <c>gemma4:e4b</c>) — read
+    /// The models already pulled into the managed store, as <c>model:tag</c> (e.g. <c>gemma4-e4b-32k</c>) — read
     /// straight from Ollama's manifest layout on disk, so it works whether or not <c>ollama serve</c> is running.
     /// Powers the "downloaded vs not" markers on the model picker.
     /// </summary>
@@ -103,7 +103,7 @@ public sealed class OllamaRuntime : IAsyncDisposable
         return new OllamaRuntime(options.Endpoint, process);
     }
 
-    /// <summary>Pulls a model (streaming status), e.g. <c>gemma4:e4b</c>.</summary>
+    /// <summary>Pulls a model (streaming status), e.g. <c>gemma4-e4b-32k</c>.</summary>
     public async Task PullAsync(string model, IProgress<string>? progress = null, CancellationToken ct = default)
     {
         using var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };

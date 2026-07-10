@@ -12,7 +12,7 @@ public class OllamaTests
     public void Default_options_target_gemma4_on_loopback()
     {
         var o = new OllamaOptions();
-        Assert.Equal("gemma4:e4b", o.DefaultModel);
+        Assert.Equal("gemma4-e4b-32k", o.DefaultModel);
         Assert.Contains("11434", o.Endpoint);
         Assert.Contains("ollama-windows-amd64.zip", o.DownloadUrl);
     }
@@ -23,10 +23,10 @@ public class OllamaTests
         var path = Path.Combine(Path.GetTempPath(), $"ada_cfg_{Guid.NewGuid():n}.json");
         try
         {
-            new ConfigStore(path).Save(new AdaConfig { LocalRuntime = "ollama", OllamaModel = "gemma4:e4b" });
+            new ConfigStore(path).Save(new AdaConfig { LocalRuntime = "ollama", OllamaModel = "gemma4-e4b-32k" });
             var c = new ConfigStore(path).Load();
             Assert.Equal("ollama", c.LocalRuntime);
-            Assert.Equal("gemma4:e4b", c.OllamaModel);
+            Assert.Equal("gemma4-e4b-32k", c.OllamaModel);
         }
         finally { File.Delete(path); }
     }
