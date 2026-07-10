@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ada — The Talker/Thinker Split (M10) · Specification · July 2026</title>
+<style>
+:root{
+  --paper:#fbf7ef; --paper-1:#f6efe2; --paper-2:#efe5d2;
+  --ink:#221e18; --ink-soft:#4a443b; --muted:#7a7264; --rule:#e6ddcb;
+  --evergreen:#1f5040; --evergreen-deep:#173e32; --evergreen-tint:#e3ede7;
+  --clay:#a8552e; --clay-deep:#8e4523; --clay-tint:#f4e4d9;
+  --gold:#c29752; --info:#2a5670; --warn:#b97700; --danger:#9e2b1c;
+  --mono:"Cascadia Code",Consolas,"JetBrains Mono",monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+body{margin:0;background:radial-gradient(1200px 520px at 88% -6%,#f3ead7 0%,transparent 60%),var(--paper);
+  color:var(--ink);font:17px/1.65 "Newsreader","Iowan Old Style",Georgia,serif}
+.page{max-width:880px;margin:0 auto;padding:64px 42px 140px}
+header.cover{border-bottom:1px solid var(--rule);margin-bottom:40px;padding-bottom:34px}
+.eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:12px;color:var(--clay);
+  font-family:-apple-system,"Segoe UI",sans-serif;margin-bottom:16px;font-weight:600}
+header.cover h1{font-family:"Fraunces",Georgia,serif;font-size:44px;line-height:1.08;margin:0 0 16px;
+  font-weight:600;letter-spacing:-.018em}
+header.cover h1 .dot{color:var(--clay)}
+header.cover .lede{color:var(--ink-soft);font-size:20px;max-width:62ch}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;font-family:-apple-system,"Segoe UI",sans-serif;font-size:13px}
+.meta span{background:var(--paper-1);border:1px solid var(--rule);border-radius:999px;padding:4px 14px;color:var(--ink-soft)}
+.meta b{color:var(--evergreen)}
+h2{font-family:"Fraunces",Georgia,serif;font-size:29px;font-weight:600;letter-spacing:-.01em;
+  margin:56px 0 14px;padding-top:26px;border-top:1px solid var(--rule)}
+h2 .no{color:var(--clay);margin-right:10px;font-size:.8em}
+h3{font-family:-apple-system,"Segoe UI",sans-serif;font-size:15px;text-transform:uppercase;
+  letter-spacing:.09em;color:var(--evergreen);margin:34px 0 10px;font-weight:700}
+p,li{color:var(--ink-soft)}
+strong{color:var(--ink)}
+code{font-family:var(--mono);font-size:.82em;background:var(--paper-2);border:1px solid var(--rule);
+  border-radius:4px;padding:1px 6px;color:var(--evergreen-deep)}
+pre{background:var(--night,#16130e);color:#efe8da;border-radius:10px;padding:18px 20px;overflow-x:auto;
+  font-size:13.5px;line-height:1.55;font-family:var(--mono)}
+pre code{background:none;border:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14.5px;
+  font-family:-apple-system,"Segoe UI",sans-serif}
+th,td{border:1px solid var(--rule);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:var(--paper-1);font-weight:650;color:var(--ink)}
+td{background:#fffdf8}
+.callout{border-left:4px solid var(--evergreen);background:var(--evergreen-tint);border-radius:0 10px 10px 0;
+  padding:14px 20px;margin:20px 0;font-size:15.5px}
+.callout.warn{border-left-color:var(--warn);background:#f7edd8}
+.callout.danger{border-left-color:var(--danger);background:#f6e0dc}
+.callout b:first-child{color:var(--evergreen-deep)}
+.callout.warn b:first-child{color:var(--warn)}
+.callout.danger b:first-child{color:var(--danger)}
+ul.check{list-style:none;padding-left:6px}
+ul.check li{margin:9px 0;padding:10px 14px;background:#fffdf8;border:1px solid var(--rule);border-radius:8px}
+ul.check .tid{font-family:var(--mono);color:var(--clay);font-size:.78em;margin-right:8px;font-weight:600}
+ul.check .ac{display:block;color:var(--muted);font-size:.86em;margin-top:4px}
+.tag{display:inline-block;font-family:-apple-system,"Segoe UI",sans-serif;font-size:11px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:2px 10px;margin-left:8px;vertical-align:middle}
+.tag.verified{background:var(--evergreen-tint);color:var(--evergreen-deep)}
+.tag.unknown{background:var(--clay-tint);color:var(--clay-deep)}
+.tag.gate{background:#e8eef3;color:var(--info)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="cover">
+  <div class="eyebrow">Ada · Specification M10 · July 2026</div>
+  <h1>The Talker/Thinker Split<span class="dot">.</span></h1>
+  <p class="lede">
+    Ada's voice today goes silent while her tools work — a sandbox run, a web search, a mail sweep
+    is fifteen seconds of dead air. Voxa's <strong>VDX-008 background agent delegation</strong> fixes
+    exactly this: a fast <em>talker</em> keeps the conversation while a heavyweight <em>thinker</em>
+    runs the tools off the latency path, and the result re-enters as a new, relevance-gated turn.
+    This spec is Ada's adoption plan — including the one wrinkle that shapes everything:
+    Ada hand-builds her Voxa chain, so the advertised one-line opt-in doesn't apply until she
+    either wires the Core pieces herself (Path A) or takes the long-deferred VDX-007 migration
+    first (Path B, recommended).
+  </p>
+  <div class="meta">
+    <span>Document <b>M10 v1.0</b></span>
+    <span>Status <b>Draft</b></span>
+    <span>Depends on <b>Voxa ≥ v0.7.0-alpha</b></span>
+    <span>Upstream spec <b>VDX-008 v1.2 (Implemented)</b></span>
+    <span>Upstream guide <b>voxa/docs/background-agent.md</b></span>
+  </div>
+</header>
+
+<h2><span class="no">1.</span> What is this, in plain English?</h2>
+<p>
+When you ask Ada by voice to "check my mail for anything from the bank," the M6 voice loop pipes the
+transcript into <code>IAdaEngine.RespondAsync</code> and waits. The engine picks its model, runs the
+mail tool, composes an answer — and for that whole stretch the room is silent. In text chat that's a
+spinner; in voice it reads as a hang.
+</p>
+<p>
+VDX-008 (merged to Voxa main 2026-07-10, spec v1.2) splits the agent in two. The <strong>talker</strong>
+answers instantly — "on it, give me a moment" — and hands the slow work to a <strong>thinker</strong>
+via an explicit <code>delegate_task</code> tool call. The thinker runs off the voice-latency path
+inside a new <code>BackgroundAgentProcessor</code>; when it finishes, its result re-enters the agent
+loop as a <em>new turn</em> that the talker gates for relevance (it may stay silent if the
+conversation moved on). Results are never injected while the user is speaking, barge-in never cancels
+delegated work, and a failed or timed-out task comes back as an apologizable error rather than
+silence.
+</p>
+<p>
+For Ada the split is unusually natural: her hybrid router already distinguishes a fast local path
+from a heavier cloud path. The talker is the fast path with no tools; the thinker is the cloud path
+with the full tool harness.
+</p>
+
+<h2><span class="no">2.</span> The wrinkle: Ada is not on <code>UseDefaults()</code></h2>
+<p>
+Voxa's advertised adoption is one line — <code>services.AddVoxaBackgroundAgent(…)</code> — plus a
+<code>Voxa:BackgroundAgent:*</code> config block. That line works by a keyed-DI seam inside
+<code>DefaultVoicePipelineComposer</code>. But <code>AdaVoice.MapAdaVoice</code> never calls the
+composer: it hand-builds the chain processor-by-processor (<code>InputRateTagProcessor</code>,
+Silero, WhisperCpp, filters, a hand-constructed <code>AgentLoopProcessor</code>,
+<code>TurnEndSentenceAggregator</code>, TTS) — the M6.1 fidelity workarounds, most of which Voxa has
+since absorbed upstream. The composer seam therefore <strong>does not fire for Ada</strong>, and
+neither does the MAF <code>delegate_task</code> auto-injection (Ada's tools live inside
+<code>IAdaEngine</code>, not in a MAF agent Voxa can see).
+</p>
+<div class="callout">
+  <b>Consequence.</b> Ada integrates at the Core level: construct <code>BackgroundAgentProcessor</code>
+  herself, arm <code>AgentLoopProcessor</code> herself, and emit/consume the delegation frames from her
+  own driver. That is Path A. Or she first takes the VDX-007 migration that was speced for her
+  (register <code>IAgentTurnDriver</code> in DI, keep <code>UseDefaults()</code>), after which VDX-008
+  really is one registration plus config. That is Path B.
+</div>
+
+<h2><span class="no">3.</span> Work common to both paths (the real substance)</h2>
+
+<h3>3.1 A background driver — the thinker</h3>
+<p>
+A ~20-line <code>AdaBackgroundTurnDriver : IAgentTurnDriver</code> mirroring
+<code>AdaEngineTurnDriver</code>, with three deliberate differences:
+</p>
+<ul>
+  <li><strong>Forced heavyweight route.</strong> It should pin the engine to the cloud path with the
+      full tool harness (the router's escalation heuristics don't apply — delegation <em>is</em> the
+      escalation decision).</li>
+  <li><strong>Its own thread — or none.</strong> Research traces must not pollute the voice
+      conversation's thread. The result text is what matters; if it's worth remembering, the talker's
+      spoken reply lands in the thread anyway.</li>
+  <li><strong>No sanitizer.</strong> Its text is read by the talker, not spoken; skip
+      <code>VoiceTextSanitizer</code>. Yielding plain <code>LlmTextChunkFrame</code>s is enough —
+      Voxa's whitelist accumulates them into <code>ResultText</code> and guarantees they never reach
+      TTS directly. Optionally yield <code>StatusFrame</code>s ("Searching your mail…") for progress UI.</li>
+</ul>
+
+<h3>3.2 The delegation signal — keeping Ada.Core Voxa-free</h3>
+<p>
+The talker must emit <code>BackgroundTaskRequestFrame</code>, but Ada's <code>delegate_task</code>
+tool would live in the engine's catalog inside <code>Ada.Core</code> — which correctly has no Voxa
+reference and must stay that way. Two clean options:
+</p>
+<table>
+  <tr><th>Option</th><th>Mechanics</th><th>Verdict</th></tr>
+  <tr>
+    <td><strong>New chunk kind</strong></td>
+    <td>The engine's <code>delegate_task</code> tool returns the ack string to the model and emits an
+        <code>AdaResponseChunkKind.Delegate</code> chunk carrying <code>goal</code> +
+        <code>contextSummary</code>. <code>AdaEngineTurnDriver</code> — which already switches on
+        <code>Kind</code> — translates it into
+        <code>yield return new BackgroundTaskRequestFrame(taskId, goal, context, ctx.TurnId)</code>.</td>
+    <td><span class="tag verified">recommended</span> — fits Ada's chunk-stream architecture; the CLI
+        and text surfaces simply ignore the new kind.</td>
+  </tr>
+  <tr>
+    <td><strong>Callback on AdaRequest</strong></td>
+    <td>The driver passes a <code>Func&lt;string, string?, ValueTask&gt;</code> wrapping
+        <code>ctx.Emitter.EmitAsync(…)</code>; the tool handler invokes it.</td>
+    <td>Workable, but threads a voice-only concern through <code>AdaRequest</code> for every surface.</td>
+  </tr>
+</table>
+<div class="callout warn">
+  <b>The ack string carries the contract.</b> Whatever the tool returns to the model must say:
+  <em>"Delegated (task X). The result will arrive shortly as a system note. Acknowledge to the user
+  that you're working on it — do NOT invent the answer."</em> Voxa's experience is that models follow
+  tool results far more reliably than instruction addenda. The talker's system prompt should also gain
+  one line describing when to delegate (anything needing tools or more than a beat of thought).
+</div>
+
+<h3>3.3 Consuming results — the trigger check</h3>
+<p>
+<code>AdaEngineTurnDriver.RunTurnAsync</code> gains a branch: on
+<code>ctx.Trigger == TurnTrigger.BackgroundResult</code>, feed
+<code>ctx.BackgroundResult.ResultText</code> — framed by the relevance-gate instruction — into the
+engine instead of <code>ctx.UserText</code> (which is empty on these turns). Ada already references
+<code>Voxa.Services.MicrosoftAgents</code>, so
+<code>MicrosoftAgentVoice.CreateBackgroundResultMessage(result).Text</code> supplies the exact
+upstream wording, including the license to answer with <em>nothing</em> when the conversation has
+moved on. An empty engine response is a valid outcome — the loop treats it as a silent turn.
+</p>
+<div class="callout danger">
+  <b>Guard the thread factory.</b> <code>ThreadIdForVoiceTurn</code> currently creates a thread titled
+  from <code>ctx.UserText</code> on the first turn. A background-result turn has empty user text — it
+  must not create a thread titled "Voice chat" out of nothing. Check the trigger before creating.
+</div>
+
+<h3>3.4 Approval gates</h3>
+<p>
+Voxa throws on <code>ctx.FrontendTools</code> in background turns by design: nobody is looking at an
+approval dialog for work they delegated and moved past. The thinker's tool policy must therefore be
+<strong>auto-approve only</strong> — the pre-approved allowlist, no gated tools. A gated tool reached
+from a background turn should fail fast into the task's <code>IsError</code> result, which the talker
+can voice ("that needs your approval — want to do it on screen?").
+</p>
+
+<h2><span class="no">4.</span> Path A — surgical additions to the hand-built chain</h2>
+<p>Everything in §3, plus two mechanical insertions in <code>MapAdaVoice</code>:</p>
+<pre><code>// after the AgentLoopProcessor stage, before TurnEndSentenceAggregator:
+.UseProcessor(() => new BackgroundAgentProcessor(
+    new AdaBackgroundTurnDriver(engine, vlog),
+    maxConcurrentTasks: 2,
+    taskTimeout: TimeSpan.FromSeconds(120)))</code></pre>
+<pre><code>// and on the existing AgentLoopProcessor construction:
+new AgentLoopProcessor(
+    new AdaEngineTurnDriver(engine, ThreadIdForVoiceTurn, vlog),
+    ...,
+    backgroundResults: new BackgroundResultOptions())   // defaults: hold-while-speaking, 4 pending, 2 s timeout</code></pre>
+<p>
+Config knobs are constructor arguments on this path — the <code>Voxa:BackgroundAgent:*</code> section
+is a composer feature and does not apply.
+</p>
+
+<h2><span class="no">5.</span> Path B — take the VDX-007 migration first <span class="tag verified">recommended</span></h2>
+<p>
+The hand-built chain exists for reasons Voxa has since absorbed: <code>BlankTranscriptionFilter</code>
+is retired by <code>TranscriptionFilter.DropBracketedMarkers</code> (on by default), the 900 ms stop
+duration is <code>Voxa:Vad:StopDurationMs</code>, and VDX-007's entire purpose was Ada keeping
+<code>UseDefaults()</code> while owning the agent:
+</p>
+<pre><code>builder.Services.AddScoped&lt;IAgentTurnDriver&gt;(sp => new AdaEngineTurnDriver(…));   // VDX-007
+builder.Services.AddVoxaBackgroundAgent(sp => new AdaBackgroundTurnDriver(…));      // VDX-008
+app.MapVoxaVoice("/voice").UseDefaults();
+// appsettings: Voxa:Vad:StopDurationMs=900, Voxa:BackgroundAgent:TaskTimeoutSeconds=120, …</code></pre>
+<p>
+§4's insertions vanish; the driver-side work of §3 remains (it is needed on either path). Ada sheds
+<code>InputRateTagProcessor</code>, <code>BlankTranscriptionFilter</code>, the manual VAD/tuning
+plumbing, and most of <code>MapAdaVoice</code> — and picks up composer features (diagnostics taps,
+future stages) for free. The remaining open question for B is whether
+<code>TurnEndSentenceAggregator</code>'s flush-on-turn-end behavior is still needed under the current
+composer, or whether upstream <code>SentenceAggregator</code> now suffices — verify during the spike;
+if still needed, it is one <code>IVoiceAgentConfigurator</code>-style follow-up to Voxa rather than a
+reason to keep the whole manual chain.
+</p>
+
+<h2><span class="no">6.</span> Prerequisites</h2>
+<table>
+  <tr><th>Item</th><th>State</th></tr>
+  <tr><td>Voxa release containing VDX-008 (frames, <code>BackgroundAgentProcessor</code>,
+      <code>BackgroundResultOptions</code>, <code>TurnTrigger</code>, <code>AddVoxaBackgroundAgent</code>)</td>
+      <td><span class="tag gate">v0.7.0-alpha</span> — tag pushed 2026-07-10; bump Ada's Voxa package pins once NuGet shows it.</td></tr>
+  <tr><td>Upstream docs</td><td><code>voxa/docs/background-agent.md</code> + spec
+      <code>vdx-008-background-agent-spec.html</code> (v1.2, Implemented) — the "Hand-rolled hosts" section is Ada's contract.</td></tr>
+  <tr><td>Thinker tool policy (auto-approve allowlist)</td><td>Exists conceptually in Ada's approval
+      model; needs an explicit "background" policy surface.</td></tr>
+</table>
+
+<h2><span class="no">7.</span> Acceptance checks</h2>
+<ul class="check">
+  <li><span class="tid">M10-T1</span>Ask a question needing a slow tool; the talker acknowledges within
+      the normal turn budget while the tool runs.
+      <span class="ac">No dead air &gt; 2 s between transcript-final and first talker audio.</span></li>
+  <li><span class="tid">M10-T2</span>The thinker's result is spoken as a follow-up turn, and lands in
+      the voice thread's history as Ada's message.
+      <span class="ac">Thread shows: user ask → ack → result reply. No empty user messages.</span></li>
+  <li><span class="tid">M10-T3</span>Interrupt the talker mid-ack; the delegated task still completes
+      and its result still arrives.
+      <span class="ac">Barge-in never cancels background work (VDX-008 semantics).</span></li>
+  <li><span class="tid">M10-T4</span>Result arriving while the user is mid-sentence is held and spoken
+      only after their utterance's turn.
+      <span class="ac">Voxa's deferred-to-stop release; no talking over the user.</span></li>
+  <li><span class="tid">M10-T5</span>Ask, then change the subject before the result lands; the talker
+      may stay silent, and the conversation shows no orphan reply.
+      <span class="ac">Relevance gate honored; silent turns leave no thread trace.</span></li>
+  <li><span class="tid">M10-T6</span>A thinker task that hits a gated tool fails fast into an
+      <code>IsError</code> result the talker voices gracefully.
+      <span class="ac">No hung task waiting on an approval dialog nobody sees.</span></li>
+  <li><span class="tid">M10-T7</span>Text/CLI surfaces are byte-identical — the Delegate chunk kind is
+      ignored outside voice, and nothing changes when no thinker is registered.
+      <span class="ac">Ada.Core remains Voxa-free; existing surface tests untouched.</span></li>
+</ul>
+
+<h2><span class="no">8.</span> Effort</h2>
+<p>
+Path A: roughly a day — the chunk-kind plumbing and thread-guard are the substance; the two chain
+insertions are minutes. Path B: the same §3 work plus the deferred M6.1 cleanup — a larger diff, a
+smaller Ada. Recommendation stands: <strong>B</strong>, spiked behind the existing voice feature flag,
+with the <code>TurnEndSentenceAggregator</code> question answered early.
+</p>
+
+</div>
+</body>
+</html>
