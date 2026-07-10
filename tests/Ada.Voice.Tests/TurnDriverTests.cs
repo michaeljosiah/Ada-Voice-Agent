@@ -108,6 +108,7 @@ public class TurnDriverTests
 
         Assert.True(engine.LastRequest!.ChatOnly);                       // never re-enters tool mode
         Assert.False(engine.LastRequest.AllowDelegation);                // and never re-delegates
+        Assert.False(engine.LastRequest.PersistUserMessage);             // synthetic note must not hit the thread (Codex #2)
         Assert.Contains("UA12 lands 18:02 local", engine.LastRequest.Message);
         Assert.Contains("respond with NOTHING", engine.LastRequest.Message); // Voxa's relevance gate wording
         Assert.Equal("thread-9", engine.LastRequest.ThreadId);           // same conversation, if one exists
@@ -116,19 +117,42 @@ public class TurnDriverTests
     }
 
     [Fact]
-    public async Task The_Thinker_Driver_Emits_Status_Then_Raw_Text()
+    public async Task A_Delegate_Chunk_Carries_The_Conversation_Context()
+    {
+        // Codex #1: the delegation forwards recent context so the thinker can resolve references.
+        var engine = new ScriptedEngine(
+            new AdaResponseChunk(string.Empty, Kind: AdaResponseChunkKind.Delegate,
+                Goal: "find that file", ContextSummary: "User: show me the invoices repo\nAda: it's at ~/work/invoices"),
+            new AdaResponseChunk("On it.", Route: "local"),
+            new AdaResponseChunk(string.Empty, IsFinal: true));
+        var driver = new AdaEngineTurnDriver(engine, _ => null);
+
+        var frames = await DrainAsync(driver, Ctx("find that file"));
+
+        var request = Assert.Single(frames.OfType<BackgroundTaskRequestFrame>());
+        Assert.Equal("find that file", request.Goal);
+        Assert.Contains("invoices repo", request.ContextJson); // context travels on the frame
+    }
+
+    [Fact]
+    public async Task The_Thinker_Driver_Emits_Status_Then_Raw_Text_And_Prepends_Context()
     {
         var engine = new ScriptedEngine(
             new AdaResponseChunk("Found: the answer is 42."),
             new AdaResponseChunk(string.Empty, IsFinal: true));
-        var driver = new AdaBackgroundTurnDriver(engine);
+        var created = 0;
+        var driver = new AdaBackgroundTurnDriver(() => { created++; return engine; }); // factory → per-task isolation
 
-        var frames = await DrainAsync(driver, Ctx("research the thing"));
+        var ctx = Ctx("research the thing");
+        ctx.Metadata[BackgroundAgentProcessor.ContextJsonMetadataKey] = "User: about the Q3 report";
+        var frames = await DrainAsync(driver, ctx);
 
-        Assert.IsType<StatusFrame>(frames[0]); // progress line for the UI
+        Assert.Equal(1, created);                                // a fresh engine was resolved for the task (Codex #4)
+        Assert.IsType<StatusFrame>(frames[0]);                   // progress line for the UI
         var text = Assert.Single(frames.OfType<LlmTextChunkFrame>());
-        Assert.Equal("Found: the answer is 42.", text.Text); // no sanitizer — this is read, not spoken
-        Assert.Equal("research the thing", engine.LastRequest!.Message);
-        Assert.Null(engine.LastRequest.ThreadId); // the thinker never writes conversation threads
+        Assert.Equal("Found: the answer is 42.", text.Text);     // no sanitizer — this is read, not spoken
+        Assert.Contains("about the Q3 report", engine.LastRequest!.Message); // context prepended (Codex #1)
+        Assert.Contains("research the thing", engine.LastRequest.Message);
+        Assert.Null(engine.LastRequest.ThreadId);                // the thinker never writes conversation threads
     }
 }

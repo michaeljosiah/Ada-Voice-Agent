@@ -30,7 +30,10 @@ internal sealed class AdaEngineTurnDriver(
             ? new AdaRequest(
                 MicrosoftAgentVoice.CreateBackgroundResultMessage(result).Text ?? string.Empty,
                 threadIdForTurn(ctx),
-                ChatOnly: true)
+                ChatOnly: true,
+                // The synthetic "[System note…]" prompt must not land in the durable thread (Codex #2);
+                // only a spoken reply (if the relevance gate produced one) is recorded.
+                PersistUserMessage: false)
             : new AdaRequest(ctx.UserText, threadIdForTurn(ctx), AllowDelegation: true);
 
         await foreach (var chunk in engine.RespondAsync(request, ct).ConfigureAwait(false))

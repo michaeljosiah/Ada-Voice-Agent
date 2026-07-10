@@ -81,8 +81,8 @@ ul.check .ac{display:block;color:var(--muted);font-size:.86em;margin-top:4px}
   </p>
   <div class="meta">
     <span>Document <b>M10 v1.0</b></span>
-    <span>Status <b>Implemented — Path B (v1.1)</b></span>
-    <span>Depends on <b>Voxa ≥ v0.7.1-alpha</b></span>
+    <span>Status <b>Implemented — Path B (v1.2, reviewed)</b></span>
+    <span>Depends on <b>Voxa ≥ v0.7.2-alpha</b></span>
     <span>Upstream spec <b>VDX-008 v1.2 (Implemented)</b></span>
     <span>Upstream guide <b>voxa/docs/background-agent.md</b></span>
   </div>
@@ -105,6 +105,24 @@ ul.check .ac{display:block;color:var(--muted);font-size:.86em;margin-top:4px}
   (<code>AdaCoreServiceCollectionExtensions.ThinkerEngineKey</code>) on the escalation client with its
   own in-process history, and gated tools fail fast inside <code>ToolContext.EnterBackgroundScope()</code>
   (AsyncLocal) rather than a policy object.
+</div>
+
+<div class="callout">
+  <b>Review fixes (v1.2 — five findings from the PR review, all addressed).</b>
+  (1) <em>Thinker isolation:</em> the background engine is now keyed <strong>transient</strong> and the
+  driver resolves a fresh one per task — the earlier keyed singleton shared one mutable in-process
+  history across concurrent tasks and sessions (a race, and a "private by default" leak). (2) <em>No
+  synthetic-note persistence:</em> <code>AdaRequest.PersistUserMessage=false</code> on a background-result
+  delivery keeps the internal "[System note…]" prompt out of the durable thread; a result the relevance
+  gate drops to silence leaves no trace. (3) <em>Delegation context:</em> the engine attaches a compact
+  render of recent turns as <code>ContextSummary</code>, and the thinker driver prepends it, so "search
+  for <em>that</em> file" resolves. (4) <em>Startup stall:</em> fixed upstream in Voxa v0.7.2 —
+  <code>VoxaDefaultsGuard</code> now treats a registered <code>IAgentTurnDriver</code> as satisfying the
+  agent requirement, so it no longer eagerly builds Ada's unused default agent (which blocked on the
+  sandbox warm-up) at startup. (5) <em>Dropped reply tail:</em> also fixed in Voxa v0.7.2 —
+  <code>SentenceAggregator</code> now flushes the trailing fragment on turn end, so a reply whose last
+  sentence lacked punctuation is no longer cleared by the next utterance. Ada inherits (4) and (5) for
+  free by pinning v0.7.2.
 </div>
 
 <h2><span class="no">1.</span> What is this, in plain English?</h2>

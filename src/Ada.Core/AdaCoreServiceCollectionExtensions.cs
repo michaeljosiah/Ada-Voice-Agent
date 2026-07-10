@@ -50,11 +50,14 @@ public static class AdaCoreServiceCollectionExtensions
         services.TryAddSingleton<IConversationStore>(_ => new FileConversationStore()); // durable per-thread history
 
         services.AddSingleton<IAdaEngine>(sp => BuildEngine(sp, options));
-        // M10: the background "thinker" — a second engine on the heavyweight route with the full
-        // tool harness and its OWN in-process history (never the talker's, never a stored thread),
-        // so delegated research can't pollute the conversation. Lazy: costs nothing until the first
-        // delegation resolves it.
-        services.AddKeyedSingleton<IAdaEngine>(ThinkerEngineKey, (sp, _) => BuildThinkerEngine(sp, options));
+        // M10: the background "thinker" — an engine on the heavyweight route with the full tool
+        // harness and its OWN in-process history (never the talker's, never a stored thread), so
+        // delegated research can't pollute the conversation. TRANSIENT (Codex #4): the background
+        // processor runs tasks concurrently, so each delegated task gets a FRESH engine — one shared
+        // instance would race on its mutable history and bleed research context across tasks and
+        // sessions. The driver resolves one per task via a factory; construction is cheap (services
+        // already resolved) so per-task cost is negligible.
+        services.AddKeyedTransient<IAdaEngine>(ThinkerEngineKey, (sp, _) => BuildThinkerEngine(sp, options));
         services.TryAddSingleton<AIAgent>(AdaAgentFactory.Create); // the agent the voice plane drives
         return services;
     }

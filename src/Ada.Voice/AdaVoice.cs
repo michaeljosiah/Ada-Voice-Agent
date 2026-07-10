@@ -94,9 +94,11 @@ public static class AdaVoice
         });
 
         // VDX-008: the M10 thinker. Registering it is the whole opt-in — the composer inserts the
-        // background stage and the loop's arbitration; AdaEngineTurnDriver emits the requests.
+        // background stage and the loop's arbitration; AdaEngineTurnDriver emits the requests. The
+        // driver gets a FACTORY so each concurrent background task resolves a fresh (transient)
+        // thinker engine with its own history (Codex #4).
         builder.Services.AddVoxaBackgroundAgent(sp => new AdaBackgroundTurnDriver(
-            sp.GetRequiredKeyedService<IAdaEngine>(AdaCoreServiceCollectionExtensions.ThinkerEngineKey),
+            () => sp.GetRequiredKeyedService<IAdaEngine>(AdaCoreServiceCollectionExtensions.ThinkerEngineKey),
             sp.GetService<ILoggerFactory>()?.CreateLogger("Ada.Voice.Thinker")));
     }
 

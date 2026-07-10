@@ -66,6 +66,17 @@ public class TalkerThinkerTests
     }
 
     [Fact]
+    public async Task PersistUserMessage_False_Records_Only_The_Assistant_Reply()
+    {
+        // Codex #2: a background-result delivery must not persist its synthetic "[System note…]"
+        // prompt — only the spoken reply. (Unthreaded path: assert the in-process history shape.)
+        var engine = EngineWithTools();
+        await DrainAsync(engine, new AdaRequest("[System note] result: 42", ChatOnly: true, PersistUserMessage: false));
+
+        Assert.Equal(1, engine.HistoryMessageCount); // assistant reply only — no synthetic user turn
+    }
+
+    [Fact]
     public async Task A_Plain_Chat_Turn_With_AllowDelegation_Answers_Normally()
     {
         var engine = EngineWithTools();

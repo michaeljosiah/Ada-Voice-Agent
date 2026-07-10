@@ -5,8 +5,13 @@ namespace Ada.Core;
 /// <paramref name="AllowDelegation"/> (M10): a turn that would enter the slow tool path may instead be
 /// handed to the background thinker — set by the voice plane, never by text surfaces, so their inline
 /// tool flow is untouched. <paramref name="ChatOnly"/> (M10): force the fast chat agent regardless of
-/// tool heuristics — used when delivering a background result, which must never re-enter tool mode.</summary>
-public sealed record AdaRequest(string Message, string? ThreadId = null, bool AllowDelegation = false, bool ChatOnly = false);
+/// tool heuristics — used when delivering a background result, which must never re-enter tool mode.
+/// <paramref name="PersistUserMessage"/> (M10): whether to record <see cref="Message"/> as a user turn.
+/// False for a background-result delivery — its message is a synthetic "[System note…]" prompt that must
+/// not land in the durable thread and contaminate future context; only the spoken reply is recorded.</summary>
+public sealed record AdaRequest(
+    string Message, string? ThreadId = null, bool AllowDelegation = false,
+    bool ChatOnly = false, bool PersistUserMessage = true);
 
 /// <summary>What a streamed chunk is (M10). <see cref="Answer"/> is spoken/rendered reply text;
 /// <see cref="Delegate"/> hands the turn's goal to the background thinker — voice translates it into
