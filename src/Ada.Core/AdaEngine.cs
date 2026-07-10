@@ -13,23 +13,40 @@ public sealed record AdaRequest(
     string Message, string? ThreadId = null, bool AllowDelegation = false,
     bool ChatOnly = false, bool PersistUserMessage = true);
 
-/// <summary>What a streamed chunk is (M10). <see cref="Answer"/> is spoken/rendered reply text;
-/// <see cref="Delegate"/> hands the turn's goal to the background thinker — voice translates it into
-/// a Voxa frame, text surfaces ignore it (they never set <c>AllowDelegation</c>, so they never see one).</summary>
-public enum AdaResponseChunkKind { Answer, Delegate }
+/// <summary>
+/// What a streamed chunk carries. <see cref="Answer"/> is user-visible reply text — the only kind voice
+/// speaks or the engine persists as the assistant answer. <see cref="Thinking"/> / <see cref="Tool"/> /
+/// <see cref="Status"/> are process metadata for UI state (never spoken or persisted).
+/// <see cref="Delegation"/> is a UI status badge for a sub-agent/skill hand-off inside the tool loop.
+/// <see cref="Delegate"/> (M10) is a different thing — the talker→thinker background hand-off: voice
+/// translates it into a Voxa <c>BackgroundTaskRequestFrame</c>, and text surfaces ignore it (they never
+/// set <c>AllowDelegation</c>, so they never see one).
+/// </summary>
+public enum AdaResponseChunkKind
+{
+    Answer,
+    Thinking,
+    Tool,
+    Delegation,
+    Status,
+    Delegate,
+}
 
 /// <summary>
-/// One streamed piece of Ada's reply. <see cref="Route"/> names where the turn was served
-/// (e.g. "local", "echo", "Claude · web") so the UI can show a route badge — a first-class
-/// part of the "private by default" promise: every escalation is visible.
-/// <see cref="Kind"/> (M10) distinguishes reply text from a delegation hand-off, whose
-/// <see cref="Goal"/>/<see cref="ContextSummary"/> carry what the thinker should do.
+/// One streamed piece of Ada's reply. Answer chunks are user-visible text; other kinds are process
+/// metadata for UI state and must not be spoken or persisted as assistant answer text.
+/// <see cref="Route"/> names where the turn was served (e.g. "local", "echo", "Claude · web") so
+/// the UI can show a route badge — a first-class part of the "private by default" promise.
+/// <see cref="Label"/> is a short UI tag for a status chunk; <see cref="Goal"/> /
+/// <see cref="ContextSummary"/> (M10) carry the task and its context for a
+/// <see cref="AdaResponseChunkKind.Delegate"/> hand-off.
 /// </summary>
 public sealed record AdaResponseChunk(
     string Text,
     string Route = "local",
     bool IsFinal = false,
     AdaResponseChunkKind Kind = AdaResponseChunkKind.Answer,
+    string? Label = null,
     string? Goal = null,
     string? ContextSummary = null);
 

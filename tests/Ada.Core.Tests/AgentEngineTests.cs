@@ -14,7 +14,8 @@ public class AgentEngineTests
         var route = string.Empty;
         await foreach (var chunk in engine.RespondAsync(new AdaRequest("remember the milk")))
         {
-            sb.Append(chunk.Text);
+            if (chunk.Kind == AdaResponseChunkKind.Answer)
+                sb.Append(chunk.Text);
             route = chunk.Route;
         }
 

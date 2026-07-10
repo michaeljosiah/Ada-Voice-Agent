@@ -41,7 +41,8 @@ public sealed class JobRunner(JobStore store, IDeliveryService delivery, IAuditL
     {
         var sb = new StringBuilder();
         await foreach (var chunk in engine.RespondAsync(new AdaRequest(prompt), ct))
-            sb.Append(chunk.Text);
+            if (chunk.Kind == AdaResponseChunkKind.Answer)
+                sb.Append(chunk.Text);
         return sb.ToString();
     }
 }

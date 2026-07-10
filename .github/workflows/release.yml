@@ -38,11 +38,7 @@ jobs:
         run: dotnet build Ada.slnx --configuration Release -p:Version=${{ steps.version.outputs.version }}
 
       - name: Test
-        # See ci.yml for why this one pre-existing test is filtered out.
-        run: >-
-          dotnet test Ada.slnx --configuration Release --no-build
-          --filter "FullyQualifiedName!~Default_options_target_gemma4_on_loopback"
-
+        run: dotnet test Ada.slnx --configuration Release --no-build
       # Two deliverables: the tray app (Ada.App) and the CLI (ada). Self-contained win-x64 folders so
       # end users don't need a .NET runtime installed; framework-dependent would be smaller but adds a
       # prerequisite. Not single-file — WinForms + the native speech runtimes are most robust unpacked.

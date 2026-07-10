@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
@@ -30,6 +31,9 @@ public sealed class AgentEngine : IAdaEngine
     /// model stream, or a wedged tool/skill the per-tool cap somehow misses) produces nothing for this long,
     /// the turn ends with an error instead of spinning indefinitely. Generous: a local turn is normally seconds.</summary>
     private static readonly TimeSpan TurnTimeout = TimeSpan.FromSeconds(120);
+
+    private const string FinalAnswerInstructions =
+        "For the user-visible answer, write plain prose only. Do not include hidden reasoning, tool arguments, raw JSON, Markdown fences, backticks, or decorative symbols unless the user explicitly asks for them.";
 
     public AgentEngine(
         IChatClient chatClient,
@@ -93,6 +97,7 @@ public sealed class AgentEngine : IAdaEngine
         turn.AddRange(threaded
             ? await _compaction.CompactAsync(convo!.Messages.Select(ToChatMessage).ToList(), ct).ConfigureAwait(false)
             : _history);
+        turn.Add(new ChatMessage(ChatRole.System, FinalAnswerInstructions));
         turn.Add(new ChatMessage(ChatRole.User, request.Message));
 
         var assistant = new StringBuilder();
@@ -123,6 +128,14 @@ public sealed class AgentEngine : IAdaEngine
 
         var agent = useTools ? _toolAgent : _chatAgent;
         _log?.LogInformation("[engine] selected {Mode} mode; toolsAvailable={Tools}", useTools ? "tools" : "chat", _toolCount);
+        var statusState = new StreamStatusState();
+        var initialStatus = new AdaResponseChunk(
+            useTools ? "Preparing tools" : "Thinking",
+            CurrentRoute,
+            Kind: useTools ? AdaResponseChunkKind.Tool : AdaResponseChunkKind.Thinking,
+            Label: useTools ? "Tools" : "Thinking");
+        statusState.LastKey = StatusKey(initialStatus.Kind, initialStatus.Text);
+        yield return initialStatus;
 
         // Stream with a turn-level backstop: link a timer to the caller's token and enumerate manually, so a
         // stall anywhere in the agent (model stream, a wedged tool or skill) ends the turn with a message
@@ -163,6 +176,9 @@ public sealed class AgentEngine : IAdaEngine
                 if (_log?.IsEnabled(LogLevel.Debug) == true)
                     _log.LogDebug("[engine] stream update: role={Role} finish={Finish} contents={Count} text='{Text}'",
                         update.Role, update.FinishReason, update.Contents.Count, update.Text);
+                var status = TryBuildStatusChunk(update, statusState, CurrentRoute);
+                if (status is not null)
+                    yield return status;
                 if (!string.IsNullOrEmpty(update.Text))
                 {
                     assistant.Append(update.Text);
@@ -236,6 +252,82 @@ public sealed class AgentEngine : IAdaEngine
     }
 
     private string CurrentRoute => (_chatClient as IRouteAware)?.CurrentRoute ?? _route;
+
+    private sealed class StreamStatusState
+    {
+        public string? LastKey { get; set; }
+    }
+
+    private static AdaResponseChunk? TryBuildStatusChunk(AgentResponseUpdate update, StreamStatusState state, string route)
+    {
+        foreach (var content in update.Contents)
+        {
+            var candidate = content switch
+            {
+                TextReasoningContent => (Kind: AdaResponseChunkKind.Thinking, Text: "Thinking", Label: "Thinking"),
+                FunctionCallContent call => ToolCallStatus(call),
+                ToolCallContent => (Kind: AdaResponseChunkKind.Tool, Text: "Calling tool", Label: "Tool"),
+                ToolResultContent => (Kind: AdaResponseChunkKind.Tool, Text: "Reading tool result", Label: "Tool"),
+                ToolApprovalRequestContent => (Kind: AdaResponseChunkKind.Status, Text: "Waiting for approval", Label: "Approval"),
+                _ => (Kind: AdaResponseChunkKind.Answer, Text: string.Empty, Label: string.Empty),
+            };
+
+            if (candidate.Kind == AdaResponseChunkKind.Answer) continue;
+            var key = StatusKey(candidate.Kind, candidate.Text);
+            if (key == state.LastKey) continue;
+            state.LastKey = key;
+            return new AdaResponseChunk(candidate.Text, route, Kind: candidate.Kind, Label: candidate.Label);
+        }
+
+        return null;
+    }
+
+    private static (AdaResponseChunkKind Kind, string Text, string Label) ToolCallStatus(FunctionCallContent call)
+    {
+        if (string.Equals(call.Name, "load_skill", StringComparison.Ordinal))
+        {
+            var skill = ArgumentText(call, "skillName");
+            return (AdaResponseChunkKind.Delegation,
+                string.IsNullOrWhiteSpace(skill) ? "Loading skill" : $"Loading {skill} skill",
+                "Skill");
+        }
+
+        if (string.Equals(call.Name, "run_skill_script", StringComparison.Ordinal))
+        {
+            var script = ArgumentText(call, "scriptName") ?? ArgumentText(call, "name");
+            return (AdaResponseChunkKind.Tool,
+                string.IsNullOrWhiteSpace(script) ? "Running skill script" : $"Running {script}",
+                "Tool");
+        }
+
+        if (call.Name.Contains("agent", StringComparison.OrdinalIgnoreCase) ||
+            call.Name.Contains("delegate", StringComparison.OrdinalIgnoreCase) ||
+            call.Name.Contains("handoff", StringComparison.OrdinalIgnoreCase))
+            return (AdaResponseChunkKind.Delegation, $"Delegating to {FriendlyName(call.Name)}", "Agent");
+
+        return (AdaResponseChunkKind.Tool, $"Calling {FriendlyName(call.Name)}", "Tool");
+    }
+
+    private static string? ArgumentText(FunctionCallContent call, string name)
+    {
+        if (call.Arguments is null || !call.Arguments.TryGetValue(name, out var value) || value is null)
+            return null;
+
+        return value switch
+        {
+            string s => s,
+            JsonElement { ValueKind: JsonValueKind.String } e => e.GetString(),
+            JsonElement { ValueKind: JsonValueKind.Number } e => e.GetRawText(),
+            JsonElement { ValueKind: JsonValueKind.True } => "true",
+            JsonElement { ValueKind: JsonValueKind.False } => "false",
+            _ => value.ToString(),
+        };
+    }
+
+    private static string FriendlyName(string name)
+        => string.IsNullOrWhiteSpace(name) ? "tool" : name.Replace('_', ' ').Replace('-', ' ');
+
+    private static string StatusKey(AdaResponseChunkKind kind, string text) => kind + ":" + text;
 
     private static bool TryHandleWorkspaceFastPath(string message, out string reply)
     {

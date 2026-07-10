@@ -39,6 +39,9 @@ internal sealed class AdaEngineTurnDriver(
         await foreach (var chunk in engine.RespondAsync(request, ct).ConfigureAwait(false))
         {
             if (chunk.IsFinal) continue;
+            // M10's switch subsumes the WIP's Answer-only filter (both sanitize non-Answer-dropped
+            // text) and adds the Delegate hand-off. Status/Thinking/Tool chunks are dropped here —
+            // they're UI metadata, never spoken.
             switch (chunk.Kind)
             {
                 case AdaResponseChunkKind.Delegate when chunk.Goal is { Length: > 0 } goal:

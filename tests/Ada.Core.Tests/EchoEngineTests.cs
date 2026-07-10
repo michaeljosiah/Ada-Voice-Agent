@@ -13,7 +13,8 @@ public class EchoEngineTests
         string? route = null;
         await foreach (var chunk in engine.RespondAsync(new AdaRequest("hello world")))
         {
-            text.Append(chunk.Text);
+            if (chunk.Kind == AdaResponseChunkKind.Answer)
+                text.Append(chunk.Text);
             route = chunk.Route;
         }
 
