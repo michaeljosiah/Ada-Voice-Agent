@@ -82,7 +82,7 @@ ul.check .ac{display:block;color:var(--muted);font-size:.86em;margin-top:4px}
   <div class="meta">
     <span>Document <b>M10 v1.0</b></span>
     <span>Status <b>Draft</b></span>
-    <span>Depends on <b>Voxa ≥ v0.7.0-alpha</b></span>
+    <span>Depends on <b>Voxa ≥ v0.7.1-alpha</b></span>
     <span>Upstream spec <b>VDX-008 v1.2 (Implemented)</b></span>
     <span>Upstream guide <b>voxa/docs/background-agent.md</b></span>
   </div>
@@ -254,7 +254,10 @@ reason to keep the whole manual chain.
   <tr><th>Item</th><th>State</th></tr>
   <tr><td>Voxa release containing VDX-008 (frames, <code>BackgroundAgentProcessor</code>,
       <code>BackgroundResultOptions</code>, <code>TurnTrigger</code>, <code>AddVoxaBackgroundAgent</code>)</td>
-      <td><span class="tag gate">v0.7.0-alpha</span> — tag pushed 2026-07-10; bump Ada's Voxa package pins once NuGet shows it.</td></tr>
+      <td><span class="tag gate">v0.7.1-alpha</span> — tag pushed 2026-07-10; bump Ada's Voxa package pins once NuGet
+      shows it. Pin 0.7.<strong>1</strong>, not 0.7.0: the patch release also makes barge-in actually interrupt
+      (VRT-002 WS2's deferred half — <code>AgentLoopProcessor</code> cancels the in-flight turn on user speech and the
+      aggregator/TTS drop the stale tail), which Ada's driver inherits with no code changes.</td></tr>
   <tr><td>Upstream docs</td><td><code>voxa/docs/background-agent.md</code> + spec
       <code>vdx-008-background-agent-spec.html</code> (v1.2, Implemented) — the "Hand-rolled hosts" section is Ada's contract.</td></tr>
   <tr><td>Thinker tool policy (auto-approve allowlist)</td><td>Exists conceptually in Ada's approval
