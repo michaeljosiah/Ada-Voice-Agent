@@ -150,6 +150,14 @@ public sealed class AgentEngine : IAdaEngine
             : null;
         var input = useTools ? ForceSkillChoice(turn, request.Message) : turn;
         var stream = agent.RunStreamingAsync(input, options: runOptions, cancellationToken: turnCts.Token).ConfigureAwait(false).GetAsyncEnumerator();
+        // Voice barge-in cancels the caller's token, which either throws out of MoveNextAsync or
+        // disposes this iterator parked at a yield — both skip everything after the loop, so the
+        // epilogue's PersistTurn never ran and the interrupted exchange vanished from history: the
+        // next turn's context didn't know the user asked, or that Ada half-answered. The finally
+        // persists the user message plus the truncated partial instead. (The partial is what was
+        // GENERATED, which can outrun what was spoken — TTS lags the stream — so it's marked, an
+        // honest approximation until spoken-prefix tracking exists.)
+        var completed = false;
         try
         {
             while (true)
@@ -185,8 +193,19 @@ public sealed class AgentEngine : IAdaEngine
                     yield return new AdaResponseChunk(update.Text, CurrentRoute);
                 }
             }
+            completed = true;
         }
-        finally { await stream.DisposeAsync(); }
+        finally
+        {
+            await stream.DisposeAsync();
+            // Only the caller-cancelled path (barge-in, session teardown) persists here — a model
+            // error still leaves no trace, as before. Skip when there is nothing to record (no
+            // partial text and a background-result delivery that must not write its user message).
+            if (!completed && ct.IsCancellationRequested && (assistant.Length > 0 || request.PersistUserMessage))
+                PersistTurn(threaded, convo, request.Message,
+                    assistant.Length > 0 ? assistant.ToString() + " …(interrupted)" : string.Empty,
+                    request.PersistUserMessage);
+        }
         yield return new AdaResponseChunk(string.Empty, CurrentRoute, IsFinal: true);
 
         PersistTurn(threaded, convo, request.Message, assistant.ToString(), request.PersistUserMessage);
@@ -194,7 +213,8 @@ public sealed class AgentEngine : IAdaEngine
     }
 
     /// <summary>
-    /// Record the finished turn: to the stored thread (threaded) or the in-process window. When
+    /// Record the turn — finished, or truncated by a barge-in (the interrupted partial arrives
+    /// marked "…(interrupted)") — to the stored thread (threaded) or the in-process window. When
     /// <paramref name="persistUserMessage"/> is false (a background-result delivery, Codex #2), the
     /// synthetic "[System note…]" prompt is NOT written — only the spoken reply is recorded, and only
     /// if there is one (a result the relevance gate dropped to silence leaves no trace at all).
@@ -203,12 +223,14 @@ public sealed class AgentEngine : IAdaEngine
     {
         if (threaded)
         {
+            if (!persistUserMessage && string.IsNullOrWhiteSpace(assistantText))
+                return; // silent background result — nothing to record, don't even re-save
             var ts = DateTimeOffset.UtcNow.ToString("o");
             if (persistUserMessage)
                 convo!.Messages.Add(new ConversationMessage { Role = "user", Text = userText, Ts = ts });
-            if (!persistUserMessage && string.IsNullOrWhiteSpace(assistantText))
-                return; // silent background result — nothing to record, don't even re-save
-            convo!.Messages.Add(new ConversationMessage { Role = "assistant", Text = assistantText, Route = CurrentRoute, Ts = ts });
+            // No empty assistant records — an interrupted-before-any-text turn stores just the user side.
+            if (!string.IsNullOrWhiteSpace(assistantText))
+                convo!.Messages.Add(new ConversationMessage { Role = "assistant", Text = assistantText, Route = CurrentRoute, Ts = ts });
             _conversations!.Save(convo);
         }
         else
